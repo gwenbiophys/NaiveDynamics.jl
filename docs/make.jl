@@ -2,7 +2,7 @@ using Documenter
 using NaiveDynamics
 
 push!(LOAD_PATH,"../src/")
-makedocs(sitename="MyAwesomePackage.jl Documentation",
+makedocs(sitename="NaiveDynamics.jl Documentation",
          pages = [
             "Index" => "index.md",
             "An other page" => "anotherPage.md",
