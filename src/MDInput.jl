@@ -118,8 +118,6 @@ end
 
 # is there a more julian way of doing this?
 function collect_objects(Collector::GenericZeroCollector)
-    positionRange = Uniform(Collector.minsize, Collector.maxsize)
-    velocityRange = Uniform(Collector.minspeed, Collector.maxspeed)
     arrayDimensions = (Collector.objectnumber, Collector.objectnumber, Collector.objectnumber)
     
     myObjectCollection = GenericObjectCollection(
@@ -132,8 +130,6 @@ function collect_objects(Collector::GenericZeroCollector)
 end
 
 function collect_objects(Collector::GenericUserValueCollector, uservalue::Float64)
-    positionRange = Uniform(Collector.minsize, Collector.maxsize)
-    velocityRange = Uniform(Collector.minspeed, Collector.maxspeed)
     arrayDimensions = (Collector.objectnumber, Collector.objectnumber, Collector.objectnumber)
     
     myObjectCollection = GenericObjectCollection(
