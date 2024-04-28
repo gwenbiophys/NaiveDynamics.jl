@@ -15,11 +15,12 @@ export
     ObjectCollection,
     GenericObjectCollection,
     Collector,
-    GenericCollector,
+    GenericRandomCollector,
+    GenericZeroCollector,
+    GenericUserValueCollector,
     collect_objects,
     testCollector,
     myTestCollection
-
 
 abstract type ObjectCollection end
 mutable struct GenericObjectCollection <: ObjectCollection 
@@ -65,8 +66,20 @@ end
 
 
 
+"""
+    Collector
 
+Collector super-type for simulation initialization.
+
+"""
 abstract type Collector end
+"""
+    GenericRandomCollector(objectnumber, minsize, maxsize, minspeed, maxspeed)
+
+An Collector-subtype meant to acquire additional information from the user about how to make their system.
+In the collection function, positions and velocities will be randomly seeded from this Collector's boundary values.
+
+"""
 mutable struct GenericRandomCollector <: Collector
     objectnumber::Integer
     minsize::AbstractFloat
@@ -83,6 +96,12 @@ mutable struct GenericUserValueCollector <: Collector
     uservelocity::AbstractFloat
 end
 
+"""
+    collect_objects(Collector::GenericRandomCollector)
+
+Return a GenericObjectCollection with positions and speeds randomly seeded, as specified by the Collector object
+
+"""
 function collect_objects(Collector::GenericRandomCollector)
     positionRange = Uniform(Collector.minsize, Collector.maxsize)
     velocityRange = Uniform(Collector.minspeed, Collector.maxspeed)
