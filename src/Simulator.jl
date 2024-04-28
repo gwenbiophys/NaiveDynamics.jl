@@ -1,8 +1,7 @@
 #module Simulator
-using Revise
 using UUIDs
 using Distributions
-println("Starting up!")
+#println("Starting up!")
 export 
     System,
     Simulation,
