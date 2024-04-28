@@ -1,3 +1,3 @@
-# NaiveDynamics.jl
+../../README.md
 
 
