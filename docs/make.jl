@@ -10,8 +10,7 @@ makedocs(sitename="NaiveDynamics.jl",
             "API" => "api.md"
          ],
          format = Documenter.HTML(prettyurls=true),
-        modules = [NaiveDynamics],
-        checkdocs = :exports
+
 )
 # Documenter can also automatically deploy documentation to gh-pages.
 # See "Hosting Documentation" and deploydocs() in the Documenter manual
