@@ -8,6 +8,5 @@ using NamedArrays
 
 include("MDInput.jl")
 include("Simulator.jl")
-include("Testing.jl")
 
 end # module NaiveDynamics
