@@ -6,6 +6,6 @@ Order   = [:module, :type, :constant, :function, :macro]
 ```
 
 ```@autodocs
-Modules = [NaiveDynamics]
+Modules = [NaiveDynamics, NaiveDynamics.MDInput, NaiveDynamics.Simulator]
 Order   = [:module, :type, :constant, :function, :macro]
 ```
