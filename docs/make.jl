@@ -16,7 +16,6 @@ makedocs(sitename="NaiveDynamics.jl",
 # See "Hosting Documentation" and deploydocs() in the Documenter manual
 # for more information.
 deploydocs(
-    repo = "github.com/gwenbiophys/NaiveDynamics.jl.git",
-    devbranch = "gh-pages"
+    repo = "github.com/gwenbiophys/NaiveDynamics.jl.git"
 )
 
