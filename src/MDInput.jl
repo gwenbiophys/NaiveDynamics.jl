@@ -102,42 +102,62 @@ end
 Return a GenericObjectCollection with positions and speeds randomly seeded, as specified by the Collector object
 
 """
+
 function collect_objects(Collector::GenericRandomCollector)
     positionRange = Uniform(Collector.minsize, Collector.maxsize)
     velocityRange = Uniform(Collector.minspeed, Collector.maxspeed)
-    arrayDimensions = (Collector.objectnumber, Collector.objectnumber, Collector.objectnumber)
+
+    objectnumber = Collector.objectnumber
+    step_n=1
+    myObjectCollection = DataFrame(
+        current_step=step_n,
+        object_index= collect(Int, 1:objectnumber),
+        position_x=rand(positionRange, length(1:objectnumber)),
+        position_y=rand(positionRange, length(1:objectnumber)),
+        position_z=rand(positionRange, length(1:objectnumber)),
+        velocity_x=rand(velocityRange, length(1:objectnumber)),
+        velocity_y=rand(velocityRange, length(1:objectnumber)),
+        velocity_z=rand(velocityRange, length(1:objectnumber))
+        )
     
-    myObjectCollection = GenericObjectCollection(
-        [],
-        rand(positionRange, arrayDimensions),
-        rand(velocityRange, arrayDimensions),
-        fill(uuid1(), Collector.objectnumber)
-    )
     return myObjectCollection
 end
 
 function collect_objects(Collector::GenericZeroCollector)
     arrayDimensions = (Collector.objectnumber, Collector.objectnumber, Collector.objectnumber)
-    
-    myObjectCollection = GenericObjectCollection(
-        [],
-        zeros(Float64, arrayDimensions),
-        zeros(Float64, arrayDimensions),
-        fill(uuid1(), Collector.objectnumber)
-    )
+
+    objectnumber = Collector.objectnumber
+    step_n=1
+    myObjectCollection = DataFrame(
+        current_step=step_n,
+        object_index= collect(Int, 1:objectnumber),
+        position_x=zeros(Float64, length(1:objectnumber)),
+        position_y=zeros(Float64, length(1:objectnumber)),
+        position_z=zeros(Float64, length(1:objectnumber)),
+        velocity_x=zeros(Float64, length(1:objectnumber)),
+        velocity_y=zeros(Float64, length(1:objectnumber)),
+        velocity_z=zeros(Float64, length(1:objectnumber))
+        )
     return myObjectCollection
 end
 
 function collect_objects(Collector::GenericUserValueCollector )
-    arrayDimensions = (Collector.objectnumber, Collector.objectnumber, Collector.objectnumber)
+    #arrayDimensions = (Collector.objectnumber, Collector.objectnumber, Collector.objectnumber)
     position = Collector.userposition
     velocity = Collector.uservelocity
-    myObjectCollection = GenericObjectCollection(
-        [],
-        fill(position, arrayDimensions),
-        fill(velocity, arrayDimensions),
-        fill(uuid1(), Collector.objectnumber)
-    )
+    objectnumber = Collector.objectnumber
+    step_n=1
+    myObjectCollection = DataFrame(
+        current_step=step_n,
+        object_index= collect(Int, 1:objectnumber),
+        position_x=fill(position, length(1:objectnumber)),
+        position_y=fill(position, length(1:objectnumber)),
+        position_z=fill(position, length(1:objectnumber)),
+        velocity_x=fill(velocity, length(1:objectnumber)),
+        velocity_y=fill(velocity, length(1:objectnumber)),
+        velocity_z=fill(velocity, length(1:objectnumber))
+        )
+
     return myObjectCollection
 end
 
