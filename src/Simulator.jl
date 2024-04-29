@@ -42,17 +42,17 @@ struct GenericSimulation <: Simulation
     do_logging::Bool
 end
 
-function record_simulation(simulation::GenericSimulation)
+function record_simulation(step_n, position, velocity, myLog)
     
     push!(myLog.steparray, step_n)
     push!(myLog.positionrecord, position)
     push!(myLog.velocityrecord, velocity)
-    return println("You are logging!")
+    return #println("You are logging!")
 end
 
 function update_position!(simulation::GenericSimulation)
     position .*= velocity # this is sus. fix
-    return println("You are updating positions!")
+    return #println("You are updating positions!")
 end
 
 function simulate!(simulation::GenericSimulation)
@@ -70,18 +70,12 @@ function simulate!(simulation::GenericSimulation)
         for step_n in steps
             
             position .*= velocity
-            #record_simulation(simulation) # there is a scoping problem here, 
-            #this function is not accepting scope from simulate! in an expected way
-            push!(myLog.steparray, step_n)
-            push!(myLog.positionrecord, position)
-            push!(myLog.velocityrecord, velocity)
-            #rowan says, throw the local variables to the function call, rahter than just being maxspeed
-            # that ir doesnt work
+            record_simulation(step_n, position, velocity, myLog)
         end
     elseif logSimulation == false
         position .*= velocity
     end
-    return println(steps, step_n, step_size, position, velocity)
+    return println(myLog)
 end
 
 

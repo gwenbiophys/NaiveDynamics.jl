@@ -116,7 +116,6 @@ function collect_objects(Collector::GenericRandomCollector)
     return myObjectCollection
 end
 
-# is there a more julian way of doing this?
 function collect_objects(Collector::GenericZeroCollector)
     arrayDimensions = (Collector.objectnumber, Collector.objectnumber, Collector.objectnumber)
     
