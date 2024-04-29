@@ -128,13 +128,14 @@ function collect_objects(Collector::GenericZeroCollector)
     return myObjectCollection
 end
 
-function collect_objects(Collector::GenericUserValueCollector, uservalue::Float64)
+function collect_objects(Collector::GenericUserValueCollector )
     arrayDimensions = (Collector.objectnumber, Collector.objectnumber, Collector.objectnumber)
-    
+    position = Collector.userposition
+    velocity = Collector.uservelocity
     myObjectCollection = GenericObjectCollection(
         [],
-        fill(uservalue, arrayDimensions),
-        fill(uservalue, arrayDimensions),
+        fill(position, arrayDimensions),
+        fill(velocity, arrayDimensions),
         fill(uuid1(), Collector.objectnumber)
     )
     return myObjectCollection
