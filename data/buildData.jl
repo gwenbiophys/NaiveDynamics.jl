@@ -28,9 +28,11 @@ CSV.write("small_rand.csv", smallCollection)
 # 3. ENHANCE
 largeCollector = GenericRandomCollector(100000, -5.0, 5.0, -0.2, 0.2)
 largeCollection = collect_objects(largeCollector)
-largeSystem = GenericSystem(1, 1, 1, largeCollection)
-largeSimulation = GenericSimulation(largeSystem, true)
-@btime simulate!(largeSimulation)
-#println(largeCollection)
+largeSystem = GenericSystem(130, 1, 1, largeCollection)
+largeSimulation = GenericSimulation(largeSystem, false)
+
+@btime simulate!(largeSimulation, largeCollector)
+
+#println(simlog)
 #CSV.write("large_rand.csv", largeCollection)
 # with dataFrames and 100 000 particles, simulation fails due to memory error

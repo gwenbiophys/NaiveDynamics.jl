@@ -35,14 +35,14 @@ In the collection function, positions and velocities will be randomly seeded fro
 
 abstract type ObjectCollection end
 mutable struct GenericObjectCollection <: ObjectCollection 
-    currentstep::Integer
+    currentstep::AbstractArray{Integer,1}
     name::AbstractArray{String, 1}
     #mass::AbstractArray{Number, 1}
     #radius::AbstractArray{AbstractFloat, 1}
     index::AbstractArray{Integer, 1}
-    position::AbstractArray{MVector{AbstractFloat, 3}, 1}
-    velocity::AbstractArray{MVector{AbstractFloat, 3}, 1}
-    force::AbstractArray{MVector{AbstractFloat, 3}, 1}
+    position::AbstractArray{SizedVector{3, AbstractFloat}, 1}
+    velocity::AbstractArray{SizedVector{3, AbstractFloat}, 1}
+    force::AbstractArray{SizedVector{3, AbstractFloat}, 1}
 
     #uniqueID::AbstractArray{UUID,1}
 
@@ -88,16 +88,13 @@ function collect_objects(Collector::GenericRandomCollector)
     step_n=1
 
     simCollection = GenericObjectCollection(
-        step_n,
-        
+        fill(step_n, objectcount),
         fill("duck", objectcount),
-        fill(1:objectcount, 1),
-        [MVector{3, Float64}(rand(positionRange, 3)) for each in 1:objectcount],
-        [MVector{3, Float64}(rand(velocityRange, 3)) for each in 1:objectcount],
-        zeros(Float64, objectcount)
+        [1:objectcount;],
+        [SizedVector{3, Float64}(rand(positionRange, 3)) for each in 1:objectcount],
+        [SizedVector{3, Float64}(rand(velocityRange, 3)) for each in 1:objectcount],
+        [SizedVector{3, Float64}(zeros(Float64, 3)) for each in 1:objectcount],
         )
-
-        
     return simCollection
 end
 
