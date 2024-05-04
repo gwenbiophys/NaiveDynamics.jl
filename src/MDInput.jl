@@ -89,7 +89,8 @@ function collect_objects(Collector::GenericRandomCollector)
 
     simCollection = GenericObjectCollection(
         step_n,
-        Array{String, 1}("duck", objectcount),
+        
+        fill("duck", objectcount),
         fill(1:objectcount, 1),
         [MVector{3, Float64}(rand(positionRange, 3)) for each in 1:objectcount],
         [MVector{3, Float64}(rand(velocityRange, 3)) for each in 1:objectcount],
