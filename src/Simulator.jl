@@ -1,6 +1,5 @@
 #module Simulator
-using UUIDs
-using Distributions
+
 #println("Starting up!")
 export 
     System,
@@ -25,10 +24,23 @@ end
 
 
 abstract type Logger end
-mutable struct GenericLogger <: Logger 
+mutable struct GenericLogge <: Logger 
     steparray::AbstractArray{Integer, 1}
     positionrecord::AbstractArray{AbstractArray{AbstractFloat,3}, 1}
     velocityrecord::AbstractArray{AbstractArray{AbstractFloat,3}, 1}
+end
+mutable struct GenericLogger <: Logger 
+    currentstep::AbstractArray{Integer, 1}
+    name::AbstractArray{AbstractArray{String, 1}, 1}
+    #mass::AbstractArray{AbstractArray{Number, 1}, 1}
+    #radius::AbstractArray{AbstractFloat, 1}
+    index::AbstractArray{AbstractArray{Integer, 1}, 1}
+    position::AbstractArray{AbstractArray{MVector{AbstractFloat, 3}, 1}, 1}
+    velocity::AbstractArray{AbstractArray{MVector{AbstractFloat, 3}, 1}, 1}
+    force::AbstractArray{bstractArray{MVector{AbstractFloat, 3}, 1}, 1}
+
+    #uniqueID::AbstractArray{UUID,1}
+
 end
 
 struct GenericSystem <: System
@@ -50,28 +62,28 @@ end
   #  return #println("You are logging!")
 #end
 
-function record_simulation(step_n, position, velocity, simCollection, loopCollection, objectnumber)
-    #push!(myLog,(current_step, object_index, position[1], position[2], position[3], velocity[1], velocity[2], velocity[3]))
-    #c_x = position[;;; 1]
-    #println(c_x)
+function record_simulation(simCollection, simlog)
+    currentstep::Integer
+    name::AbstractArray{String, 1}
+    #mass::AbstractArray{Number, 1}
+    #radius::AbstractArray{AbstractFloat, 1}
+    index::AbstractArray{Integer, 1}
+    position::AbstractArray{MVector{AbstractFloat, 3}, 1}
+    velocity::AbstractArray{MVector{AbstractFloat, 3}, 1}
+    force::AbstractArray{MVector{AbstractFloat, 3}, 1}
+
     
-    #myObjectCollection = DataFrame(
-    #    current_step=step_n,
-    #    object_index=collect(Int, 1:objectnumber),
-    #    position_x=fill(position, length(1:objectnumber)),
-    #    position_y=fill(position, length(1:objectnumber)),
-    #    position_z=fill(position, length(1:objectnumber)),
-    #    velocity_x=fill(velocity, length(1:objectnumber)),
-    #    velocity_y=fill(velocity, length(1:objectnumber)),
-    #    velocity_z=fill(velocity, length(1:objectnumber))
-    #    )
-    #println("Here is simCollection before cat: ", simCollection)
-    #simCollection = vcat(simCollection, loopCollection)
-    append!(simCollection, loopCollection)
-    #println("Here is simCollection after cat: ", simCollection)
-    #after cat, simcollection is right but it completely breaks when we return the value to the outerfunctions.
-    #it is overridden by the previous local variable.
-    #return simCollection === vcat(simCollection, loopCollection)
+    #push!(simCollection, simlog)
+    #this is ultimately how the function should work, just a clean shove
+    #but GenericObjectCollection may have to become a single array and not a mutable datatype
+    #and then we can just push the entire array to the log
+    push!(simCollection.currentstep, simlog.currentstep)
+    push!(simCollection.name, simlog.name)
+    push!(simCollection.index, simlog.index)
+    push!(simCollection.position, simlog.position)
+    push!(simCollection.velocity, simlog.velocity)
+    push!(simCollection.force, simlog.force)
+
     return simCollection
 end
 
@@ -80,47 +92,58 @@ function update_position!(simulation::GenericSimulation)
     position .*= velocity # this is sus. fix
     return
 end
+function posVel_multiply!(position, velocity)
+    for i in eachindex(position)
+        position[i] .*= velocity[i]
+    end
+    return position
+end
 
 function simulate!(simulation::GenericSimulation)
     steps = simulation.system.duration
-    step_n = simulation.system.currentstep
+    
     step_size = simulation.system.stepwidth
 
 
     logSimulation = simulation.do_logging
     simCollection = simulation.system.objectcollection
-    #println("simCollection is a ", typeof(simCollection))
-
 
     objectnumber = valuesCollector.objectnumber
-    position = cat(simCollection.position_x, simCollection.position_y, simCollection.position_z; dims=3)
-    velocity = cat(simCollection.velocity_x, simCollection.velocity_y, simCollection.velocity_z; dims=3)
-    loopCollection = copy(simCollection)
-    if logSimulation == true
-        #myLog = simulation.system.objectcollection
-        #println(myLog)
-        for step_n in 1:steps
-            # TODO figure out how unwrap a 3D vector and place back into a dataframe to get rid of this piecewise mess
 
-            loopCollection.position_x .*= loopCollection.velocity_x
-            loopCollection.position_y .*= loopCollection.velocity_y
-            loopCollection.position_z .*= loopCollection.velocity_z
-            #println("Here is the Loop collection after math: ", loopCollection)
-            #position .*= velocity
-            record_simulation(step_n, position, velocity, simCollection, loopCollection, objectnumber)
+    currentstep = simulation.system.currentstep 
+    objectname = simcollection.name
+    objectindex = simcollection.index
+    #mass = simcollection.mass
+    #radius = simCollection.radius
+    position = simcollection.position
+    velocity = simcollection.velocity
+    force = simcollection.force
+
+    if logSimulation == true
+        simlog = GenericLogger(
+            [currentstep],
+            [objectname],
+            [objectindex],
+            [position],
+            [velocity],
+            [force]
+        )
+        for step_n in 1:steps
+
+            posVel_multiply!(position, velocity)
+            record_simulation(simCollection, simlog)
+            currentstep = step_n
         end
-        return simCollection
+        return simlog
     elseif logSimulation == false
         for step_n in 1:steps
-            position .*= velocity
+            posVel_multiply!(position, velocity)
+
         end
         return position, velocity
     end
 end
 
-
-
-a = [[], [], []]
 
     
 #end # module

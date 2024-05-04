@@ -30,5 +30,5 @@ largeSimulation = GenericSimulation(largeSystem, true)
 @btime simulate!(largeSimulation)
 #println(largeCollection)
 #CSV.write("large_rand.csv", largeCollection)
-
+# with dataFrames and 100 000 particles, simulation fails due to memory error
 end

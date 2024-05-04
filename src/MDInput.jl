@@ -5,9 +5,7 @@
 
 # 1. Generic input-generation, last updated 4/08/2024
 
-using UUIDs
-using Distributions
-using DataFrames
+
 
 
 export 
@@ -22,47 +20,34 @@ export
     testCollector,
     myTestCollection
 
+
+
+abstract type Collector end
+"""
+    GenericRandomCollector(objectnumber, minsize, maxsize, minspeed, maxspeed)
+    
+An Collector-subtype meant to acquire additional information from the user about how to make their system.
+In the collection function, positions and velocities will be randomly seeded from this Collector's boundary values.
+    
+"""
+
+
+
 abstract type ObjectCollection end
 mutable struct GenericObjectCollection <: ObjectCollection 
+    currentstep::Integer
     name::AbstractArray{String, 1}
     #mass::AbstractArray{Number, 1}
     #radius::AbstractArray{AbstractFloat, 1}
-    position::AbstractArray{AbstractFloat, 3}
-    velocity::AbstractArray{AbstractFloat, 3}
-    #totalobjects
-    uniqueID::AbstractArray{UUID,1}
-    #forcevectors
+    index::AbstractArray{Integer, 1}
+    position::AbstractArray{MVector{AbstractFloat, 3}, 1}
+    velocity::AbstractArray{MVector{AbstractFloat, 3}, 1}
+    force::AbstractArray{MVector{AbstractFloat, 3}, 1}
+
+    #uniqueID::AbstractArray{UUID,1}
+
 end
 
-# this in an incorrect method i am certain, as there is no AbstractNamedArray object, 
-# but I want a struct to look like this rather than just instantiating a global variable to hold the specific type
-# though maybe i could just instantiate this NamedArray at a function call, like how other objects are currently
-# instantiated.
-#mutable struct GenericObjectCollection2 <: NamedArray
- #   name::AbstractArray{String, 1}
-#    mass::AbstractArray{Number, 1}
- #   radius::AbstractArray{AbstractFloat, 1}
- #   position::AbstractArray{AbstractFloat, 3}
- #   velocity::AbstractArray{AbstractFloat, 3}
-  #  uniqueID::AbstractArray{UUID,1}
-#end
-
-#GenericObjectCollection3 = NamedArray(
-   # AbstractArray{String, 1},
-  #  AbstractArray{Number, 1},
-  #  AbstractArray{AbstractFloat, 1},
-   # AbstractArray{AbstractFloat, 3},
-   # AbstractArray{AbstractFloat, 3},
-   # AbstractArray{AbstractFloat, 3},
-   # AbstractArray{UUID,1};
- #   "name",
- #   "mass",
-  #  "radius",
-  #  "position",
-   # "velocity",
-   # "force",
-   # "uniqueID"
- #   )
 
 
 
@@ -70,14 +55,6 @@ end
     Collector
 
 Collector super-type for simulation initialization.
-
-"""
-abstract type Collector end
-"""
-    GenericRandomCollector(objectnumber, minsize, maxsize, minspeed, maxspeed)
-
-An Collector-subtype meant to acquire additional information from the user about how to make their system.
-In the collection function, positions and velocities will be randomly seeded from this Collector's boundary values.
 
 """
 mutable struct GenericRandomCollector <: Collector
@@ -107,20 +84,20 @@ function collect_objects(Collector::GenericRandomCollector)
     positionRange = Uniform(Collector.minsize, Collector.maxsize)
     velocityRange = Uniform(Collector.minspeed, Collector.maxspeed)
 
-    objectnumber = Collector.objectnumber
+    objectcount = Collector.objectnumber
     step_n=1
-    myObjectCollection = DataFrame(
-        current_step=step_n,
-        object_index= collect(Int, 1:objectnumber),
-        position_x=rand(positionRange, length(1:objectnumber)),
-        position_y=rand(positionRange, length(1:objectnumber)),
-        position_z=rand(positionRange, length(1:objectnumber)),
-        velocity_x=rand(velocityRange, length(1:objectnumber)),
-        velocity_y=rand(velocityRange, length(1:objectnumber)),
-        velocity_z=rand(velocityRange, length(1:objectnumber))
+
+    simCollection = GenericObjectCollection(
+        step_n,
+        Array{String, 1}("duck", objectcount),
+        fill(1:objectcount, 1),
+        [MVector{3, Float64}(rand(positionRange, 3)) for each in 1:objectcount],
+        [MVector{3, Float64}(rand(velocityRange, 3)) for each in 1:objectcount],
+        zeros(Float64, objectcount)
         )
-    
-    return myObjectCollection
+
+        
+    return simCollection
 end
 
 function collect_objects(Collector::GenericZeroCollector)
