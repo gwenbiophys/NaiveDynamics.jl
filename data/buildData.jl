@@ -1,9 +1,11 @@
 module buildData
 using BenchmarkTools
 using CSV
-include("C:/Users/Trist/.julia/dev/NaiveMD/NaiveDynamics.jl/src/NaiveDynamics.jl")
-include("C:/Users/Trist/.julia/dev/NaiveMD/NaiveDynamics.jl/src/MDInput.jl")
-include("C:/Users/Trist/.julia/dev/NaiveMD/NaiveDynamics.jl/src/Simulator.jl")
+using NaiveDynamics
+
+#include("C:/Users/Trist/.julia/dev/NaiveMD/NaiveDynamics.jl/src/NaiveDynamics.jl")
+#include("C:/Users/Trist/.julia/dev/NaiveMD/NaiveDynamics.jl/src/MDInput.jl")
+#include("C:/Users/Trist/.julia/dev/NaiveMD/NaiveDynamics.jl/src/Simulator.jl")
 
 # 1. Build a  simulation with user-locked values.
 valuesCollector = GenericUserValueCollector(10, 0.2, 12.9)

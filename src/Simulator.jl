@@ -37,7 +37,7 @@ mutable struct GenericLogger <: Logger
     index::AbstractArray{AbstractArray{Integer, 1}, 1}
     position::AbstractArray{AbstractArray{MVector{AbstractFloat, 3}, 1}, 1}
     velocity::AbstractArray{AbstractArray{MVector{AbstractFloat, 3}, 1}, 1}
-    force::AbstractArray{bstractArray{MVector{AbstractFloat, 3}, 1}, 1}
+    force::AbstractArray{AbstractArray{MVector{AbstractFloat, 3}, 1}, 1}
 
     #uniqueID::AbstractArray{UUID,1}
 
