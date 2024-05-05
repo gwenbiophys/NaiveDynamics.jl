@@ -8,6 +8,7 @@ using NamedArrays
 using StaticArrays
 using Distributions
 using Revise
+using StructArrays
 
 include("MDInput.jl")
 include("Simulator.jl")

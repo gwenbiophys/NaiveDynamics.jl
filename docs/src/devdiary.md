@@ -63,7 +63,7 @@ position = [MVector{3, Float64}(rand(posRange, 3)) for each in 1:5]
 and with performing the multiplication, as base.broadcast has no idea how to solve a vector of mutable vectors:
 ```julia
 function posVel_multiply!(position, velocity)
-    for i in 1:length(position)
+    for i in eachindex(position)
         position[i] .*= velocity[i]
     end
     return position
@@ -87,7 +87,7 @@ velocity = [MVector{3, Float64}(rand(velRange, 3)) for each in 1:5]
 
 
 function posVel_multiply!(position, velocity)
-    for i in 1:length(position)
+    for i in eachindex(position)
         position[i] .*= velocity[i]
     end
     return position

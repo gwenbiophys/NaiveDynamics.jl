@@ -26,13 +26,15 @@ CSV.write("small_rand.csv", smallCollection)
 """
 
 # 3. ENHANCE
-largeCollector = GenericRandomCollector(100000, -5.0, 5.0, -0.2, 0.2)
+largeCollector = GenericRandomCollector(10000, -5.0, 5.0, -0.2, 0.2)
 largeCollection = collect_objects(largeCollector)
-largeSystem = GenericSystem(130, 1, 1, largeCollection)
-largeSimulation = GenericSimulation(largeSystem, false)
+largeSystem = GenericSystem(1, 1, 1, largeCollection)
+largeSimulation = GenericSimulation(largeSystem, true)
 
 @btime simulate!(largeSimulation, largeCollector)
-
+# 1 step at 100 000  particles with push!= 109.952ms, 2596967 and 56.41 MiB
+    # with no call to record_simulation_bench = 50.535 ms (800003 allocations: 15.26 MiB)
+# 1 step at 100k with append! = 
 #println(simlog)
 #CSV.write("large_rand.csv", largeCollection)
 # with dataFrames and 100 000 particles, simulation fails due to memory error

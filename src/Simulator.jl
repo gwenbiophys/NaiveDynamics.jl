@@ -43,6 +43,20 @@ mutable struct GenericLogger <: Logger
 
 end
 
+mutable struct GenericLoggerAppend <: ObjectCollection 
+    currentstep::AbstractArray{Integer,1}
+    name::AbstractArray{String, 1}
+    #mass::AbstractArray{Number, 1}
+    #radius::AbstractArray{AbstractFloat, 1}
+    index::AbstractArray{Integer, 1}
+    position::AbstractArray{SizedVector{3, AbstractFloat}, 1}
+    velocity::AbstractArray{SizedVector{3, AbstractFloat}, 1}
+    force::AbstractArray{SizedVector{3, AbstractFloat}, 1}
+
+    #uniqueID::AbstractArray{UUID,1}
+
+end
+
 struct GenericSystem <: System
     duration::Integer
     stepwidth::Integer
@@ -78,22 +92,43 @@ function record_simulation(simCollection, simlog)
     return simCollection
 end
 
+function record_simulation_bench(simCollection, simlog)
+    
+    #push!(simCollection, simlog)
+    #this is ultimately how the function should work, just a clean shove
+    #but GenericObjectCollection may have to become a single array and not a mutable datatype
+    #and then we can just push the entire array to the log
+    #push!(simlog.currentstep, simCollection.currentstep)
+    #@btime push!($simlog.name, $simCollection.name)
+    #@btime push!($simlog.index, $simCollection.index)
+    @btime append!($simlog.position, $simCollection.position)
+    @btime append!($simlog.velocity, $simCollection.velocity)
+    @btime append!($simlog.force, $simCollection.force)
+
+    return simCollection
+end
+
 push!
 function update_position!(simulation::GenericSimulation)
     position .*= velocity # this is sus. fix
     return
 end
 function posVel_multiply!(position, velocity)
-    for i in 1:length(position)
-        position[i] .*= velocity[i]
-    end
+    #println(position)
+    #println(typeof(position))
+    #println()
+    #position = position .* velocity'
+    #for i in 1:length(position)
+        #position[i] *= velocity[i]
+    #end
     return position
 end
 
 function simulate!(simulation::GenericSimulation, collector)
     steps = simulation.system.duration
     
-    step_size = simulation.system.stepwidth
+    stepwidth = simulation.system.stepwidth
+    stepwidthsqrd = stepwidth^2
 
 
     logSimulation = simulation.do_logging
@@ -101,31 +136,46 @@ function simulate!(simulation::GenericSimulation, collector)
 
     objectnumber = collector.objectnumber
 
-    currentstep = simcollection.currentstep 
-    objectname = simcollection.name
-    objectindex = simcollection.index
-    #mass = simcollection.mass
+    currentstep = simulation.system.objectcollection.currentstep 
+    objectname = simulation.system.objectcollection.name
+    objectindex = simulation.system.objectcollection.index
+    mass = simulation.system.objectcollection.mass
+    
     #radius = simCollection.radius
-    position = simcollection.position
+    position = simulation.system.objectcollection.position
 
-    velocity = simcollection.velocity
-    force = simcollection.force
+    velocity = simulation.system.objectcollection.velocity
+    force_currentstep = simulation.system.objectcollection.force
 
     if logSimulation == true
 
-        simlog = GenericLogger(
-            [currentstep],
-            [objectname],
-            [objectindex],
-            [position],
-            [velocity],
-            [force]
+        #simlog = GenericLogger(
+        #    [currentstep],
+         #   [objectname],
+         #   [objectindex],
+         #   [position],
+         #   [velocity],
+         #   [force]
+        #)
+        simlog = GenericLoggerAppend(
+            currentstep,
+            objectname,
+            objectindex,
+            position,
+            velocity,
+            force_currentstep
         )
-        for step_n in 1:steps
 
-            posVel_multiply!(position, velocity)
-            record_simulation(simcollection, simlog)
-            currentstep = step_n
+        for step_n in 1:steps
+            for i in eachindex(position)
+                #force_currentstep calculations and sum of force calculations
+                force_position = force_currentstep[i] ./ mass[i] .* stepwidth^2/2 #can this be combined into next line, and why would i do that TO REDUCE COPYING
+                position[i] = position[i] .+ (velocity[i] .* stepwidth) .+ (force_currentstep[i] ./ mass[i] .* stepwidth^2/2)
+                #force_nextstep= sum of new applied energies
+                force_nextstep = force_currentstep
+                velocity[i] = velocity[i] .+ (force_currentstep[i] .* force_nextstep[i] ./ mass[i] .* stepwidth/2)
+                currentstep = step_n
+            end
         end
         #return simlog
     elseif logSimulation == false
