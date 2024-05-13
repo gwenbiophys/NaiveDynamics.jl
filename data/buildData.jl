@@ -1,7 +1,7 @@
 using Revise
 using BenchmarkTools
 using CSV
-using NaiveDynamics
+
 
 
 #include("C:/Users/Trist/.julia/dev/NaiveMD/NaiveDynamics.jl/src/NaiveDynamics.jl")
@@ -26,15 +26,35 @@ CSV.write("small_rand.csv", smallCollection)
 """
 
 # 3. ENHANCE
-largeCollector = GenericRandomCollector(10000, -5.0, 5.0, -0.2, 0.2)
-largeCollection = collect_objects(largeCollector)
-largeSystem = GenericSystem(1, 1, 1, largeCollection)
-largeSimulation = GenericSimulation(largeSystem, true)
+a = [25, 100, 1000, 10000]
+b = [1, 2, 3, 4, 5, 10, 15, 20, 25, 100]
+c = [500] 
 
-@btime simulate!(largeSimulation, largeCollector)
-# 1 step at 100 000  particles with push!= 109.952ms, 2596967 and 56.41 MiB
-    # with no call to record_simulation_bench = 50.535 ms (800003 allocations: 15.26 MiB)
-# 1 step at 100k with append! = 
+#largeCollector = GenericRandomCollector(Float64, 102, -5.0, -6.0, -7.0, 5.0, 6.0, 7.0, -0.2, 0.2)
+#largeCollection = collect_objects(largeCollector)
+#largeSystem = GenericSystem(10, 1, 1, largeCollection)
+#largeSimulation = GenericSimulation(largeSystem, true)
+#largeHistory = simulate!(largeSimulation, largeCollector)
+#println(largeHistory.position)
+
+
+function batchrun(a)
+    result = nothing
+    for i in  1:200
+        Collector = GenericRandomCollector(Float64, i, -5.0, -6.0, -7.0, 5.0, 6.0, 7.0, -0.2, 0.2)
+        Collection = collect_objects(Collector)
+        System = GenericSystem(10, 1, 1, Collection)
+        simulation = GenericSimulation(System, true)
+        
+        result = simulate!(simulation, Collector)
+  
+
+        
+    end
+    return result
+end
+batchrun(c)
+
 #println(simlog)
 #CSV.write("large_rand.csv", largeCollection)
 # with dataFrames and 100 000 particles, simulation fails due to memory error

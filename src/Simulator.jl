@@ -57,6 +57,13 @@ mutable struct GenericLoggerAppend <: ObjectCollection
 
 end
 
+mutable struct PositionLogger <: ObjectCollection 
+    currentstep::AbstractArray{Integer,1}
+    name::AbstractArray{String, 1}
+    index::AbstractArray{Integer, 1}
+    position::AbstractArray{SizedVector{3, AbstractFloat}, 1}
+end
+
 struct GenericSystem <: System
     duration::Integer
     stepwidth::Integer
@@ -107,21 +114,87 @@ function record_simulation_bench(simCollection, simlog)
 
     return simCollection
 end
-
-push!
-function update_position!(simulation::GenericSimulation)
-    position .*= velocity # this is sus. fix
-    return
+function record_position(positionLog, currentstep, objectname, objectindex, position)
+    push!(positionLog.currentstep, currentstep)
+    append!(positionLog.name, objectname)
+    append!(positionLog.index, objectindex)
+    append!(positionLog.position, position)
 end
-function posVel_multiply!(position, velocity)
-    #println(position)
-    #println(typeof(position))
-    #println()
-    #position = position .* velocity'
-    #for i in 1:length(position)
-        #position[i] *= velocity[i]
-    #end
-    return position
+
+"""
+    $unique_pairlist(a::AbstractArray)
+
+Return a vector of static vectors, wherein each static vector is a unique pair of objects from the array of a.
+In the case of position, the return pair list is a vector of static vectors of 2 mutable vectors of 3 floats each.
+
+This is the most Naive pairlist writer.
+"""
+function unique_pairlist(a::AbstractArray)
+    # TODO only push unique pairs to the list for eachindex(a), instead of for each pair
+    list = []
+    counter = 0
+    j_cutoff = length(a)
+    sizehint!(list, length(a)-1)
+
+    for i in eachindex(a)
+        for j in eachindex(a) 
+            if j > i
+                push!(list, SVector(a[i],a[j]))
+            end
+        end
+    end
+    return list
+end
+
+function generate_distance_i!(i, pairslist)
+    distance_i = []
+    if pairslist[1][1] == i
+        for each in eachindex(pairslist)
+            if pairslist[each][1] == i
+                push!(distance_i, pairslist[each][3])
+            elseif pairslist[each][1] !== i
+                return distance_i
+            end
+        end
+    else
+        for each in eachindex(pairslist)
+            if pairslist[each][1] == i
+                push!(distance_i, pairslist[each][3])
+            elseif pairslist[each][1] !== i
+                return distance_i
+            end
+        end
+    end
+end
+
+
+function force_lennardjones!(i, force,  pairslist, position)
+    #TODO make epsilon and sigma user configurable 
+    eps = 1
+    σ = 0.0001
+
+    #distance_i = generate_distance_i(i, pairslist)
+
+    for each in eachindex(pairslist)
+        if pairslist[each][1] == i
+            d2 = pairslist[each][3]
+            j = pairslist[each][2]
+            # no idea if the dot is needed in .=
+            d = position[i] .- position[j]
+
+            # this is currently incorrect because d2 is the generalized distance between them, not the vectorized distances
+            # we need a pairslist with the component distances not the straight-line distances
+            force[i] .+= (24*eps ./ d ) .* ((2*σ ./ d).^12 .- (σ ./ d).^6)
+            force[j] .-= force[i]
+        end
+    end
+    return force
+end 
+
+function boundary_reflect!(position, velocity, collector)
+    for each in eachindex(position)
+    
+    end  
 end
 
 function simulate!(simulation::GenericSimulation, collector)
@@ -134,49 +207,62 @@ function simulate!(simulation::GenericSimulation, collector)
     logSimulation = simulation.do_logging
     simcollection = simulation.system.objectcollection
 
-    objectnumber = collector.objectnumber
+    objectcount = collector.objectnumber
 
     currentstep = simulation.system.objectcollection.currentstep 
     objectname = simulation.system.objectcollection.name
     objectindex = simulation.system.objectcollection.index
     mass = simulation.system.objectcollection.mass
     
-    #radius = simCollection.radius
+    radius = simulation.system.objectcollection.radius
     position = simulation.system.objectcollection.position
 
     velocity = simulation.system.objectcollection.velocity
     force_currentstep = simulation.system.objectcollection.force
+    force_nextstep = copy(force_currentstep)
+
+
+
+    
 
     if logSimulation == true
 
-        #simlog = GenericLogger(
-        #    [currentstep],
-         #   [objectname],
-         #   [objectindex],
-         #   [position],
-         #   [velocity],
-         #   [force]
+        
+        #simlog = GenericLoggerAppend(
+            #currentstep,
+            #objectname,
+            #objectindex,
+            #position,
+            #velocity,
+            #force_currentstep
         #)
-        simlog = GenericLoggerAppend(
+        positionLog = PositionLogger(
             currentstep,
             objectname,
             objectindex,
-            position,
-            velocity,
-            force_currentstep
+            position
         )
+        #pairslist = InPlaceNeighborList(x=position, cutoff=0.1, parallel=false)
 
         for step_n in 1:steps
+            #neighborlist!(pairslist)
+            pairslist = neighborlist(position, 0.1; parallel=false)
             for i in eachindex(position)
-                #force_currentstep calculations and sum of force calculations
-                force_position = force_currentstep[i] ./ mass[i] .* stepwidth^2/2 #can this be combined into next line, and why would i do that TO REDUCE COPYING
+
+                force_lennardjones!(i, force_currentstep, pairslist, position)
                 position[i] = position[i] .+ (velocity[i] .* stepwidth) .+ (force_currentstep[i] ./ mass[i] .* stepwidth^2/2)
-                #force_nextstep= sum of new applied energies
-                force_nextstep = force_currentstep
+                force_nextstep = force_currentstep .+ force_lennardjones!(i, force_currentstep, pairslist, position)
                 velocity[i] = velocity[i] .+ (force_currentstep[i] .* force_nextstep[i] ./ mass[i] .* stepwidth/2)
-                currentstep = step_n
+                
             end
+            #println(force_nextstep == force_currentstep) if there is at least 1 interaction, this will be false
+            force_currentstep = force_nextstep
+            currentstep = step_n
+            record_position(positionLog, currentstep, objectname, objectindex, position)
+            #@btime record_position($positionLog, $currentstep, $objectname, $objectindex, $position)
+            #update!(pairslist, position)
         end
+        #return positionLog
         #return simlog
     elseif logSimulation == false
         for step_n in 1:steps
