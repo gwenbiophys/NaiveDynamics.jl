@@ -1,3 +1,5 @@
+module BaseExtensions
+
 import Base: *, /, -, +
 
 # the process envisinoed for this file turned out to be unnecessary at present, to solve VecOfVec broadcasting efficiently
@@ -30,3 +32,7 @@ function dumloop_add!(d, e)
       d[i] .+= e[i]
   end
 end
+
+
+
+end #module
