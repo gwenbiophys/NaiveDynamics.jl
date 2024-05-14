@@ -11,7 +11,7 @@ using Revise
 using StructArrays
 using CellListMap
 using NearestNeighbors
-using GLMakie
+#using GLMakie
 
 include("MDInput.jl")
 include("Simulator.jl")
