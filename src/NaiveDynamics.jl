@@ -11,11 +11,10 @@ using Revise
 using StructArrays
 using CellListMap
 using NearestNeighbors
-#using GLMakie
+
 
 include("MDInput.jl")
 include("Simulator.jl")
-include("Makie.jl")
-include("BaseExtensions.jl")
+
 
 end # module NaiveDynamics
