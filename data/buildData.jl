@@ -1,13 +1,22 @@
 using Revise
 using BenchmarkTools
 using CSV
+using StaticArrays
+
+#### Testing for the 4 bugs when running neighborlist()
+# 1. Test for directly overlapping particles
+
+#positions = [MVector{3, Float64}(fill(1.0, 3)) for each in 1:5]
+#velocities = [MVector{3, Float64}(zeros(3)) for each in 1:5]
+#Collector = GenericUserValueCollector(positions, velocities, Float64, 5, -5.0, -6.0, -7.0, 5.0, 6.0, 7.0, -0.2, 0.2)
+#Collection = collect_objects(Collector)
+#System = GenericSystem(100, 1, 1, Collection)
+#simulation = GenericSimulation(System, true)
+#result = simulate!(simulation, Collector)
+## truncation error, forces go to infinty, positions go to infinity, nobody's happy
 
 
-
-#include("C:/Users/Trist/.julia/dev/NaiveMD/NaiveDynamics.jl/src/NaiveDynamics.jl")
-#include("C:/Users/Trist/.julia/dev/NaiveMD/NaiveDynamics.jl/src/MDInput.jl")
-#include("C:/Users/Trist/.julia/dev/NaiveMD/NaiveDynamics.jl/src/Simulator.jl")
-
+#### Benchtesting and eventually generating starting data
 # 1. Build a  simulation with user-locked values.
 #valuesCollector = GenericUserValuesCollector(10, 0.2, 12.9)
 #valuesCollection = collect_objects(valuesCollector)
@@ -28,32 +37,50 @@ CSV.write("small_rand.csv", smallCollection)
 # 3. ENHANCE
 a = [25, 100, 1000, 10000]
 b = [1, 2, 3, 4, 5, 10, 15, 20, 25, 100]
-c = [500] 
-
-#largeCollector = GenericRandomCollector(Float64, 102, -5.0, -6.0, -7.0, 5.0, 6.0, 7.0, -0.2, 0.2)
-#largeCollection = collect_objects(largeCollector)
-#largeSystem = GenericSystem(10, 1, 1, largeCollection)
-#largeSimulation = GenericSimulation(largeSystem, true)
-#largeHistory = simulate!(largeSimulation, largeCollector)
-#println(largeHistory.position)
-
-
-function batchrun(a)
-    result = nothing
-    for i in  1:200
-        Collector = GenericRandomCollector(Float64, i, -5.0, -6.0, -7.0, 5.0, 6.0, 7.0, -0.2, 0.2)
-        Collection = collect_objects(Collector)
-        System = GenericSystem(10, 1, 1, Collection)
-        simulation = GenericSimulation(System, true)
-        
-        result = simulate!(simulation, Collector)
-  
-
-        
+c = [500]
+function hope()
+    a = GenericRandomCollector(Float64, 100, -0.5, -0.6, -0.7, 0.5, 0.6, 0.7, -0.002, 0.002, 0.001)
+    b = GenericStaticRandomCollector(Float64, 100, -0.5, -0.6, -0.7, 0.5, 0.6, 0.7, -0.002, 0.002, 0.001)
+    CollectorVec = [b,a]
+    for i in eachindex(CollectorVec)
+        largeCollector = CollectorVec[i]
+        largeCollection = collect_objects(largeCollector)
+        largeSystem = GenericSystem(5, 1, 1, largeCollection)
+        largeSimulation = GenericSimulation(largeSystem, 5)
+        if i == 1
+            @btime simulate_unified!($largeSimulation, $largeCollector)
+        else
+            @btime simulate!($largeSimulation, $largeCollector)
+        end
+        #@btime simulate_unified!($largeSimulation, $largeCollector)
+        #@btime simulate_oneloop!($largeSimulation, $largeCollector)
     end
-    return result
 end
-batchrun(c)
+hope()
+#println(largeHistory.Simulation.collection.position)
+# 28.200 μs (3057 allocations: 122.11 KiB) with mutable Vector
+# 13.600 μs (57 allocations: 78.73 KiB) static vector
+
+#mutable genericObjColl: 4.3 ms, 706.78 KiB, 19631 allocs
+#immutable:                 4.23 ms, 707.41 KiB, 19639 allocs
+# really interesting!
+
+#function batchrun(a)
+#    result = nothing
+#    for i in  1:1
+#        Collector = GenericRandomCollector(Float64, 10, -0.05, -0.06, -0.07, 0.05, 0.06, 0.07, -0.2, 0.2)
+#        Collection = collect_objects(Collector)
+#        System = GenericSystem(3, 1, 1, Collection)
+#        simulation = GenericSimulation(System, true)
+#        
+#        result = simulate!(simulation, Collector)
+#  
+#
+#        
+#    end
+#    return result
+#end
+#batchrun(c)
 
 #println(simlog)
 #CSV.write("large_rand.csv", largeCollection)

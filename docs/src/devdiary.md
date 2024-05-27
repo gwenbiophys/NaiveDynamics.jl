@@ -203,3 +203,144 @@ We have 2 issue classes, truncation from Box.jl 213 and CellLists.jl 482.
 
 Wait a minute, perhaps the particles are falling in too close and the forces are spiraling out of control. Changing epsilon by 1000x either way seemed to have little effect. While reducing sigma by 1000x seemed to improve success and increasing seemed to mkae failure fairly common. However, success is not guaranteed within 100 or 1000 runs. Hopefully with a pruning routine, things will turn out just fine. An additional helper is increasing the cutoff. Perhaps a class of errors, or maybe jsut a specifc error or a few can be eliminated with a high enough cut-off or dense enough conditions to guarantee that the neighbor list is not empty.
 
+19 May
+Even with the changes, the naive pruning and the like, we are still getting NotANumber answers, which may indicated an enduring problem with parameterization in the neighbor cutoff and in the time width and in the particle density and etc. But at least the simualtion runs without dying now, if it runs inconsistently due to the use of in-Verlet try catch blocking. 
+
+A fairly curious discussion comes around strategies for conserving energy. At present, our work is purely additive. Seemingly after the first step, all particles will be slammed into the walls of the simulation box.
+
+
+## 4. 24 May - Death to allocations
+
+So my issue with CellListMap is a limitation of the method as a whole, whose memory scales with the volume of space being considered, or something like that, and my highly disperse simulations seem to force the algorithm to consider the whole numeric width of Float64 for calculating the neighbor list. Thanks to the university of michigan for their informative article.
+
+
+Before I worry about pulling in NearestNeighbors.jl or seeing how long it would take to make a naive BVH neighbor finder, I am allocation hunting in my simulation to increase speed. I was primarily worried that ```force_currentstep = force_nextstep``` would de/allocate, as I often run into the problem that ```a = 5, b = a, b += 1, but a !== 6```, but the compiler knows what it's doing. We instead run into a much more interesting problem:
+
+To perform Velocity-Verlet integration, we use broadcasting to calculate the xyz-components of position for each particle:
+```julia
+position[i] = position[i] .+ (velocity[i] .* stepwidth) .+ (force_currentstep[i] ./ mass[i] .* stepwidth^2/2)
+```
+Benchmarking showed an allocation was made, so I set to improve it:
+```julia
+positionJ[i] .+= ((velocity[i] .* stepwidth) .+ (force_currentstep[i] ./ mass[i] .* stepwidth^2/2))
+```
+
+The two methods should obviously (to me) produce the same output, and are seemingly just format differences. However when calculating positionJ, we increase speed, 16 -> 10 ns, and eliminate allocation, 32 bytes -> 0. That alone, positionJ seems to be the idea choice. But why the difference?
+
+More importantly, what about correctness? positionJ and position produce different results about 5% of the time. It turns out positionJ's method is internally consistent, while position's is not internally consistent. And that is wild.
+
+We find internal consistency by either removing the velocity-stepwidth term, or by using positionJ's method. Removing the addition of ```(force_currentstep[i] ./ mass[i] .* stepwidth^2/2)``` to position does not affect internal consistency. Furthermore, switching the order of operations
+```julia
+position[i] = position[i]  .+ (force_currentstep[i] ./ mass[i] .* stepwidth^2/2) .+ (velocity[i] .* stepwidth)
+positionK[i] = positionK[i] .+ (velocity[i] .* stepwidth) .+ (force_currentstep[i] ./ mass[i] .* stepwidth^2/2)
+```
+also has no affect, position and positionK's methods are still inconsistent with each other.
+
+So, I just made my code faster* and more precise by changing how it was spelled. What a weird world. *A savings of 6 ns per calculation doesn't register at the ms level in my short-small test, but memory usage and allocations are reduced by 6.7 and 7.7 percent, respectively. 
+
+The next line of question, why is simulate!() (with neighborlisting and force-calculating deactivated) so slow and allocating so often? Internally, the function should allocate only a few times, with each action taking fewer than 50 ns, and most actions taking fewer than 20 ns. Changing the index scheme from ```for step_n in 1:steps``` to ```for step_n in eachindex(step_array) where step_array = [1:steps;]``` reduced allocations by 1. Further changing this scheme to a zeros-array that is steps long reduced allocations by 51. Testing shows that allocations scale linearly with the number of steps, which is incorrect.
+
+So my old method will allocate several intermediate array slices on the heap. If I run away from the inner for loop for each particle, I drop allocations by half with no further optimization. Each operation allocates a new intermediate array. So we have to use the staticarray to get over this problem
+
+``` 
+ 28.200 μs (3057 allocations: 122.11 KiB) with mutable Vector
+ 13.600 μs (57 allocations: 78.73 KiB) static vector
+```
+finally. Well not yet, because we still have allocation scaling with step length, so changing datatypes is no sure-fire solution.
+
+After testing, a problem is shown with how Julia processes complex expressions, such as the position-update:
+```julia
+position[i] += velocity[i] * stepwidth .+ force_currentstep[i] ./ mass[i] .* stepwidth^2/2
+```
+Several arrays are here allocated and deallocated within the string, and when we have for-each-step and for-each-particle, we end up with absurd allocation figures and runtimes. When we decompose this expression and we allow the compiler to run  on the entire block of particles positions, we obtain extreme speed and constant allocation for simulation size. The only problem is *readability*. The position calculation becomes:
+```julia
+positionIntermediate1 = velocity
+dumloop_multiply!(positionIntermediate1, stepwidth)
+positionIntermediate2 = force_currentstep 
+dumloop_divide!(positionIntermediate2, mass) 
+dumloop_multiply!(positionIntermediate1, stepwidthSqrdHalf)
+dumloop_add!(position, positionIntermediate1)  
+dumloop_add!(position, positionIntermediate2)
+
+where
+
+function dumloop_multiply(vec::vectorOfVectors, vec2::vectorOfVectors)
+    for i in eachindex(vec)
+        vec[i] .*= vec2
+    end
+end
+```
+We avoid any allocations within for-each-step by writing over intermediate values  at each step. These are generated ahead of the simulation loop. I've made multiple attempts with nested broadcasting or broadcasted mapping, and these methods result in allocations for each particle, but reducing each value transformation to either a direct substitution or a loop'ed broadcast worked best. Here is where things get really confusing. As part of updating position and velocity due to only the velocity and apparent forces, we have to evaulate 9 for-each-particle loops at every simulation step. So what if we reduced the loops into a single loop which defines a block of numbers to crunch for every particle. That was my original idea in this simulation. Julia hates this idea:
+```julia
+for step_n in eachindex(steps_array)
+
+        for i in eachindex(objectindex)
+
+            positionIntermediate1[i] = velocity[i] 
+            positionIntermediate1[i] .*= stepwidth
+            positionIntermediate2[i] = force_currentstep[i] 
+            positionIntermediate2[i] ./= mass[i] 
+            positionIntermediate2[i] .*= stepwidthSqrdHalf
+            position[i] .+= positionIntermediate1[i] 
+            position[i] .+= positionIntermediate2[i]
+
+            velocityIntermediate1[i] .= force_currentstep[i] .* force_nextstep[i]
+            velocityIntermediate1[i] ./= mass[i]
+            velocityIntermediate1[i] .*= stepwidthHalf
+            velocity[i] .+= velocityIntermediate1[i]
+
+        end
+
+end
+```
+Where numbers are crunched, zero allocations occur. But through the nested looping, an obscene number of allocations are made. 
+```julia
+#TODO make this into a table please thanks
+#1. which package? I know in my hunting there is a package big on the tables. Might jsut be Documenter.jl or an extension
+```
+5 steps, 100 particles
+9 loops: 24.600 μs (415 allocations: 16.70 KiB)
+1 loop: (9915 allocations: 313.50 KiB)
+
+5 steps, 100 particles
+9 loops: 111.600 μs (415 allocations: 16.75 KiB)
+1 loop: 29.068 ms (95415 allocations: 2.91 MiB)
+For reference, the naive position expression is at least 3x slower the 9-loop on run time, but about half the allocations as the 1-loop.
+
+I am rather confused about how Julia optimizes these 2 methods. I prefer the second method because I can parallelize it infinitely with a macro tacked in front of the for-each-particle loop, but as it is presently written, Julia cannnot handle it well. And I am certain there exists a simple routine to parallelize the 9-loop method.
+
+
+Another point of consideration is using StaticVectors over MutableVectors to contain dimensional data. We can just avoid loop hell, keep the syntax clean-ish, and improve performance and allocations. But static vectors aren't as workable. You cannot iterate, broadcast, map over them, so then I have no idea how to institute boundary conditions if I cannot analyze or affect any particular value. However, I could instead use StaticArrays methods to affect test mutable-vectors, and depending on the values within these test vectors, I can apply action vectors over the elements of our static vectors. This could make for a beautiful evaluation, and allow me to get rid of the naive boundary function:
+```julia
+function boundary_reflect!(ithCoord, ithVelo, collector::Collector)
+    # can this be evaluated more efficiently?
+    #restructureing would allow a simple forloop
+    if collector.min_xDim > ithCoord[1] 
+        ithVelo[1] = -ithVelo[1] 
+        ithCoord[1] = collector.min_xDim
+    end
+    if collector.max_xDim < ithCoord[1] 
+        ithVelo[1] = -ithVelo[1] 
+        ithCoord[1] = collector.max_xDim
+    end
+
+    if collector.min_yDim > ithCoord[2] 
+        ithVelo[2] = -ithVelo[2] 
+        ithCoord[2] = collector.min_yDim
+    end
+    if collector.max_yDim < ithCoord[2] 
+        ithVelo[2] = -ithVelo[2] 
+        ithCoord[2] = collector.max_yDim
+    end
+
+    if collector.min_zDim > ithCoord[3] 
+        ithVelo[3] = -ithVelo[3] 
+        ithCoord[3] = collector.min_zDim
+    end
+    if collector.max_zDim < ithCoord[3] 
+        ithVelo[3] = -ithVelo[3] 
+        ithCoord[3] = collector.max_zDim
+    end
+end
+```
+At the moment, my attempt to make a ```simulate_unified!()``` for the SVector hasn't worked, it allocates scaling with sim duration and becomes increasingly slow with duration. Some more time spent looking at the work may help, such as trying to restream the functions into a single task, rather than the current split method we are rocking with.
