@@ -510,6 +510,16 @@ function simulate_unified!(simulation::GenericSimulation, collector)
         #end
         #force_lennardjones!(i, force_currentstep, pairslist, position)
         
+
+#copied verbatim from Molly.jl, test for allocations 
+#sys.coords += sys.velocities .* sim.dt .+ ((accels_t .* sim.dt ^ 2) ./ 2)
+
+            #accels_t = forces_t ./ masses(sys)
+
+
+        #sys.velocities += ((accels_t .+ accels_t_dt) .* sim.dt / 2)
+
+
         positionIntermediate1 = velocity
         positionIntermediate1 .*= stepwidth 
         positionIntermediate2 = force_currentstep
