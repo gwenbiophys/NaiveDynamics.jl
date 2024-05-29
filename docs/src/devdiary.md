@@ -183,10 +183,14 @@ d = position[i] .- position[j]
 force[i] .+= (24*eps ./ d )((2*σ ./ d).^12 - (σ ./ d).^6)
 ```
 WAIT, the fact that some runs show problems and others do not indicate that their atoms are not within the cutoff. It's a gentle bug coming from my work! Very gentle, here's the fixed function: 
-```julia force[i] .+= (24*eps ./ d )((2*σ ./ d).^12 - (σ ./ d).^6)```
+```julia 
+force[i] .+= (24*eps ./ d )((2*σ ./ d).^12 - (σ ./ d).^6)
+```
 
 
-Onto the next breakage ```InexactError: trunc(Int64, 3.884345474457886e38)```. A more severe one, I fear. It points to the ```neighborlist()``` function call. We are going to update CellListMap and pray. A new release came about 3 days ago sooo we should be good, right? *Oh dear.* Going from 1000 to 10 000 particles seems to drastically increase the size of the error here, from about 10^20 to 10^30 through and beyond 10^50. So we have to figure out what value is being created that is so extremely stratospheric, and it is created seemingly each time enough particles are created to exist in less than the cut off. Let's increase cut off and reduce atoms. Now we are getting different errors regardless of using a function or sitting in global scope, outofmemory, invalid array size, invalid array dimensions, and sometimes the truncation error. Each of these errors occur in the neighborlist run. For the truncation error, the problematic calculation is Line 213 of Box.jl. ```_nc = floor.(Int, (xmax .- xmin) / (cutoff / lcell)) 
+Onto the next breakage ```InexactError: trunc(Int64, 3.884345474457886e38)```. 
+A more severe one, I fear. It points to the ```neighborlist()``` function call. We are going to update CellListMap and pray. A new release came about 3 days ago sooo we should be good, right? *Oh dear.* Going from 1000 to 10 000 particles seems to drastically increase the size of the error here, from about 10^20 to 10^30 through and beyond 10^50. So we have to figure out what value is being created that is so extremely stratospheric, and it is created seemingly each time enough particles are created to exist in less than the cut off. Let's increase cut off and reduce atoms. Now we are getting different errors regardless of using a function or sitting in global scope, outofmemory, invalid array size, invalid array dimensions, and sometimes the truncation error. Each of these errors occur in the neighborlist run. For the truncation error, the problematic calculation is Line 213 of Box.jl. 
+```_nc = floor.(Int, (xmax .- xmin) / (cutoff / lcell)) 
 ``` 
 NearestNeighbors.jl hass it's own problem that the most recent issue shows a method error that prevents the use of Vector(MVector()) so that may not be a solution.
 
@@ -343,4 +347,31 @@ function boundary_reflect!(ithCoord, ithVelo, collector::Collector)
     end
 end
 ```
+I might have to get rid of this naive function, as it adds 1 allocation per step, but not internally, only in the context of the for each step loop.
+
 At the moment, my attempt to make a ```simulate_unified!()``` for the SVector hasn't worked, it allocates scaling with sim duration and becomes increasingly slow with duration. Some more time spent looking at the work may help, such as trying to restream the functions into a single task, rather than the current split method we are rocking with.
+
+I spent some time trying to understand how we can reduce the 6 loops that calculate position by using broadcasting to achieve *syntactic loop fusion*, but the compiler has no idea how to achieve this in my context and it just continuously allocates temporary arrays instead of looping around each piece. And it is shown that this effort at loop reduction simply recreates the problem in ```simulate_oneloop!()```, which I presently suspect is some violation of cache locality. Here is the undeveloped code:
+```julia
+        for i in eachindex(positionIntermediate1)
+            #positionIntermediate1[i] .= stepwidth .* velocity[i]
+            positionIntermediate1[i] = broadcast(x -> x * stepwidth, velocity[i])
+        end
+        for i in eachindex(positionIntermediate2)
+
+            positionIntermediate2[i] = broadcast(x -> x / mass[i] * stepwidthSqrdHalf,  force_currentstep[i])
+        end
+
+        for i in eachindex(positionIntermediate1)
+            positionIntermediate1[i] .+= positionIntermediate2[i]
+            
+            #broadcast!(x -> x + positionIntermediate1[i] + positionIntermediate2[i], position[i], position[i])
+        end
+        #for i in eachindex(position)
+            #position[i] .+= positionIntermediate1[i]
+        #end
+```
+
+I'm not certain we can read each value of ```force_currentstep```, multiply it by a constant ```stepwidth```, and write the result over the corresponding value of ```positionIntermediate``` without allocation, but we certainly cannot perform anything more complicated while preventing the compiler from creating temporary arrays. So until a better method is found or formulated for this data structure, we may very well have to call a ```dumloop!()``` to calculate each and every modification of our ```Vec3D```, which is going to get very annoying, unless I can embed the function into an operator sign.
+
+

@@ -2,6 +2,7 @@ using Revise
 using BenchmarkTools
 using CSV
 using StaticArrays
+using Cthulhu #doesnt work in VSCode
 
 #### Testing for the 4 bugs when running neighborlist()
 # 1. Test for directly overlapping particles
@@ -41,17 +42,18 @@ c = [500]
 function hope()
     a = GenericRandomCollector(Float64, 100, -0.5, -0.6, -0.7, 0.5, 0.6, 0.7, -0.002, 0.002, 0.001)
     b = GenericStaticRandomCollector(Float64, 100, -0.5, -0.6, -0.7, 0.5, 0.6, 0.7, -0.002, 0.002, 0.001)
-    CollectorVec = [b,a]
+    CollectorVec = [a]
     for i in eachindex(CollectorVec)
         largeCollector = CollectorVec[i]
         largeCollection = collect_objects(largeCollector)
-        largeSystem = GenericSystem(5, 1, 1, largeCollection)
+        largeSystem = GenericSystem(10, 1, 1, largeCollection)
         largeSimulation = GenericSimulation(largeSystem, 5)
-        if i == 1
-            @btime simulate_unified!($largeSimulation, $largeCollector)
-        else
-            @btime simulate!($largeSimulation, $largeCollector)
-        end
+        @btime simulate!($largeSimulation, $largeCollector)
+        #if i == 1
+            #@btime simulate_unified!($largeSimulation, $largeCollector)
+       # else
+            
+        #end
         #@btime simulate_unified!($largeSimulation, $largeCollector)
         #@btime simulate_oneloop!($largeSimulation, $largeCollector)
     end

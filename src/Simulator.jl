@@ -246,6 +246,41 @@ function boundary_reflect!(ithCoord, ithVelo, collector::Collector)
         ithCoord[3] = collector.max_zDim
     end
 end
+
+@inline function boundary_reflect!(position::Vec3D, velocity::Vec3D, collector::Collector)
+    # can this be evaluated more efficiently?
+    #restructureing would allow a simple forloop
+    # this function already evaluates in 300 ns at zero allocs for 100 atoms. And it is very readily parallelizable. 
+    # sooooooooooooooooooooooooo there'd have to be some substantial work to improve it
+    for each in eachindex(position)
+        if collector.min_xDim > position[each][1] 
+            velocity[each][1] = -velocity[each][1] 
+            position[each][1] = collector.min_xDim
+        end
+        if collector.max_xDim < position[each][1] 
+            velocity[each][1] = -velocity[each][1] 
+            position[each][1] = collector.max_xDim
+        end
+
+        if collector.min_yDim > position[each][2] 
+            velocity[each][2] = -velocity[each][2] 
+            position[each][2] = collector.min_yDim
+        end
+        if collector.max_yDim < position[each][2] 
+            velocity[each][2] = -velocity[each][2] 
+            position[each][2] = collector.max_yDim
+        end
+
+        if collector.min_zDim > position[each][3] 
+            velocity[each][3] = -velocity[each][3] 
+            position[each][3] = collector.min_zDim
+        end
+        if collector.max_zDim < position[each][3] 
+            velocity[each][3] = -velocity[each][3] 
+            position[each][3] = collector.max_zDim
+        end
+    end
+end
 ⊗(a, b) = a .* b
 
 function dumloop_add!(d::Vec3D, e::Vec3D)
@@ -255,6 +290,11 @@ function dumloop_add!(d::Vec3D, e::Vec3D)
 end
 
 function dumloop_multiply!(d::Vec3D, e::Vec3D)
+    for i in eachindex(d)
+        d[i] .*= e[i]
+    end
+end
+function dumloop_multiply!(d::Vec3D, e::Vector{T}) where T
     for i in eachindex(d)
         d[i] .*= e[i]
     end
@@ -314,6 +354,8 @@ function simulate!(simulation::GenericSimulation, collector)
     velocity = simulation.system.objectcollection.velocity
     force_currentstep = simulation.system.objectcollection.force
     force_nextstep = copy(force_currentstep)
+    inverse_mass = 1 ./ copy(mass)
+
 
     #for slice in 1:simulation.logChunkLength 
 
@@ -349,18 +391,25 @@ function simulate!(simulation::GenericSimulation, collector)
         dumloop_multiply!(positionIntermediate1, stepwidth)
         positionIntermediate2 = force_currentstep 
         dumloop_divide!(positionIntermediate2, mass) 
+        dumloop_multiply!(positionIntermediate2, inverse_mass)
         dumloop_multiply!(positionIntermediate1, stepwidthSqrdHalf)
         dumloop_add!(position, positionIntermediate1)  
         dumloop_add!(position, positionIntermediate2)
+
+        velocityIntermediate1[i] .= stepwidthHalf .* ((force_currentstep[i] .* force_nextstep[i]) ./ mass[i])
+        velocity[i] .+= velocityIntermediate1[i]
+        
+
         force_nextstep = force_currentstep
 
         #force_lennardjones!(i, force_nextstep, pairslist, position)
         dumloop_product(velocityIntermediate1, force_currentstep, force_nextstep )
-        dumloop_divide!(velocityIntermediate1, mass)
+        dumloop_multiply!(velocityIntermediate1, inverse_mass)
         dumloop_multiply!(velocityIntermediate1, stepwidthHalf)
         dumloop_add!(velocity, velocityIntermediate1)
 
-        #boundary_reflect!(position[i], velocity[i], collector)
+        #internally, this adds zero allocations, but it adds 1 per step
+        boundary_reflect!(position, velocity, collector)
 
         #for i in eachindex(objectindex)
         
@@ -466,8 +515,10 @@ function simulate_unified!(simulation::GenericSimulation, collector)
         positionIntermediate2 = force_currentstep
         positionIntermediate2 ./= mass 
         positionIntermediate2 .*= stepwidthSqrdHalf 
-        position .+= positionIntermediate1 
-        position .+= positionIntermediate2 
+        position .+= positionIntermediate1
+
+        position .+= positionIntermediate2
+
 
         force_nextstep = force_currentstep
         #force_lennardjones!(i, force_nextstep, pairslist, position)
@@ -593,21 +644,28 @@ function simulate_oneloop!(simulation::GenericSimulation, collector)
             #force_lennardjones!(i, force_currentstep, pairslist, position)
             
 
-            positionIntermediate1[i] = velocity[i] 
-            positionIntermediate1[i] .*= stepwidth
-            positionIntermediate2[i] = force_currentstep[i] 
-            positionIntermediate2[i] ./= mass[i] 
-            positionIntermediate2[i] .*= stepwidthSqrdHalf
-            position[i] .+= positionIntermediate1[i] 
-            position[i] .+= positionIntermediate2[i]
+            #positionIntermediate1[i] = velocity[i] 
+            #positionIntermediate1[i] .*= stepwidth
+            #positionIntermediate2[i] = force_currentstep[i] 
+            #positionIntermediate2[i] ./= mass[i] 
+            #positionIntermediate2[i] .*= stepwidthSqrdHalf
+            #position[i] .+= positionIntermediate1[i] 
+            #position[i] .+= positionIntermediate2[i]
+            positionIntermediate1[i] .= stepwidth .* velocity[i]
+            positionIntermediate2[i] .= stepwidthSqrdHalf .* (force_currentstep[i] ./ mass[i])
+            positionIntermediate1[i] .+= positionIntermediate2[i]
+            position[i] .+= positionIntermediate1[i]
+
             
 
             #force_nextstep[i] = force_currentstep[i]
             #force_lennardjones!(i, force_nextstep, pairslist, position)
             
-            velocityIntermediate1[i] .= force_currentstep[i] .* force_nextstep[i]
-            velocityIntermediate1[i] ./= mass[i]
-            velocityIntermediate1[i] .*= stepwidthHalf
+            #velocityIntermediate1[i] .= force_currentstep[i] .* force_nextstep[i]
+            #velocityIntermediate1[i] ./= mass[i]
+            #velocityIntermediate1[i] .*= stepwidthHalf
+            #velocity[i] .+= velocityIntermediate1[i]
+            velocityIntermediate1[i] .= stepwidthHalf .* ((force_currentstep[i] .* force_nextstep[i]) ./ mass[i])
             velocity[i] .+= velocityIntermediate1[i]
 
             # QUERY force should be *dumped* after each application as they are applied into the simulation?
