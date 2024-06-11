@@ -60,11 +60,13 @@ function hope()
     end
 end
 #hope()
-largeCollector = GenericRandomCollector(Float64, 150, -0.5, -0.6, -0.7, 0.5, 0.6, 0.7, -0.002, 0.002, 0.001)
+
+largeCollector = GenericRandomCollector(Float64, 1000, -0.5, -0.6, -0.7, 0.5, 0.6, 0.7, -0.002, 0.002, 0.001)
 largeCollection = collect_objects(largeCollector)
-largeSystem::GenericSystem = GenericSystem(20000, 1, 1, largeCollection)
+largeSystem::GenericSystem = GenericSystem(2000000, 1, 1, largeCollection)
 largeSimulation::GenericSimulation = GenericSimulation(largeSystem, 5)
 @profview simulate_MVec!(largeSimulation, largeCollector)
+
 #println(largeHistory.Simulation.collection.position)
 # 28.200 μs (3057 allocations: 122.11 KiB) with mutable Vector
 # 13.600 μs (57 allocations: 78.73 KiB) static vector
