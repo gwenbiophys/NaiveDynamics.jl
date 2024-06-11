@@ -4,6 +4,7 @@ using CSV
 using StaticArrays
 using Cthulhu #doesnt work in VSCode
 
+
 #### Testing for the 4 bugs when running neighborlist()
 # 1. Test for directly overlapping particles
 
@@ -41,14 +42,14 @@ b = [1, 2, 3, 4, 5, 10, 15, 20, 25, 100]
 c = [500]
 function hope()
     a = GenericRandomCollector(Float64, 100, -0.5, -0.6, -0.7, 0.5, 0.6, 0.7, -0.002, 0.002, 0.001)
-    b = GenericStaticRandomCollector(Float64, 100, -0.5, -0.6, -0.7, 0.5, 0.6, 0.7, -0.002, 0.002, 0.001)
-    CollectorVec = [a]
+    b::GenericStaticRandomCollector = GenericStaticRandomCollector(Float64, 100, -0.5, -0.6, -0.7, 0.5, 0.6, 0.7, -0.002, 0.002, 0.001)
+    CollectorVec = [b]
     for i in eachindex(CollectorVec)
         largeCollector = CollectorVec[i]
         largeCollection = collect_objects(largeCollector)
-        largeSystem = GenericSystem(10, 1, 1, largeCollection)
-        largeSimulation = GenericSimulation(largeSystem, 5)
-        @btime simulate!($largeSimulation, $largeCollector)
+        largeSystem::GenericSystem = GenericSystem(2000, 1, 1, largeCollection)
+        largeSimulation::GenericSimulation = GenericSimulation(largeSystem, 5)
+        @btime simulate_unified!($largeSimulation, $largeCollector)
         #if i == 1
             #@btime simulate_unified!($largeSimulation, $largeCollector)
        # else
@@ -58,7 +59,12 @@ function hope()
         #@btime simulate_oneloop!($largeSimulation, $largeCollector)
     end
 end
-hope()
+#hope()
+largeCollector = GenericRandomCollector(Float64, 150, -0.5, -0.6, -0.7, 0.5, 0.6, 0.7, -0.002, 0.002, 0.001)
+largeCollection = collect_objects(largeCollector)
+largeSystem::GenericSystem = GenericSystem(20000, 1, 1, largeCollection)
+largeSimulation::GenericSimulation = GenericSimulation(largeSystem, 5)
+@profview simulate_MVec!(largeSimulation, largeCollector)
 #println(largeHistory.Simulation.collection.position)
 # 28.200 μs (3057 allocations: 122.11 KiB) with mutable Vector
 # 13.600 μs (57 allocations: 78.73 KiB) static vector

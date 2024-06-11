@@ -5,9 +5,9 @@ using NaiveDynamics
 #push!(LOAD_PATH,"../src/")
 makedocs(sitename="NaiveDynamics.jl",
          pages = [
-            "Index" => "index.md",
+            "Home" => "index.md",
             "Developer Diary" => "devdiary.md",
-            "API" => "api.md"
+            "Development Directions" => "devdirections.md"
          ],
          format = Documenter.HTML(prettyurls=true),
 

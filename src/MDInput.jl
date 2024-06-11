@@ -88,7 +88,7 @@ struct GenericRandomCollector{T<:AbstractFloat} <: Collector
     max_zDim::T
     
     
-    # i am uncertain if the 3D vector or the 1D vector will be easier. by i will go 1D
+    # i am uncertain if the 3D vector or the 1D vector will be easier.
     #minDimension::MVector{1, AbstractFloat}
     #maxDimension::MVector{1, AbstractFloat}
     #minDimension::MVector{3, AbstractFloat}
@@ -226,48 +226,81 @@ end
 
 """
     function generate_pruned_positions(Collector::GenericRandomCollector, Collection)
+
 After collect_objects() has generated a vector of vectors of positions, 
 this function will naively prune the positions and replace them with other positions. 
 At present, pruning proceeds until try-catch control flow until neighborlist()
 fails due to having no neighbors within the minimiumdistance cutoff.
 """
 
+function unique_pairs_prune(a::AbstractArray, threshold::AbstractFloat)
+    # TODO only push unique pairs to the list for eachindex(a), instead of for each pair
+    tooClose = 0
+    counter = 0
+    j_cutoff = length(a)-1
+
+    
+    dx = 1.0
+    dy = 1.0
+    dz = 1.0
+    d2 = 1.0
+
+
+    #does not even theoretically work until this line is deleted. just needs 1 more gloss over with the brain
+    for i in 1:length(a)-1
+            for j in i+1:length(a)-1 
+                dx = a[i][1] - a[j][1]
+                dy = a[i][2] - a[j][2] 
+                dz = a[i][3] - a[j][3]
+                d2 = sqrt(dx^2 + dy^2 + dz^2)  
+                if d2 < threshold
+                    fill!(a[i], Inf64)
+                    tooClose += 1
+
+                end   
+            end
+
+    end
+    return tooClose
+end
+
 function generate_pruned_positions(Collector::GenericRandomCollector, Collection)
     #1. generate a set of radialPositions, in each each ooooh no wait i'd have to make radii spheres
     #2. ask if the distance between any of the spheres is negative with a neighborlist cutoff =o (if that works)
     minDist = Collector.minimumdistance
     
-    try
+    #try
         #presumably this implementation will proceed indefinitely until it crashes into an error.
         #Hopefully the computer doesn't spend too long on whether this is an error
         
-        tooClose = neighborlist(Collection.position, minDist;)
+        tooClose = unique_pairs_prune(Collection.position, minDist;)
         while tooClose < 0
-
-            for each in eachindex(tooClose)
+            # to be deleted once i see it's working
+            #for each in eachindex(tooClose)
                 #we want to create a function that will zero-out/Inf-out any position set 
                 #which has an index sitting in the neighborlist
                 #we want to replace the position values labeled by index
-                for and in eachindex(Collection.position)
-                    if tooClose[and][1] == Collection.position[and]
-                        for every in eachindex(Collection.position[and])
-                            every = Inf64 # TODO change to match the precision selected by user
-                        end
-                    end
-                end
-            end
+                #for and in eachindex(Collection.position)
+                    #if tooClose[and][1] == Collection.position[and]
+                        #for every in eachindex(Collection.position[and])
+                            #every = Inf64 # TODO change to match the precision selected by user
+                        #end
+                    #end
+                #end
+            #end
             for object in eachindex(Collection.position)
-                if object[1] == Inf64 # same TODO
-                    replace!(Collection.position[object], generate_onePosition(Collector))
+                if Collection.position[object] == Inf64 # TODO change to NaN ?
+                    
+                    fill!(Collection.position[object], generate_onePosition(Collector))
                 end
             end
-            tooClose = neighborlist(Collection.position, minDist;)
+            tooClose = unique_pairs_prune(Collection.position, minDist;)
         end
         return # i dont think this is necessary, as this is a mutating function with no output, but just in case
             
-    catch
-        return
-    end
+    #catch
+        #return
+    #end
 
     
 end
