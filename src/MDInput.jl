@@ -40,29 +40,29 @@ const Vec3D{T} = Vector{MVector{3, T}}
 const StatVec3D{T} = Vector{SVector{3, T}}
 
 abstract type ObjectCollection end
-struct GenericObjectCollection{K, L, T<:AbstractFloat} <: ObjectCollection 
-    currentstep::AbstractArray{K,1}
-    name::AbstractArray{String, 1}
-    mass::AbstractArray{L, 1}
-    radius::AbstractArray{T, 1}
-    index::AbstractArray{K, 1}
-    position::AbstractArray{MVector{3, T}, 1}
-    velocity::AbstractArray{MVector{3, T}, 1}
-    force::AbstractArray{MVector{3, T}, 1}
+mutable struct GenericObjectCollection{K, L, T<:AbstractFloat} <: ObjectCollection 
+    currentstep::Vector{K}
+    name::Vector{String}
+    mass::Vector{L}
+    radius::Vector{T}
+    index::Vector{K}
+    position::Vector{MVector{3, T}}
+    velocity::Vector{MVector{3, T}}
+    force::Vector{MVector{3, T}}
 
-    #uniqueID::AbstractArray{UUID,1}
+    #uniqueID::Vector{UUID,1}
 
 end
 
 struct GenericStaticCollection{K, L, T<:AbstractFloat} <: ObjectCollection 
-    currentstep::AbstractArray{K,1}
-    name::AbstractArray{String, 1}
-    mass::AbstractArray{L, 1}
-    radius::AbstractArray{T, 1}
-    index::AbstractArray{K, 1}
-    position::AbstractArray{SVector{3, T}, 1}
-    velocity::AbstractArray{SVector{3, T}, 1}
-    force::AbstractArray{SVector{3, T}, 1}
+    currentstep::Vector{K}
+    name::Vector{String}
+    mass::Vector{L}
+    radius::Vector{T}
+    index::Vector{K}
+    position::Vector{SVector{3, T}}
+    velocity::Vector{SVector{3, T}}
+    force::Vector{SVector{3, T}}
 
     #uniqueID::AbstractArray{UUID,1}
 
@@ -178,7 +178,7 @@ function generate_positions(Collector::GenericRandomCollector)
     y = rand(yDimRange, objectcount)
     z = rand(zDimRange, objectcount)
 
-    xyz = [MVector{3, Float64}(x[i], y[i], z[i]) for i in 1:objectcount]
+    xyz = [MVector{3, Float32}(x[i], y[i], z[i]) for i in 1:objectcount]
 
     return xyz
 end
@@ -201,7 +201,7 @@ function generate_positions(Collector::GenericStaticRandomCollector)
     y = rand(yDimRange, objectcount)
     z = rand(zDimRange, objectcount)
 
-    xyz = [SVector{3, Float64}(x[i], y[i], z[i]) for i in 1:objectcount]
+    xyz = [SVector{3, Float32}(x[i], y[i], z[i]) for i in 1:objectcount]
 
     return xyz
 end
@@ -221,7 +221,7 @@ function generate_onePosition(Collector::GenericStaticRandomCollector)
     x = rand(xDimRange, objectcount)
     y = rand(yDimRange, objectcount)
     z = rand(zDimRange, objectcount)
-    return SVector{3, Float64}(x, y, z)
+    return SVector{3, Float32}(x, y, z)
 end
 
 """
@@ -334,7 +334,7 @@ function collect_objects(Collector::GenericRandomCollector)
     step_n=1
 
     # TODO update the Collector Series so that the user can input names and masses and radii.
-    simCollection = GenericObjectCollection(
+    simCollection = GenericObjectCollection{Int64, Float64, Collector.T}(
         fill(step_n, objectcount),
         fill("duck", objectcount),
         rand(1:5, objectcount),
@@ -344,7 +344,8 @@ function collect_objects(Collector::GenericRandomCollector)
         [MVector{3, Collector.T}(rand(velocityRange, 3)) for each in 1:objectcount],
         [MVector{3, Collector.T}(zeros(Float64, 3)) for each in 1:objectcount],
         )
-    density_check(simCollection, Collector)
+    #density_check(simCollection, Collector)
+
     generate_pruned_positions(Collector, simCollection)
     return simCollection
 end
@@ -365,7 +366,7 @@ function collect_objects(Collector::GenericStaticRandomCollector)
         [1:objectcount;],
         generate_positions(Collector),
         [SVector{3, Collector.T}(rand(velocityRange, 3)) for each in 1:objectcount],
-        [SVector{3, Collector.T}(zeros(Float64, 3)) for each in 1:objectcount],
+        [SVector{3, Collector.T}(zeros(Float32, 3)) for each in 1:objectcount],
         )
     #these methods are nonfunctional with SVectors
     #density_check(simCollection, Collector)
@@ -381,12 +382,12 @@ function collect_objects(Collector::GenericZeroCollector)
     myObjectCollection = DataFrame(
         current_step=step_n,
         object_index= collect(Int, 1:objectnumber),
-        position_x=zeros(Float64, length(1:objectnumber)),
-        position_y=zeros(Float64, length(1:objectnumber)),
-        position_z=zeros(Float64, length(1:objectnumber)),
-        velocity_x=zeros(Float64, length(1:objectnumber)),
-        velocity_y=zeros(Float64, length(1:objectnumber)),
-        velocity_z=zeros(Float64, length(1:objectnumber))
+        position_x=zeros(Float32, length(1:objectnumber)),
+        position_y=zeros(Float32, length(1:objectnumber)),
+        position_z=zeros(Float32, length(1:objectnumber)),
+        velocity_x=zeros(Float32, length(1:objectnumber)),
+        velocity_y=zeros(Float32, length(1:objectnumber)),
+        velocity_z=zeros(Float32, length(1:objectnumber))
         )
     
     return myObjectCollection
@@ -406,7 +407,7 @@ function collect_objects(Collector::GenericUserValueCollector )
         [1:objectcount;],
         position,
         velocity,
-        [MVector{3, Collector.T}(zeros(Float64, 3)) for each in 1:objectcount],
+        [MVector{3, Collector.T}(zeros(Float32, 3)) for each in 1:objectcount],
         )
 
     return myObjectCollection

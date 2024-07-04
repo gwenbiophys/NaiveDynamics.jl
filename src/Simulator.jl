@@ -2,148 +2,60 @@
 
 #println("Starting up!")
 export 
-    System,
-    Simulation,
-    TimeMethod,
-    GenericIntegrator,
-    Logger,
-    GenericLogger,
-    LoggerChunk,
-    GenericSystem,
-    GenericSimulation,
+
+    SimulationSpecification,
+    GenericSpec,
     simulate!,
+    simulate_bravado!,
+    simulate_fusedBravado!,
     simulate_MVec!,
     simulate_SVec!,
-    simulate_oneloop!
-    #record_simulation
+    simulate_oneloop!#,
+    #record_simulation,
+    #update_chunk!,
+    #write_chunk!
 
 
 
-abstract type System end
-abstract type Simulation end
-abstract type TimeMethod end
-struct GenericIntegrator <: TimeMethod
-    stepwidth::Integer
-end
-
-
-abstract type Logger end
-
-struct LoggerChunk <: Logger 
-    chunk::Vector{GenericObjectCollection}
-end
-
-mutable struct GenericLogge <: Logger 
-    steparray::AbstractArray{Integer, 1}
-    positionrecord::AbstractArray{AbstractArray{AbstractFloat,3}, 1}
-    velocityrecord::AbstractArray{AbstractArray{AbstractFloat,3}, 1}
-end
-mutable struct GenericLogger <: Logger 
-    currentstep::AbstractArray{AbstractArray{Integer, 1},1}
-    name::AbstractArray{AbstractArray{String, 1}, 1}
-    #mass::AbstractArray{AbstractArray{Number, 1}, 1}
-    #radius::AbstractArray{AbstractFloat, 1}
-    index::AbstractArray{AbstractArray{Integer, 1}, 1}
-    position::AbstractArray{AbstractArray{MVector{3, AbstractFloat}, 1}, 1}
-    velocity::AbstractArray{AbstractArray{MVector{3, AbstractFloat}, 1}, 1}
-    force::AbstractArray{AbstractArray{MVector{3, AbstractFloat}, 1}, 1}
-
-    #uniqueID::AbstractArray{UUID,1}
-
-end
-
-mutable struct GenericLoggerAppend <: ObjectCollection 
-    currentstep::AbstractArray{Integer,1}
-    name::AbstractArray{String, 1}
-    #mass::AbstractArray{Number, 1}
-    #radius::AbstractArray{AbstractFloat, 1}
-    index::AbstractArray{Integer, 1}
-    position::AbstractArray{SizedVector{3, AbstractFloat}, 1}
-    velocity::AbstractArray{SizedVector{3, AbstractFloat}, 1}
-    force::AbstractArray{SizedVector{3, AbstractFloat}, 1}
-
-    #uniqueID::AbstractArray{UUID,1}
-
-end
-
-mutable struct PositionLogger <: ObjectCollection 
-    currentstep::AbstractArray{Integer,1}
-    name::AbstractArray{String, 1}
-    index::AbstractArray{Integer, 1}
-    position::AbstractArray{SizedVector{3, AbstractFloat}, 1}
-end
-
-struct GenericSystem <: System
+abstract type SimulationSpecification end
+struct GenericSpec <: SimulationSpecification
     duration::Integer
     stepwidth::Integer
     currentstep::Integer
-    objectcollection
-end
-struct GenericSimulation <: Simulation
-    system::GenericSystem
     logChunkLength::Integer
 end
 
-#function record_simulation(step_n, position, velocity, myLog)
-    
- #   push!(myLog.steparray, step_n)
- #   push!(myLog.positionrecord, position)
-   # push!(myLog.velocityrecord, velocity)
-  #  return #println("You are logging!")
-#end
 
-function write_chunk!(simChunk)
-
+function write_chunk!(simLog, simChunk)
+    return append!(simLog, simChunk)
+end
+function update_chunk!(chunk_index, simChunk, objectCollection)
+    #return simChunk[chunk_index] = objectCollection
+    return fill!(simChunk[chunk_index], objectCollection)
 end
 
-function record_simulation(step_n, chunk_length, simCollection, simlog::LoggerChunk)
-    chunk_index = 2
-    if chunk_index != chunk_length
+function record_simulation(step_n, chunk_index, chunk_length, simChunk, simLog, objectCollection)
 
-        chunk_index += 1
-    elseif chunk_index === chunk_length
-        write_chunk!(simlog)
-        chunk_index = 1
+    if chunk_length > chunk_index
+        simChunk = update_chunk!(chunk_index, simChunk, objectCollection)
+        #println(simChunk[5].position)
+        return chunk_index += 1 
+    elseif chunk_index == chunk_length
+        simLog = write_chunk!(simLog, simChunk)
+        #println(simLog[each].position) for each in 1:length(simLog)
+        return chunk_index = 1
+    else
+        println("something got bungle grundled in record_simulation")
     end
-    
-    #push!(simCollection, simlog)
-    #this is ultimately how the function should work, just a clean shove
-    #but GenericObjectCollection may have to become a single array and not a mutable datatype
-    #and then we can just push the entire array to the log
-    push!(simlog.currentstep, simCollection.currentstep)
-    push!(simlog.name, simCollection.name)
-    push!(simlog.index, simCollection.index)
-    push!(simlog.position, simCollection.position)
-    push!(simlog.velocity, simCollection.velocity)
-    push!(simlog.force, simCollection.force)
 
 
 end
 
-function record_simulation_bench(simCollection, simlog)
-    
-    #push!(simCollection, simlog)
-    #this is ultimately how the function should work, just a clean shove
-    #but GenericObjectCollection may have to become a single array and not a mutable datatype
-    #and then we can just push the entire array to the log
-    #push!(simlog.currentstep, simCollection.currentstep)
-    #@btime push!($simlog.name, $simCollection.name)
-    #@btime push!($simlog.index, $simCollection.index)
-    @btime append!($simlog.position, $simCollection.position)
-    @btime append!($simlog.velocity, $simCollection.velocity)
-    @btime append!($simlog.force, $simCollection.force)
-
-    return simCollection
-end
 function record_position(positionLog, currentstep, objectname, objectindex, position)
-    push!(positionLog.currentstep, currentstep)
-    append!(positionLog.name, objectname)
-    append!(positionLog.index, objectindex)
-    append!(positionLog.position, position)
 end
 
 """
-    $unique_pairlist(a::AbstractArray)
+    unique_pairlist(a::AbstractArray)
 
 Return a vector of tuples, wherein each tuple 
 contains the indices and squared distance of pairs within a threshold float and the component distances.
@@ -151,7 +63,7 @@ In the case of position, the return pair list is a vector of static vectors of 2
 
 This is the most Naive pairlist writer.
 """
-function unique_pairlist(a::AbstractArray, threshold::AbstractFloat)
+function unique_pairlist!(a::AbstractArray, threshold::AbstractFloat)
     # TODO only push unique pairs to the list for eachindex(a), instead of for each pair
     list = []
     counter = 0
@@ -172,7 +84,7 @@ function unique_pairlist(a::AbstractArray, threshold::AbstractFloat)
                 dz = a[i][3] - a[j][3]
                 d2 = sqrt(dx^2 + dy^2 + dz^2)  
                 if d2 < threshold
-                    push!(list, tuple(i, j, dx, dy, dz, d2))
+                    push!(list, tuple(i, j, dx, dy, dz, d2)) #could have pairlist be arbitarily large and just set to zero? eh. patience.
                 end   
             end
 
@@ -202,7 +114,7 @@ function generate_distance_i!(i, pairslist)
 end
 
 
-function force_lennardjones!(i, force,  pairslist, position)
+function force_lennardjones!(force::Vec3D,  pairslist, position)
     #TODO make epsilon and sigma user configurable 
     eps = 0.0001
     σ = 0.0001
@@ -215,19 +127,30 @@ function force_lennardjones!(i, force,  pairslist, position)
     end
 
     for each in eachindex(pairslist)
-        if pairslist[each][1] == i
-            #d2 = pairslist[each][3]
-            j = pairslist[each][2]
+    
+        #d2 = pairslist[each][3]
+        i = pairslist[each][1]
+        j = pairslist[each][2]
 
-            d = position[i] .- position[j]
+        d = position[i] .- position[j]
 
 
-            force[i] .+= (24*eps ./ d ) .* ((2*σ ./ d).^12 .- (σ ./ d).^6)
-            force[j] .-= force[i]
-        end
+        force[i] .+= (24*eps ./ d ) .* ((2*σ ./ d).^12 .- (σ ./ d).^6)
+        force[j] .-= force[i]
+        
     end
+    #println(typeof(force))
     #return force
-end 
+end
+
+function sum_forces!(force, force1)
+    dumloop_add!(force, force1)
+
+    for each in eachindex(force1)
+        zero(force1[each])
+    end
+    return force
+end
 
 function boundary_reflect!(ithCoord, ithVelo, collector::Collector)
     # can this be evaluated more efficiently?
@@ -260,11 +183,8 @@ function boundary_reflect!(ithCoord, ithVelo, collector::Collector)
     end
 end
 
-function boundary_reflect!(position::Vec3D, velocity::Vec3D, collector::Collector)
-    # can this be evaluated more efficiently?
-    #restructureing would allow a simple forloop
-    # this function already evaluates in 300 ns at zero allocs for 100 atoms. And it is very readily parallelizable. 
-    # sooooooooooooooooooooooooo there'd have to be some substantial work to improve it
+function boundary_reflect!(position::Vec3D, velocity::Vec3D, collector::GenericRandomCollector)
+    # does not actually reflect, just reverses the particle
     for each in eachindex(position)
         if collector.min_xDim > position[each][1] 
             velocity[each][1] *= -1 
@@ -288,112 +208,78 @@ function boundary_reflect!(position::Vec3D, velocity::Vec3D, collector::Collecto
         end
     end
 end
-⊗(a, b) = a .* b
-
-function dumloop_add!(d::Vec3D, e::Vec3D)
-    for i in eachindex(d)
-        d[i] .+= e[i]
-    end
-end
-
-function dumloop_multiply!(d::Vec3D, e::Vec3D)
-    for i in eachindex(d)
-        d[i] .*= e[i]
-    end
-end
-function dumloop_multiply!(d::Vec3D, e::Vector{T}) where T
-    for i in eachindex(d)
-        d[i] .*= e[i]
-    end
-end
-
-function dumloop_product(result::StatVec3D, d::StatVec3D, e::StatVec3D )
-    for i in eachindex(d)
-        result[i] = d[i] .* e[i]
-    end
-end
-function dumloop_product(result::Vec3D, d::Vec3D, e::Vec3D )
-    for i in eachindex(d)
-        result[i] .= d[i] .* e[i]
-    end
-end
-function dumloop_multiply!(d::Vec3D, e::Number)
-    for i in eachindex(d)
-        d[i] .*= e
-    end
-end
-
-
-function dumloop_divide!(d, e)
-    for i in eachindex(d)
-        d[i] ./= e[i]
-    end
-  end
 
 """
     simulate!(simulation::GenericSimulation, collector)
 
 Using MVectors containing dimensional data, simulate by performing calculations for each property of particles
 and waiting until completion to advance to the next property/interaction.
-At June 11th, middle performing and no memory scaling with duration.
+At June 29th, best performing and minimal allocations per time step. better performing for SVecs 
+but does not interoperate with other functions like boundary_reflect!() or forces.
 """
 
-function simulate!(simulation::GenericSimulation, collector)
-    steps = simulation.system.duration
+function simulate!(simulation, collector)
+
+
+    steps::Int64 = simulation.system.duration
     
-    stepwidth = simulation.system.stepwidth
-    stepwidthsqrd = stepwidth^2
-
-
-
-    simcollection = simulation.system.objectcollection
-
-    objectcount = collector.objectnumber
-
-    currentstep = simulation.system.objectcollection.currentstep 
-    objectname = simulation.system.objectcollection.name
-    objectindex = simulation.system.objectcollection.index
-    mass = simulation.system.objectcollection.mass
+    stepwidth::Int64 = simulation.system.stepwidth
     
-    radius = simulation.system.objectcollection.radius
-    position = simulation.system.objectcollection.position
 
-    velocity = simulation.system.objectcollection.velocity
-    force_currentstep = simulation.system.objectcollection.force
-    force_nextstep = copy(force_currentstep)
-    inverse_mass = 1 ./ copy(mass)
+    #objectcount = collector.objectnumber
+
+    #currentstep = simulation.system.objectcollection.currentstep 
+    #objectname = simulation.system.objectcollection.name
+    #objectindex = simulation.system.objectcollection.index
+    mass::Vector{Int64} = simulation.system.objectcollection.mass
+    
+    #radius = simulation.system.objectcollection.radius
+    stepwidthHalf::Float32 = stepwidth/2
+    stepwidthSqrdHalf::Float32 = stepwidth^2/2
+
+    position::Vec3D{Float32} = simulation.system.objectcollection.position
+
+    velocity::Vec3D{Float32} = simulation.system.objectcollection.velocity
+    #velocity = @views simulation.system.objectcollection.velocity
+    force_currentstep::Vec3D{Float32} = simulation.system.objectcollection.force
+    force_nextstep::Vec3D{Float32} = copy(force_currentstep)
+    force_LJ::Vec3D{Float32} = copy(force_currentstep)
+    inverse_mass::Vector{Float32} = 1 ./ mass
 
 
+    chunk_index::Int64 = 2
+    chunk_length::Int64 = 10
+    simLog::Vector{GenericObjectCollection} = []
+    simChunk::Vector{GenericObjectCollection} = [simulation.system.objectcollection for _ in 1:chunk_length]
+    
+    
     #for slice in 1:simulation.logChunkLength 
 
     #end
 
-    positionIntermediate1 = copy(position)
-    positionIntermediate2 = copy(position)
-    velocityIntermediate1 = copy(velocity)
+    positionIntermediate1::Vec3D{Float32} = copy(position)
+    positionIntermediate2::Vec3D{Float32} = copy(position)
+    velocityIntermediate1::Vec3D{Float32} = copy(velocity)
     for each in eachindex(positionIntermediate1)
         zero(positionIntermediate1[each])
         zero(positionIntermediate2[each])
         zero(velocityIntermediate1[each])
     end
+
     
-    stepwidthHalf = stepwidth/2
-    stepwidthSqrdHalf = stepwidth^2/2
-
-    steps_array = zeros(Int8, steps)
-
     #pairslist = InPlaceNeighborList(x=position, cutoff=0.1, parallel=false)
     pairslist = []
-    for step_n in eachindex(steps_array)
+    for step_n in 1:steps
+
         #neighborlist!(pairslist)
-        #try
+
         #pairslist = neighborlist(position, 0.02;)
-        
-        #catch
-            #pairslist = []
-        #end
-        #force_lennardjones!(i, force_currentstep, pairslist, position)
-        positionIntermediate1 = velocity
+        pairslist = unique_pairlist!(position, 0.05)
+
+        force_lennardjones!(force_LJ, pairslist, position)
+        sum_forces!(force_currentstep, force_LJ)
+
+        positionIntermediate1 = copy(velocity) # TODO fix
 
         dumloop_multiply!(positionIntermediate1, stepwidth)
         positionIntermediate2 = force_currentstep 
@@ -405,73 +291,279 @@ function simulate!(simulation::GenericSimulation, collector)
 
         force_nextstep = force_currentstep
 
-        #force_lennardjones!(i, force_nextstep, pairslist, position)
+
+        force_lennardjones!(force_LJ, pairslist, position)
+        sum_forces!(force_nextstep, force_LJ)
+
+
         dumloop_product(velocityIntermediate1, force_currentstep, force_nextstep )
         dumloop_multiply!(velocityIntermediate1, inverse_mass)
         dumloop_multiply!(velocityIntermediate1, stepwidthHalf)
         dumloop_add!(velocity, velocityIntermediate1)
 
-        #internally, this adds zero allocations, but it adds 1 per step
-        #boundary_reflect!(position, velocity, collector)
+        
+        boundary_reflect!(position, velocity, collector)
+
+
 
        
         #println(force_nextstep == force_currentstep) if there is at least 1 interaction, this will be false
-        #force_currentstep = force_nextstep
+        force_currentstep = force_nextstep
         
-        #currentstep = step_n
+        currentstep = step_n
+        
+
+        chunk_index = record_simulation(step_n, chunk_index, chunk_length, simChunk, simLog, simulation.system.objectcollection)
 
         #record_position(positionLog, currentstep, objectname, objectindex, position)
         #@btime record_position($positionLog, $currentstep, $objectname, $objectindex, $position)
         #update!(pairslist, position)
     end
-    #return simlog
-
+    return simLog
 end
 
-function simulate_MVec!(simulation::GenericSimulation, collector)
-    steps = simulation.system.duration
+function simulate_bravado!(sys::GenericObjectCollection, spec::GenericSpec, clct::GenericRandomCollector)
+
+    stepwidthHalf::Float32 = spec.stepwidth/2
+    stepwidthSqrdHalf::Float32 = spec.stepwidth^2/2
+
+    force_nextstep::Vec3D{Float32} = copy(sys.force)
+    force_LJ::Vec3D{Float32} = copy(sys.force)
+    inverse_mass::Vector{Float32} = 1 ./ sys.mass
+
+
+    chunk_index::Int64 = 2
+
+    simLog::Vector{GenericObjectCollection} = []
+    simChunk::Vector{GenericObjectCollection} = [sys for _ in 1:spec.logChunkLength]
     
-    stepwidth = simulation.system.stepwidth
-    stepwidthsqrd = stepwidth^2
+    poslog::Vector{Vec3D{Float32}} = []
+    push!(poslog, copy.(sys.position))
+    positionIntermediate1::Vec3D{Float32} = copy.(sys.velocity)
+    positionIntermediate2::Vec3D{Float32} = copy.(sys.position)
+    velocityIntermediate1::Vec3D{Float32} = copy.(sys.velocity)
 
+    for each in eachindex(positionIntermediate2)
+        zero(positionIntermediate2[each])
+        zero(velocityIntermediate1[each])
+    end
 
-
-    simcollection = simulation.system.objectcollection
-
-    objectcount = collector.objectnumber
-
-    currentstep = simulation.system.objectcollection.currentstep 
-    objectname = simulation.system.objectcollection.name
-    objectindex = simulation.system.objectcollection.index
-    mass = simulation.system.objectcollection.mass
     
-    radius = simulation.system.objectcollection.radius
-    position = simulation.system.objectcollection.position
+    
+    #pairslist = InPlaceNeighborList(x=position, cutoff=0.1, parallel=false)
+    pairslist = []
 
-    velocity = simulation.system.objectcollection.velocity
-    force_currentstep = simulation.system.objectcollection.force
-    force_nextstep = copy(force_currentstep)
-    inverse_mass = 1 ./ copy(mass)
+    
+    for step_n in 1:spec.duration
+
+        #neighborlist!(pairslist)
+
+        #pairslist = neighborlist(position, 0.02;)
+        pairslist = unique_pairlist!(sys.position, 0.3)
+
+        force_lennardjones!(force_LJ, pairslist, sys.position)
+        sys.force = sum_forces!(sys.force, force_LJ)
+
+        positionIntermediate1 = copy.(sys.velocity)
+        #fill!(positionIntermediate1, sys.velocity)
+        #println(sys.position)
+        #println(sys.velocity)
+        dumloop_multiply!(positionIntermediate1, spec.stepwidth)
+        positionIntermediate2 = copy.(sys.force) 
+        #dumloop_divide!(positionIntermediate2, sys.mass) 
+        dumloop_multiply!(positionIntermediate2, inverse_mass)
+        dumloop_multiply!(positionIntermediate1, stepwidthSqrdHalf)
+        #println(positionIntermediate1)
+        #println(sys.position)
+        #println()
+        dumloop_add!(sys.position, positionIntermediate1)
+       # println(positionIntermediate1)
+        #println(sys.position)  
+        dumloop_add!(sys.position, positionIntermediate2)
+        #println("velocities at simulate!() for each step")
+        #println(sys.velocity)
+        #println()
+        force_nextstep = copy.(sys.force)
 
 
+        force_lennardjones!(force_LJ, pairslist, sys.position)
+        force_nextstep = sum_forces!(force_nextstep, force_LJ)
+
+        #println("velocity before we intermediate???")
+        #println(sys.velocity)
+        dumloop_product(velocityIntermediate1, sys.force, force_nextstep )
+        #println("velocity before we intermediate???")
+        #println(sys.velocity)
+        dumloop_multiply!(velocityIntermediate1, inverse_mass)
+        dumloop_multiply!(velocityIntermediate1, stepwidthHalf)
+
+        dumloop_add!(sys.velocity, velocityIntermediate1)
+
+        
+        boundary_reflect!(sys.position, sys.velocity, clct)
+
+
+
+        #println(sys.velocity[1] == sys.velocity[2] )
+        #println(force_nextstep == sys.force) #if there is at least 1 interaction, this will be false
+       
+            #sys.force = force_nextstep
+        #for each in eachindex(sys.force)
+           # sys.force[each] = force_nextstep[each]
+        #end
+        sys.force = copy.(force_nextstep)
+
+        # TODO this needs to be ironed out
+        push!(sys.currentstep, step_n)
+        
+
+        #chunk_index = record_simulation(step_n, chunk_index, spec.logChunkLength, simChunk, simLog, sys)
+        
+        #push!(simLog, sys)
+        
+        push!(poslog, copy.(sys.position))
+
+
+        #record_position(positionLog, currentstep, objectname, objectindex, position)
+        #@btime record_position($positionLog, $currentstep, $objectname, $objectindex, $position)
+        #update!(pairslist, position)
+    end
+
+
+    #return simLog
+    return poslog
+end
+function simulate_fusedBravado!(sys::GenericObjectCollection, spec::GenericSpec, clct::GenericRandomCollector)
+
+    stepwidthHalf::Float32 = spec.stepwidth/2
+    stepwidthSqrdHalf::Float32 = spec.stepwidth^2/2
+
+    force_nextstep::Vec3D{Float32} = copy(sys.force)
+    force_LJ::Vec3D{Float32} = copy(sys.force)
+    inverse_mass::Vector{Float32} = 1 ./ sys.mass
+
+
+    chunk_index::Int64 = 2
+
+    simLog::Vector{GenericObjectCollection} = []
+    simChunk::Vector{GenericObjectCollection} = [sys for _ in 1:spec.logChunkLength]
+    
+
+    positionIntermediate1::Vec3D{Float32} = copy(sys.position)
+    positionIntermediate2::Vec3D{Float32} = copy(sys.position)
+    velocityIntermediate1::Vec3D{Float32} = copy(sys.velocity)
+    accels_t::Vec3D{Float32} = copy(sys.force)
+    accels_t_dt::Vec3D{Float32} = copy(sys.force)
+    for each in eachindex(positionIntermediate1)
+        zero(positionIntermediate1[each])
+        zero(positionIntermediate2[each])
+        zero(velocityIntermediate1[each])
+        zero(accels_t[each])
+        zero(accels_t_dt[each])
+    end
+
+    
+    
+    #pairslist = InPlaceNeighborList(x=position, cutoff=0.1, parallel=false)
+    pairslist = []
+    for step_n in 1:spec.duration
+
+        #neighborlist!(pairslist)
+
+        #pairslist = neighborlist(position, 0.02;)
+        pairslist = unique_pairlist!(sys.position, 0.3)
+
+        force_lennardjones!(force_LJ, pairslist, sys.position)
+        sum_forces!(sys.force, force_LJ)
+
+
+        (accels_t[i] = sys.force[i] ./ sys.mass[i] for i in eachindex(sys.force))
+
+        (sys.position[i] += sys.velocity[i] .* spec.stepwidth[i] .+ ((accels_t[i] .* spec.stepwidth ^ 2) ./ 2) for i in eachindex(sys.position))
+
+        (accels_t_dt[i] = force_nextstep[i] ./ sys.mass[i] for i in eachindex(force_nextstep))
+        
+        
+        force_nextstep = sys.force
+
+
+        force_lennardjones!(force_LJ, pairslist, sys.position)
+        sum_forces!(force_nextstep, force_LJ)
+
+        (sys.velocity[i] += ((accels_t[i] .+ accels_t_dt)[i] .* stepwidth / 2) for i in eachindex(sys.velocity))
+
+        boundary_reflect!(sys.position, sys.velocity, clct)
+
+
+
+       
+       
+            #sys.force = force_nextstep
+        for each in eachindex(sys.force)
+            sys.force[each] = force_nextstep[each]
+        end
+        
+        currentstep = step_n
+        
+
+        chunk_index = record_simulation(step_n, chunk_index, spec.logChunkLength, simChunk, simLog, sys)
+
+        #record_position(positionLog, currentstep, objectname, objectindex, position)
+        #@btime record_position($positionLog, $currentstep, $objectname, $objectindex, $position)
+        #update!(pairslist, position)
+    end
+    return simLog
+end
+
+function simulate_MVec!(simulation, collector)
+
+
+    steps::Int64 = simulation.system.duration
+    
+    stepwidth::Int64 = simulation.system.stepwidth
+    
+
+    #objectcount = collector.objectnumber
+
+    #currentstep = simulation.system.objectcollection.currentstep 
+    #objectname = simulation.system.objectcollection.name
+    #objectindex = simulation.system.objectcollection.index
+    mass::Vector{Int64} = simulation.system.objectcollection.mass
+    
+    #radius = simulation.system.objectcollection.radius
+    stepwidthHalf::Float32 = stepwidth/2
+    stepwidthSqrdHalf::Float32 = stepwidth^2/2
+
+    position::Vec3D{Float32} = simulation.system.objectcollection.position
+
+    velocity::Vec3D{Float32} = simulation.system.objectcollection.velocity
+    #velocity = @views simulation.system.objectcollection.velocity
+    force_currentstep::Vec3D{Float32} = simulation.system.objectcollection.force
+    force_nextstep::Vec3D{Float32} = copy(force_currentstep)
+    force_LJ::Vec3D{Float32} = copy(force_currentstep)
+    inverse_mass::Vector{Float32} = 1 ./ mass
+
+    #simLog = DataFrame(currentstep, positionX, positionY, positionZ)
+    chunk_length = 10
+    simLog::Vector{GenericObjectCollection} = []
+    simChunk::Vector{GenericObjectCollection} = [simulation.system.objectcollection for _ in 1:chunk_length]
+    
+    
     #for slice in 1:simulation.logChunkLength 
 
     #end
 
-    positionIntermediate1 = copy(position)
-    positionIntermediate2 = copy(position)
-    velocityIntermediate1 = copy(velocity)
+    positionIntermediate1::Vec3D{Float32} = copy(position)
+    positionIntermediate2::Vec3D{Float32} = copy(position)
+    velocityIntermediate1::Vec3D{Float32} = copy(velocity)
     for each in eachindex(positionIntermediate1)
         zero(positionIntermediate1[each])
         zero(positionIntermediate2[each])
         zero(velocityIntermediate1[each])
     end
+
     
-    stepwidthHalf = stepwidth/2
-    stepwidthSqrdHalf = stepwidth^2/2
-
-    steps_array = zeros(Int8, steps)
-
+    
     #pairslist = InPlaceNeighborList(x=position, cutoff=0.1, parallel=false)
     pairslist = []
     for step_n in eachindex(steps_array)
@@ -497,7 +589,7 @@ function simulate_MVec!(simulation::GenericSimulation, collector)
 
         (velocity[i] += ((accels_t[i] .+ accels_t_dt)[i] .* stepwidth / 2) for i in eachindex(velocity))
 
-        #internally, this adds zero allocations, but it adds 1 per step
+
         boundary_reflect!(position, velocity, collector)
 
        
@@ -523,7 +615,7 @@ and waiting until completion to advance to the next property/interaction.
 At May 27th, performance still broken.
 """
 
-function simulate_unified!(simulation::GenericSimulation, collector)
+function simulate_SVec!(simulation, collector)
     steps = simulation.system.duration
     
     stepwidth = simulation.system.stepwidth
@@ -579,10 +671,10 @@ function simulate_unified!(simulation::GenericSimulation, collector)
         #end
         #force_lennardjones!(i, force_currentstep, pairslist, position)
 
-        
+        #accels_update!(accels_t, force_currentstep, mass )
         (accels_t[i] = force_currentstep[i] ./ mass[i] for i in eachindex(force_currentstep))
 
-        
+        #position_update!(position, velocity, accels_t, stepwidth)
         (position[i] += velocity[i] .* stepwidth[i] .+ ((accels_t[i] .* stepwidth ^ 2) ./ 2) for i in eachindex(position))
 
         (accels_t_dt[i] = force_nextstep[i] ./ mass[i] for i in eachindex(force_nextstep))
@@ -616,7 +708,7 @@ At May 27th, extremely allocation heavy and slow.
 
 """
 
-function simulate_oneloop!(simulation::GenericSimulation, collector)
+function simulate_oneloop!(simulation, collector)
     steps = simulation.system.duration
     
     stepwidth = simulation.system.stepwidth

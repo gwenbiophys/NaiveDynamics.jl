@@ -7,7 +7,7 @@ makedocs(sitename="NaiveDynamics.jl",
          pages = [
             "Home" => "index.md",
             "Developer Diary" => "devdiary.md",
-            #"Development Directions" => "devdirections.md",
+            "Development Directions" => "devdirections.md",
             "Help Gwen" => "helpGwen.md"
          ],
          format = Documenter.HTML(prettyurls=true),

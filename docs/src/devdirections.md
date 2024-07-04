@@ -25,7 +25,6 @@
 - [x] Following GOC Refactor,  consider if math should be done on the arrays of GenericObjectCollection, or if the values at start should be copied to smaller arrays that contain only the details pertinent to a given calculation. For now, i think no. It shouldnt be too much of a fuss to create a memory minimal version later, one that copies and cuts out unrelevant information for the sake of parallelization
 - [x] Use DataFrames or another package (https://discourse.julialang.org/t/matrix-column-row-labelling/84064/3) for the purpose of assigning labels to the arrays of ObJectCollection, so that code can either call the right subfield by name or by index, rather than index alone and depending on the user to intuit the right name
 - [x] (Get the docs working)
-- [] (Get test coverage working and automated with each commit)
 - [x] Get a commentaries/notes doc going in the docs pages. Maybe blog style
 - [x] Microbenchmarking of the old genericobjectvollection vs the dataframe one and whether simulate! needs to have the coords and vectors extracted out of it
 - [x] Implementstion of a lennard jones potential for generi. Particles
@@ -38,19 +37,23 @@
 - [x] Set makie work craft into its own module so we dont ask the guthub action to precompile NaiveDynamics when it doesnt have a visualization routine
 - [] Why does ci.yml exist? What does it aim to do?
 - [x] Change ci.yml to avoid indicating OS interoperability
-- [] Cutdown on the slop in Simulator
+- [x] Cutdown on the slop in Simulator
 - [] develop independent methods for MVec  until and unless nonindexable SVec's start winning
 - [] improve naming for Vec3D and Stat(ic)?Vec3D
 - [] NaiveLennardJones based on MVec
 - [] NaiveCoulomb based on MVec
-- [] Naive bonding groups
-- [] Naive Logging and CSV block-streaming with MVec 
+~~ - [x] Naive Logging and storage of data as a text file by snapshotting the whole struct~~
+- [x] change structuring, so that the object collection is not nested within misc structs
+      get rid of the name pile at the start of simulate!()
+      simulate takes 3 arguments, a collector, a collection, and the simSpecs, where type dispatch is based around the type of the SimSpecs, if it is a VerletVel or otherwise integrator
+      add documentation to describe the arguments for simulate!(), as objectcollection will be shortened to sys, collector to clct and simulationspecification will just be spec
+- [] update simulate!() and object collection so that the force is the force of the current step, so that for a logg of position and force, the listed force sum is the force that (along with velocity and other methods) that caused the particles to change positions between the previous step and the current step
+- [] get rid of dumloop_product!() as it is just an unnecessary composite of larger pieces
 
 
 ### Version 0.00.3
 - [] GLMakie integration and MP4 deliverable for data analysis
 - [] Improve design of the Logger to be compatible with makie
-- [] Add ElectronDisplays and configure to display plots in their own window
 - [x] Github work flow for a private uhh workspace
 - [x] Github based integrations of the code at start and endpoints
 - [] Figure out how to start getting test coverage and using formal unit testing procedures
@@ -63,14 +66,29 @@
 - [] add several Naive implementations
 - [] For instance, sigma6th and sigma12 should be calculated prior to simulation for each unique radius of objects in our objectcollection --- lord willing the compiler will do this at compile time, but i trust nothing and no one.
 - [] check the naive unique pairs function for correctness. I was kinda just throwing stuff at a wall to see if it worked
+- [] fix precision bug where the precision selected by the user is actually the precision applied throughout
+- [] (Get test coverage working and automated with each commit)
+- [] Fix position recording so that the simulation can be logged for a user specified number of runs
+- [] add pre-sim warmup so that the system can fall back to push!() objCollection at each step if the number of steps and the chunk_length are in disalignment.
+- [x] fix bug in simulation recorder where the chunk_index has to be updated inside the for each step loop. when placed inside the record_simulation if statement, then the value will be reset by simulate!() to it's initial definition value each step, even if the place where the value was defined as '2' sits outside of the stepper loop. this could be automagically fixed when we move to more direct function arguments rather than the equivalency pile up top.
+- [] fix velocity verlet to prevent velocity from depreciating for no reason. most likely, the velocity values are being overwritten by intermediates, which are based on forces. as forces tend to zero, so shall intermediates and velocities. or the force is just whacked up. not sure!
+- [] use for each fill!() for all instances of IntermediateVector = DataVector
 
 
 ### Version 0.00.4
-- [x] Construction of a solid wall that inverts the velocity term of any particle with a >= value as the wall
+- [] Improve the boundary_reflect!() in some way to either reduce frequency of checking (pair list), use an aligned array(s) to broadcast that checks in a single statement rather than 6 if statements, convert wall actions into a potential,something else, or all of the above. At leat make it Naive+ rather than just Naive.
 - [] Research how boundary conditions are set so as to avoid assessing the value of every particle to see if it exists in the box or not at each time step
 - [] optimize naive implementations so that they dont endlessly allocate temporary values and obtain pre-allocated overwrite spaces prior to entering the for-each-step loop
-- [] maybe even create a few fancy implementations 
+- [] maybe even create a few fancy implementations or Naive+ Naive++ 
 - [] integrate tree based neighbor finding
+- [] modify the makie extension with the advice posted on their documentation https://docs.makie.org/stable/explanations/recipes#Full-recipes-with-the-@recipe-macro
+- [] fix makie extension so that I don't have to load in GLMakie and all of it's dependencies every single time.
+- [] fix up collection.current step and how it is updated inside of simulate!(). it is silly to have to allocate a vector filled with the same data point for each particle at every step. But also, is it really a big deal?
+- [] organize helpGwen.md
+- [] test out and redevelop struct of arrays of arrays for the Log of ObjectCollections and get a write up on how it's going. it went poorly last time and I am not certain why and I would have to manually search the diary to see if I wrote anything. and maybe i wrote nothign
+- [] integrate the julian testing packages as part of a refactor to make naming consistent but also make it easier. for instance, I keep mispelling simLog as simlog when simlog works absolutely fine and syslog might make more sense. or just log.
+- [] find documentation bug
+
 
 ### Version 0.00.5
 - [] Momentum calculations for particles of a selectable and variable radius radius so they bounce against each other for Newtonian-based simulation
@@ -81,6 +99,8 @@
 - [] By ArrayFire, non julian kernel abstraction library?
 - [] By replacing GenericObjColl with a vector of Tuples that contain alll of the information? Maintain broadcasting functionality by a vector of tuples of numbers, M/SVectors of numbers, and strings
 Version
+- [] Should the component forces LJ, Coulomb etc. be dumped at the very end of each step, given that they are completely recomputed in the next step based on the old situation, rather than additive?
+
 
 ### Version 0.01
 - [x] Changename from NaiveMD to NaiveDynamics

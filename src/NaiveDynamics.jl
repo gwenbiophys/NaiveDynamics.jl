@@ -11,10 +11,15 @@ using Revise
 using StructArrays
 using CellListMap
 using NearestNeighbors
+using GLMakie
 
 
 include("MDInput.jl")
 include("Simulator.jl")
+include("BaseExtensions.jl")
+include("NaiveMakie.jl")
+
+#function record_video() end
 
 
 end # module NaiveDynamics
