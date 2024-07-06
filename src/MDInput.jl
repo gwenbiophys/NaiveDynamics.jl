@@ -74,7 +74,7 @@ end
 """
     Collector
 
-Collector super-type for simulation initialization.
+Collector supertype for simulation initialization.
 
 """
 struct GenericRandomCollector{T<:AbstractFloat} <: Collector
@@ -229,7 +229,7 @@ end
 
 After collect_objects() has generated a vector of vectors of positions, 
 this function will naively prune the positions and replace them with other positions. 
-At present, pruning proceeds until try-catch control flow until neighborlist()
+At present, pruning proceeds until try catch control flow until neighborlist()
 fails due to having no neighbors within the minimiumdistance cutoff.
 """
 

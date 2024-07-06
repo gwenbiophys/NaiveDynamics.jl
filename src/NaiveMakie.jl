@@ -48,19 +48,6 @@ function record_video(output_path::AbstractString,
         positionsToPlot[] = coord
     end
 
-
-    #record(fig, output_path; framerate=framerate) do io
-       # for each in eachindex(positions)
-       #     coord = positions[each]
-        
-       #     positionsToPlot[] = Point3f.(coord)
-
-         #   scatter!(ax, positionsToPlot; color=color, markersize=markersize, transparency=transparency,
-         #   markerspace=:data, kwargs...)
-         #   recordframe!(io)
-       # end
-    #end
-
 end
 
 

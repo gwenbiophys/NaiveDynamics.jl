@@ -1,7 +1,7 @@
 # Development Directions
 
 <details>
-   <summary>Version wishlist</summary>
+   <summary>Roadmap</summary>
    
 ## Roadmap
 ### Version 0.00.1
@@ -49,10 +49,9 @@
       add documentation to describe the arguments for simulate!(), as objectcollection will be shortened to sys, collector to clct and simulationspecification will just be spec
 - [] update simulate!() and object collection so that the force is the force of the current step, so that for a logg of position and force, the listed force sum is the force that (along with velocity and other methods) that caused the particles to change positions between the previous step and the current step
 - [] get rid of dumloop_product!() as it is just an unnecessary composite of larger pieces
-
+- [x] GLMakie integration and MP4 deliverable for data analysis
 
 ### Version 0.00.3
-- [] GLMakie integration and MP4 deliverable for data analysis
 - [] Improve design of the Logger to be compatible with makie
 - [x] Github work flow for a private uhh workspace
 - [x] Github based integrations of the code at start and endpoints

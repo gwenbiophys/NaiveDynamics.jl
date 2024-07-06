@@ -190,7 +190,8 @@ force[i] .+= (24*eps ./ d )((2*σ ./ d).^12 - (σ ./ d).^6)
 
 Onto the next breakage ```InexactError: trunc(Int64, 3.884345474457886e38)```. 
 A more severe one, I fear. It points to the ```neighborlist()``` function call. We are going to update CellListMap and pray. A new release came about 3 days ago sooo we should be good, right? *Oh dear.* Going from 1000 to 10 000 particles seems to drastically increase the size of the error here, from about 10^20 to 10^30 through and beyond 10^50. So we have to figure out what value is being created that is so extremely stratospheric, and it is created seemingly each time enough particles are created to exist in less than the cut off. Let's increase cut off and reduce atoms. Now we are getting different errors regardless of using a function or sitting in global scope, outofmemory, invalid array size, invalid array dimensions, and sometimes the truncation error. Each of these errors occur in the neighborlist run. For the truncation error, the problematic calculation is Line 213 of Box.jl. 
-```_nc = floor.(Int, (xmax .- xmin) / (cutoff / lcell)) 
+```
+_nc = floor.(Int, (xmax .- xmin) / (cutoff / lcell)) 
 ``` 
 NearestNeighbors.jl hass it's own problem that the most recent issue shows a method error that prevents the use of Vector(MVector()) so that may not be a solution.
 

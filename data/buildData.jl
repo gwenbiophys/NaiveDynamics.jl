@@ -7,67 +7,6 @@ using GLMakie
 #using ProfileView #doesnt work in VSCode
 
 
-#### Testing for the 4 bugs when running neighborlist()
-# 1. Test for directly overlapping particles
-
-#positions = [MVector{3, Float32}(fill(1.0, 3)) for each in 1:5]
-#velocities = [MVector{3, Float32}(zeros(3)) for each in 1:5]
-#Collector = GenericUserValueCollector(positions, velocities, Float32, 5, -5.0, -6.0, -7.0, 5.0, 6.0, 7.0, -0.2, 0.2)
-#Collection = collect_objects(Collector)
-#System = GenericSystem(100, 1, 1, Collection)
-#simulation = GenericSimulation(System, true)
-#result = simulate!(simulation, Collector)
-## truncation error, forces go to infinty, positions go to infinity, nobody's happy
-
-
-#### Benchtesting and eventually generating starting data
-# 1. Build a  simulation with user-locked values.
-#valuesCollector = GenericUserValuesCollector(10, 0.2, 12.9)
-#valuesCollection = collect_objects(valuesCollector)
-#valuesSystem = GenericSystem(5, 1, 1, valuesCollection)
-#valuesSimulation = GenericSimulation(valuesSystem, true)
-#theResult = simulate!(valuesSimulation)
-#println("And here is the result!: ", theResult)
-#resultantTable = DataFrame(step=theResult.steparray, positions=theResult.positionrecord, velocities=theResult.velocityrecord)
-#println(theResult)
-
-# 2. Small, random GenericDataFrame
-"""
-smallCollector = GenericRandomCollector(10, -5.0, 5.0, -0.2, 0.2)
-smallCollection = collect_objects(smallCollector)
-CSV.write("small_rand.csv", smallCollection)
-"""
-
-# 3. ENHANCE
-a = [25, 100, 1000, 10000]
-b = [1, 2, 3, 4, 5, 10, 15, 20, 25, 100]
-c = [500]
-
-
-#a = GenericRandomCollector(Float32,100, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, -0.2, 0.2, 0.001)
-#println("Mutable Vecs!")
-#largeCollector = a
-#largeCollection = collect_objects(largeCollector)
-#new limiter: minimum number of steps for doing anything = chunk_length
-#largeSystem::GenericSystem = GenericSystem(300, 1, 1, largeCollection)
-#largeSimulation::GenericSimulation = GenericSimulation(largeSystem, 5)
-
-#println("   Generator expressions")
-
-#println("   Loop exclusion")
-
-#MVec is currently broken, it's just not running the calculation
-#@btime simulate!($largeSimulation, $largeCollector)
-#log = simulate!(largeSimulation, largeCollector)
-
-#println("log length ", length(log))
-# the length of the log is incorrect, it should be equal to the number of steps
-#println(typeof(log))
-
-#record_video("./NaiveDynamics.jl/data/myRecording.mp4", log, largeCollector )
-#@profview_allocs simulate!(largeSimulation, largeCollector)
-
-#@btime simulate_MVec!($largeSimulation, $largeCollector)
 
 
 myCollector = GenericRandomCollector(Float32, 40, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, -0.2, 0.2, 0.001)
