@@ -14,6 +14,7 @@ function record_video(output_path::AbstractString,
                                     simLog,
                                     collector::Collector,
                                     w::Float64 = 1.05, #window scale factor
+                                    frameinterval::Integer = 1
                                     framerate::Integer = 25,
                                     color = :purple,
                                     markersize = 0.05,
@@ -42,10 +43,13 @@ function record_video(output_path::AbstractString,
     zlims!(ax, collector.min_zDim*w, collector.max_zDim*w)
 
     frames = 1:length(positions)
+    #if frames[frame_i] % frame_i == 0
 
     record(fig, output_path, frames; framerate) do frame_i
-        coord = Point3f.(positions[frame_i])
-        positionsToPlot[] = coord
+
+            coord = Point3f.(positions[frame_i])
+            positionsToPlot[] = coord
+
     end
 
 end

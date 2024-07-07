@@ -11,7 +11,10 @@ using Revise
 using StructArrays
 using CellListMap
 using NearestNeighbors
-#using GLMakie
+
+
+using CUDA
+using GLMakie
 
 
 include("MDInput.jl")

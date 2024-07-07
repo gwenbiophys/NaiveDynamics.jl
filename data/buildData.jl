@@ -9,16 +9,16 @@ using GLMakie
 
 
 
-myCollector = GenericRandomCollector(Float32, 40, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, -0.2, 0.2, 0.001)
+myCollector = GenericRandomCollector(Float32, 40, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, -0.00002, 0.00002, 0.001)
 myCollection = collect_objects(myCollector)
-mySpec = GenericSpec(400, 1, 1, 10)
+mySpec = GenericSpec(40000, 1, 1, 10)
 #@btime simulate!($largeSimulation, $largeCollector)
 log = simulate_bravado!(myCollection, mySpec, myCollector)
 
 #println("log length ", length(log))
 #println(typeof(log))
 
-record_video("./NaiveDynamics.jl/data/iWant.mp4", log, myCollector )
+record_video("./NaiveDynamics.jl/data/newTest.mp4", log, myCollector )
 
 
 function hope()

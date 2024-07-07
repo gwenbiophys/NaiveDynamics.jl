@@ -116,8 +116,9 @@ end
 
 function force_lennardjones!(force::Vec3D,  pairslist, position)
     #TODO make epsilon and sigma user configurable 
-    eps = 0.0001
-    σ = 0.0001
+    eps = 1.0f-23
+    #eps = 0.00000001 any value diff from this causes instant chaos
+    σ = 0.3
 
     #distance_i = generate_distance_i(i, pairslist)
 
@@ -187,24 +188,30 @@ function boundary_reflect!(position::Vec3D, velocity::Vec3D, collector::GenericR
     # does not actually reflect, just reverses the particle
     for each in eachindex(position)
         if collector.min_xDim > position[each][1] 
-            velocity[each][1] *= -1 
+            velocity[each][1] *= -1
+            position[each][1] = collector.min_xDim
         end
         if collector.max_xDim < position[each][1] 
             velocity[each][1] *= -1
+            position[each][1] = collector.max_xDim
         end
 
         if collector.min_yDim > position[each][2] 
             velocity[each][2] *= -1 
+            position[each][2] = collector.min_yDim
         end
         if collector.max_yDim < position[each][2] 
             velocity[each][2] *= -1
+            position[each][2] = collector.max_yDim
         end
 
         if collector.min_zDim > position[each][3] 
             velocity[each][3] *= -1 
+            position[each][3] = collector.min_zDim
         end
         if collector.max_zDim < position[each][3] 
-            velocity[each][3] *= -1 
+            velocity[each][3] *= -1
+            position[each][3] = collector.max_zDim
         end
     end
 end
@@ -340,7 +347,8 @@ function simulate_bravado!(sys::GenericObjectCollection, spec::GenericSpec, clct
     poslog::Vector{Vec3D{Float32}} = []
     push!(poslog, copy.(sys.position))
     positionIntermediate1::Vec3D{Float32} = copy.(sys.velocity)
-    positionIntermediate2::Vec3D{Float32} = copy.(sys.position)
+    positionIntermediate2 = copy.(sys.position)
+
     velocityIntermediate1::Vec3D{Float32} = copy.(sys.velocity)
 
     for each in eachindex(positionIntermediate2)
@@ -428,6 +436,7 @@ function simulate_bravado!(sys::GenericObjectCollection, spec::GenericSpec, clct
         #@btime record_position($positionLog, $currentstep, $objectname, $objectindex, $position)
         #update!(pairslist, position)
     end
+    println(sys.position)
 
 
     #return simLog
