@@ -5,16 +5,16 @@
 #using Colors
 #import NaiveDynamics.record_video
 
-# this extension could not have been written without Molly
-    # providing a relevant example for this rendering unaware tool
+# this extension could not have been written without Molly.jl
+    # providing a relevant example for this rendering and Makie unaware tool
 export 
     record_video
 
-function record_video(output_path::AbstractString,
-                                    simLog,
-                                    collector::Collector,
-                                    w::Float64 = 1.05, #window scale factor
-                                    frameinterval::Integer = 1
+function record_video(              output_path::AbstractString,
+                                    simlog,
+                                    collector::Collector;
+                                    w::Float64 = 1.05, #window scale factor beyond the boundary size
+                                    frameinterval::Integer = 1, # ratio of sim steps to frames
                                     framerate::Integer = 25,
                                     color = :purple,
                                     markersize = 0.05,
@@ -24,10 +24,16 @@ function record_video(output_path::AbstractString,
                                     boundary_linewidth = 2.0,
                                     boundary_color = :black,
                                     kwargs...
-                                    )
+                        )
                                 
     fig = Figure()
-    positions::Vector{Vector{MVector{3, Float32}}} = simLog
+    positions = []
+    for each in eachindex(simlog)
+        if each % frameinterval == 0
+            push!(positions, simlog[each])
+        end
+    end
+    #positions::Vector{Vector{MVector{3, Float32}}} = simLog
     #for each in eachindex(simLog)
        # push!(positions, simLog[each].position)
    # end
@@ -45,7 +51,7 @@ function record_video(output_path::AbstractString,
     frames = 1:length(positions)
     #if frames[frame_i] % frame_i == 0
 
-    record(fig, output_path, frames; framerate) do frame_i
+    GLMakie.record(fig, output_path, frames; framerate) do frame_i
 
             coord = Point3f.(positions[frame_i])
             positionsToPlot[] = coord

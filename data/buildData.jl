@@ -9,16 +9,29 @@ using GLMakie
 
 
 
-myCollector = GenericRandomCollector(Float32, 40, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, -0.00002, 0.00002, 0.001)
+myCollector = GenericRandomCollector(Float32, 40, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, -0.02, 0.02, 0.001)
 myCollection = collect_objects(myCollector)
-mySpec = GenericSpec(40000, 1, 1, 10)
+mySpec = GenericSpec{Int64}(4000, 1, 1, 10)
 #@btime simulate!($largeSimulation, $largeCollector)
-log = simulate_bravado!(myCollection, mySpec, myCollector)
+#@btime logpos = simulate_bravado!($myCollection, $mySpec, $myCollector)
+#@code_warntype simulate_bravado!(myCollection, mySpec, myCollector)
+logpos = simulate!(myCollection, mySpec, myCollector)
+#@btime logpos2 = simulate_hope!($myCollection, $mySpec, $myCollector)
+record_video("./NaiveDynamics.jl/data/newhope.mp4", logpos, myCollector; frameinterval = 10 )
+
+
+#myCollector = GenericRandomCollector(Float32, 40, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, -0.02, 0.02, 0.001)
+#myCollection = collect_objects(myCollector)
+#mySpec = GenericSpec{Int64}(4000, 1, 1, 10)
+#logpos2 = simulate_dumloop!(myCollection, mySpec, myCollector)
+#@btime logpos2 = simulate!($myCollection, $mySpec, $myCollector)
+
+
 
 #println("log length ", length(log))
 #println(typeof(log))
 
-record_video("./NaiveDynamics.jl/data/newTest.mp4", log, myCollector )
+
 
 
 function hope()

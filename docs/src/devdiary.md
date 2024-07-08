@@ -440,3 +440,41 @@ The record function from Makie is correctly iterating, as an index whose value i
 3. Have a handy helper sheet that is language specific for important points.
 4. Make commits more often, I have been sitting on changes of changes of changes for a while at the present commit.
 5. there were others but I forget.
+
+
+
+Separately, it is time to put the Velocity Verlet optimization to rest, once and for all. I began to suspect that my loop hell testing was only fast because it helped to get around type insecurity. So I tested:
+```julia
+# loop hell
+positionIntermediate1 = copy.(sys.velocity)
+dumloop_multiply!(positionIntermediate1, spec.stepwidth)
+positionIntermediate2 = copy.(sys.force) 
+dumloop_multiply!(positionIntermediate2, inverse_mass)
+dumloop_multiply!(positionIntermediate1, stepwidthSqrdHalf)
+dumloop_add!(sys.position, positionIntermediate1)
+dumloop_add!(sys.position, positionIntermediate2)
+
+# simple expressions
+accels_t = sys.force ./ sys.mass 
+sys.position += sys.velocity .* spec.stepwidth .+ ((accels_t .* spec.stepwidth ^ 2) ./ 2)
+
+# generator expressions
+(accels_t[i] = sys.force[i] ./ sys.mass[i] for i in eachindex(sys.force))
+(sys.position[i] += sys.velocity[i] .* spec.stepwidth[i] .+ ((accels_t[i] .* spec.stepwidth ^ 2) ./ 2) for i in eachindex(sys.position))
+
+```
+
+And the results were strong: at 40 particles and 4000 steps without a neighbor list calculation (so they should all be doing the same number of calculations)
+  178.058 ms (8319170 allocations: 317.56 MiB) = dumloop
+  541.077 ms (20239170 allocations: 772.27 MiB) = simple expressions
+  59.114 ms (5039171 allocations: 191.83 MiB) = generator expressions
+I am pleased with this result, but wow the generator expressions are quicker, and at this juncture, I do not know why.
+I understand it being faster, but also more memory efficient? I am suspicious. ~~It's possible it is to do with temporary allocating in the copy.() calls that occur with dumloop intermediates that the generators don't have to explicitly state(that I think can be optimized away with a for loop and a fill!()), but consider: The generator expression adds a single in-line for loop, the loop hell is far far more complicated and annoying. Let the compiler do it for me.~~ The generator expressions calculate accels_t and dt but because they are introduced in the for loop they are local to its scope and nothing happens. Fixing that, I still am not seeing the position values change, and I don't understand why. The generator expressions are not working anymore, when they were working earlier without modification. Strange-world we live in. Maybe I had my function calls confused or something of the sort, I swear I saw a video from the generator expression simulate!() that worked correctly. Well, tossing out the the generator expressions that did less than they should have, now loop hell is once again in the lead for superior allocation performance, a 20x perf advantage and a <3x overall memory advantage. And I confirm both methods give a valid mp4.
+
+Moving forward, we can try reimplementing my older scheme to reduce temporary allocations, the one that maximized loop fusion but ended up with performance as bad as the one loop method. And we can also update one loop as well. And while reimplementing maximal loop fusion, I found that miscellaneous allocations were being caused by the ```GenericSpec```s, a type conflict in which the specs were offered only the abstract integer form, and preventing the automagic syntactic loop fusion I ahve been chasing this entire time. I run zero allocations with the following expression, now that *every* variable has a concrete type at or before compile time:
+```julia 
+        for i in eachindex(sys.position)
+            sys.position[i] .+= sys.velocity[i] .* spec.stepwidth .+ ((accels_t[i] .* spec.stepwidth ^ 2) ./ 2)
+        end
+```
+The compiler has shown that it can get around the need for explicity intermediates, reducing data generation and at least matching the speed of the dumloop method. And it should be simple to exceed the speed with this fully compressed expression.

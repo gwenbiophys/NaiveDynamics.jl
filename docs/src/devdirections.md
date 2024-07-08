@@ -35,21 +35,22 @@
  [x] Add a pruner to positions for ones too close at initialization
  [x] Make the pruner time stable
  [x] Set makie work craft into its own module so we dont ask the guthub action to precompile NaiveDynamics when it doesnt have a visualization routine
- [] Why does ci.yml exist? What does it aim to do?
+ [x] Why does ci.yml exist? What does it aim to do? ~run the test package, boss
  [x] Change ci.yml to avoid indicating OS interoperability
  [x] Cutdown on the slop in Simulator
- [] develop independent methods for MVec  until and unless nonindexable SVec's start winning
+ [x] develop independent methods for MVec  until and unless nonindexable SVec's start winning
  [] improve naming for Vec3D and Stat(ic)?Vec3D
- [] NaiveLennardJones based on MVec
+ [x] NaiveLennardJones based on MVec
  [] NaiveCoulomb based on MVec
  [x] Naive Logging and storage of data as a text file by snapshotting the whole struct~~
  [x] change structuring, so that the object collection is not nested within misc structs
       get rid of the name pile at the start of simulate!()
       simulate takes 3 arguments, a collector, a collection, and the simSpecs, where type dispatch is based around the type of the SimSpecs, if it is a VerletVel or otherwise integrator
       add documentation to describe the arguments for simulate!(), as objectcollection will be shortened to sys, collector to clct and simulationspecification will just be spec
- [] update simulate!() and object collection so that the force is the force of the current step, so that for a logg of position and force, the listed force sum is the force that (along with velocity and other methods) that caused the particles to change positions between the previous step and the current step
- [] get rid of dumloop_product!() as it is just an unnecessary composite of larger pieces
+ [x] update simulate!() and object collection so that the force is the force of the current step, so that for a logg of position and force, the listed force sum is the force that (along with velocity and other methods) that caused the particles to change positions between the previous step and the current step
+ [x] get rid of dumloop_product!() as it is just an unnecessary composite of larger pieces
  [x] GLMakie integration and MP4 deliverable for data analysis
+ [] add temperature rescaling to catch molecules that suddenly acquire an obscene velocity.
 
 ### Version 0.00.3
  [] Improve design of the Logger to be compatible with makie
@@ -68,11 +69,11 @@
  [] fix precision bug where the precision selected by the user is actually the precision applied throughout
  [] (Get test coverage working and automated with each commit)
  [] Fix position recording so that the simulation can be logged for a user specified number of runs
- [] add pre-sim warmup so that the system can fall back to push!() objCollection at each step if the number of steps and the chunk_length are in disalignment.
+ [] add simulate!() resolution so that the system can log the last few steps, if the last step does not trigger a logging of the chunk
  [x] fix bug in simulation recorder where the chunk_index has to be updated inside the for each step loop. when placed inside the record_simulation if statement, then the value will be reset by simulate!() to it's initial definition value each step, even if the place where the value was defined as '2' sits outside of the stepper loop. this could be automagically fixed when we move to more direct function arguments rather than the equivalency pile up top.
  [] fix velocity verlet to prevent velocity from depreciating for no reason. most likely, the velocity values are being overwritten by intermediates, which are based on forces. as forces tend to zero, so shall intermediates and velocities. or the force is just whacked up. not sure!
  [] use for each fill!() for all instances of IntermediateVector = DataVector
- [] allow record_video() to have user input for the frame recording interval. do this by pushing every multiple of frameInterval to the positions vector
+ [x] allow record_video() to have user input for the frame recording interval. do this by pushing every multiple of frameInterval to the positions vector
 
 
 ### Version 0.00.4
