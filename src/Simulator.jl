@@ -113,9 +113,9 @@ end
 
 function force_lennardjones!(force::Vec3D,  pairslist, position)
     #TODO make epsilon and sigma user configurable 
-    eps = 1.0f-23
+    eps = 1.0f-8
     #eps = 0.00000001 any value diff from this causes instant chaos
-    σ = 0.3
+    σ = 0.0003
 
     #distance_i = generate_distance_i(i, pairslist)
 
@@ -249,7 +249,7 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
         #neighborlist!(pairslist)
 
         #pairslist = neighborlist(position, 0.02;)
-        pairslist = unique_pairlist!(sys.position, 0.8)
+        pairslist = unique_pairlist!(sys.position, 0.01)
 
         force_lennardjones!(force_LJ, pairslist, sys.position)
         sum_forces!(sys.force, force_LJ)
@@ -288,16 +288,16 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
 
         map!(x->x, sys.force, force_nextstep)
 
-        println(length(sys.force))
-        println(length(sys.position))
-        currentstep = step_n
-        push!(poslog, copy.(sys.position))
 
+        currentstep = 1:step_n
+
+        push!(poslog, copy.(sys.position))
         #chunk_index = record_simulation(step_n, chunk_index, spec.logChunkLength, simChunk, simLog, sys)
 
 
         #update!(pairslist, position)
     end
+
     return poslog
 end
 

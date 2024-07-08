@@ -51,6 +51,9 @@
  [x] get rid of dumloop_product!() as it is just an unnecessary composite of larger pieces
  [x] GLMakie integration and MP4 deliverable for data analysis
  [] add temperature rescaling to catch molecules that suddenly acquire an obscene velocity.
+ [x] fix bugs that cause particles to exit the box
+ [x] fix bugs that cause unnecessary allocations in VelVer
+ [x] notice that a simulation records n_steps + 1 position sets, when trying using frameintervals of 10s, have to shift the value by 1
 
 ### Version 0.00.3
  [] Improve design of the Logger to be compatible with makie
@@ -74,6 +77,7 @@
  [] fix velocity verlet to prevent velocity from depreciating for no reason. most likely, the velocity values are being overwritten by intermediates, which are based on forces. as forces tend to zero, so shall intermediates and velocities. or the force is just whacked up. not sure!
  [] use for each fill!() for all instances of IntermediateVector = DataVector
  [x] allow record_video() to have user input for the frame recording interval. do this by pushing every multiple of frameInterval to the positions vector
+
 
 
 ### Version 0.00.4

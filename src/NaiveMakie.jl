@@ -29,10 +29,14 @@ function record_video(              output_path::AbstractString,
     fig = Figure()
     positions = []
     for each in eachindex(simlog)
-        if each % frameinterval == 0
+        if each==1
+            push!(positions, simlog[each])
+        elseif (each-1) % frameinterval == 0
             push!(positions, simlog[each])
         end
     end
+
+
     #positions::Vector{Vector{MVector{3, Float32}}} = simLog
     #for each in eachindex(simLog)
        # push!(positions, simLog[each].position)
@@ -52,7 +56,6 @@ function record_video(              output_path::AbstractString,
     #if frames[frame_i] % frame_i == 0
 
     GLMakie.record(fig, output_path, frames; framerate) do frame_i
-
             coord = Point3f.(positions[frame_i])
             positionsToPlot[] = coord
 

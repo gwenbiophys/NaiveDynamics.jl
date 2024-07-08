@@ -480,4 +480,6 @@ Moving forward, we can try reimplementing my older scheme to reduce temporary al
 The compiler has shown that it can get around the need for explicity intermediates, reducing data generation and at least matching the speed of the dumloop method. And it should be simple to exceed the speed with this fully compressed expression.
 
 
-Onto the next issue, I was just playing with increasing sim size and increasing the frameinterval, and then I started to receive a print statement of the directory name, and the video would only record those particles which stayed in the box. Maybe the mapping did not work! This was not happening earlier, and NaiveMakie remains unchanged. Howw odd!
+We are working towards preventing particles from escaping the box. We readded position locking, which only works if the position coordinate doesnt NaN, as NaN is not greater or less tahan any number. we can increase the duration of the simulation and decrease the velocity range, to hopefully increase the probability that two particles do not appear extremely close together and then fly off at incredible or overwhelming speeds. Velocity rescaling could also help catch some particles, as we aim towards conserving energy in the system. I think tuning down the sigma and epsilon terms could also help, whereas before tuning them but not initial velocity was not enough?
+
+Also, at 4 million steps and all the nonsense in my background, we are hitting a major memory wall to the point this program may crash.
