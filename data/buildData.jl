@@ -19,7 +19,7 @@ mySpec = GenericSpec{Int64}(800000, 1, 1, 10)
 @profview logpos = simulate!(myCollection, mySpec, myCollector)
 myCollector = GenericRandomCollector(Float32, 40, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, -0.000002, 0.000002, 0.001)
 myCollection = collect_objects(myCollector)
-mySpec = GenericSpec{Int64}(800000, 1, 1, 10)
+#mySpec = GenericSpec{Int64}(800000, 1, 1, 10)
 @profview_allocs logpos = simulate!(myCollection, mySpec, myCollector)
 #@btime logpos2 = simulate!($myCollection, $mySpec, $myCollector)
 

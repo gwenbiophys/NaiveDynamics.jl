@@ -60,9 +60,15 @@ In the case of position, the return pair list is a vector of static vectors of 2
 
 This is the most Naive pairlist writer.
 """
-function unique_pairlist!(a::AbstractArray, threshold::AbstractFloat)
+function unique_pairlist!(a::Vec3D{T}, threshold::Float64) where T
     # TODO only push unique pairs to the list for eachindex(a), instead of for each pair
-    list = []
+    
+    # im doing this to hopefully cut down on type instability, though it probably worked fine by just annotating
+        # what 'a' is supposed to be
+    a = copy(convert(T, 0.5))
+    list = [tuple(1, 1, a, a, a, a)]::Vector{Tuple{Int64, Int64, T, T, T, T}}
+    empty!(list)
+
     counter = 0
     j_cutoff = length(a)-1
 
@@ -81,7 +87,7 @@ function unique_pairlist!(a::AbstractArray, threshold::AbstractFloat)
                 dz = a[i][3] - a[j][3]
                 d2 = sqrt(dx^2 + dy^2 + dz^2)  
                 if d2 < threshold
-                    push!(list, tuple(i, j, dx, dy, dz, d2)) #could have pairlist be arbitarily large and just set to zero? eh. patience.
+                    push!(list, tuple{Int64, Int64, T, T, T, T}(i, j, dx, dy, dz, d2)) #could have pairlist be arbitarily large and just set to zero? eh. patience.
                 end   
             end
 
@@ -237,8 +243,8 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
     #simLog = []::Vector{GenericObjectCollection}
    # simChunk = [sys for _ in 1:spec.logChunkLength]::Vector{GenericObjectCollection}
     
-    poslog::Vector{Vec3D{Float32}} = []
-    push!(poslog, copy.(sys.position))
+    poslog = [sys.position]::Vector{Vec3D{Float32}}
+    #push!(poslog, copy.(sys.position)::Vector{Vec3D{Float32}})
     accels_t = copy.(sys.force)::Vec3D{Float32}
     accels_t_dt = copy.(sys.force)::Vec3D{Float32}
 
