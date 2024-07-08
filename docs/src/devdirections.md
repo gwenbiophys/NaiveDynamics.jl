@@ -24,7 +24,7 @@
  [x] Refactor of GenericObjectCollection and functions to be a single array filled with typed arrays as fields, rather than an object with several attached arrays, so more continuity in data --- no, StructArrays.jl doesnt work or doesnt make sense to me
  [x] Following GOC Refactor,  consider if math should be done on the arrays of GenericObjectCollection, or if the values at start should be copied to smaller arrays that contain only the details pertinent to a given calculation. For now, i think no. It shouldnt be too much of a fuss to create a memory minimal version later, one that copies and cuts out unrelevant information for the sake of parallelization
  [x] Use DataFrames or another package (https://discourse.julialang.org/t/matrix-column-row-labelling/84064/3) for the purpose of assigning labels to the arrays of ObJectCollection, so that code can either call the right subfield by name or by index, rather than index alone and depending on the user to intuit the right name
- [x] (Get the docs working)
+ [x] Get the docs working
  [x] Get a commentaries/notes doc going in the docs pages. Maybe blog style
  [x] Microbenchmarking of the old genericobjectvollection vs the dataframe one and whether simulate! needs to have the coords and vectors extracted out of it
  [x] Implementstion of a lennard jones potential for generi. Particles
@@ -58,7 +58,7 @@
  [x] Github based integrations of the code at start and endpoints
  [] Figure out how to start getting test coverage and using formal unit testing procedures
  [] Wrap custome types in functions so that a user can call a function and assign labeled arguments (eg "duration=10"), rather than having nameless and ordered fields
- [] (These wrapper functions may also contain side logic for checking inputs are correct as well as the actual logic to be done on the particular system, as shown in Molly.setup)
+   [] These wrapper functions may also contain side logic for checking inputs are correct as well as the actual logic to be done on the particular system, as shown in Molly.setup
  [] Output logfile with modification of the set up routine to allow the user to add in a place and a type of output, but defaulting to a generic
  [x] Random generation for each component. Check that this works
  [] Aqua.jl
@@ -67,9 +67,9 @@
  [] For instance, sigma6th and sigma12 should be calculated prior to simulation for each unique radius of objects in our objectcollection --- lord willing the compiler will do this at compile time, but i trust nothing and no one.
  [] check the naive unique pairs function for correctness. I was kinda just throwing stuff at a wall to see if it worked
  [] fix precision bug where the precision selected by the user is actually the precision applied throughout
- [] (Get test coverage working and automated with each commit)
+ [] Get test coverage working and automated with each commit
  [] Fix position recording so that the simulation can be logged for a user specified number of runs
- [] add simulate!() resolution so that the system can log the last few steps, if the last step does not trigger a logging of the chunk
+ [] add ```simulate!()``` resolution so that the system can log the last few steps, if the last step does not trigger a logging of the chunk
  [x] fix bug in simulation recorder where the chunk_index has to be updated inside the for each step loop. when placed inside the record_simulation if statement, then the value will be reset by simulate!() to it's initial definition value each step, even if the place where the value was defined as '2' sits outside of the stepper loop. this could be automagically fixed when we move to more direct function arguments rather than the equivalency pile up top.
  [] fix velocity verlet to prevent velocity from depreciating for no reason. most likely, the velocity values are being overwritten by intermediates, which are based on forces. as forces tend to zero, so shall intermediates and velocities. or the force is just whacked up. not sure!
  [] use for each fill!() for all instances of IntermediateVector = DataVector

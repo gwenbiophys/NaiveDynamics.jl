@@ -123,6 +123,9 @@ function force_lennardjones!(force::Vec3D,  pairslist, position)
     if length(pairslist) < 1
         return
     end
+    for each in eachindex(force)
+        zero(force[each])
+    end
 
     for each in eachindex(pairslist)
     
@@ -246,7 +249,7 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
         #neighborlist!(pairslist)
 
         #pairslist = neighborlist(position, 0.02;)
-        pairslist = unique_pairlist!(sys.position, 0.3)
+        pairslist = unique_pairlist!(sys.position, 0.8)
 
         force_lennardjones!(force_LJ, pairslist, sys.position)
         sum_forces!(sys.force, force_LJ)
@@ -263,8 +266,8 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
             accels_t_dt[i] .= force_nextstep[i] ./ sys.mass[i]
         end
         
-        
-        force_nextstep = copy.(sys.force)
+        map!(x->x, force_nextstep, sys.force)
+
 
 
         force_lennardjones!(force_LJ, pairslist, sys.position)
@@ -277,8 +280,16 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
         boundary_reflect!(sys.position, sys.velocity, clct)
 
         #sys.force = force_nextstep
-        sys.force = copy.(force_nextstep)
-        
+        #for i in eachindex(sys.force)
+            #fill!.(sys.force[i], force_nextstep[i])
+            #map!(x->x, sys.force[i], force_nextstep[i])
+            #sys.force = copy.(force_nextstep)
+        #end
+
+        map!(x->x, sys.force, force_nextstep)
+
+        println(length(sys.force))
+        println(length(sys.position))
         currentstep = step_n
         push!(poslog, copy.(sys.position))
 
