@@ -13,8 +13,8 @@ using CellListMap
 using NearestNeighbors
 
 
-using CUDA
-using GLMakie
+#using CUDA
+#using GLMakie
 
 
 include("MDInput.jl")
