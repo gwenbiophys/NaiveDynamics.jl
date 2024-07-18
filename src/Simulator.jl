@@ -152,6 +152,9 @@ end
 
 function sum_forces!(force, force1)
     dumloop_add!(force, force1)
+#phone edit, fix later
+    for i in eachindex(force)
+        force[i] .= force1[i]
 
     for each in eachindex(force1)
         zero(force1[each])
