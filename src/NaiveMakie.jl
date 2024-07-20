@@ -36,7 +36,6 @@ function record_video(              output_path::AbstractString,
         end
     end
 
-
     #positions::Vector{Vector{MVector{3, Float32}}} = simLog
     #for each in eachindex(simLog)
        # push!(positions, simLog[each].position)

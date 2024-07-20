@@ -483,3 +483,16 @@ The compiler has shown that it can get around the need for explicity intermediat
 We are working towards preventing particles from escaping the box. We readded position locking, which only works if the position coordinate doesnt NaN, as NaN is not greater or less tahan any number. we can increase the duration of the simulation and decrease the velocity range, to hopefully increase the probability that two particles do not appear extremely close together and then fly off at incredible or overwhelming speeds. Velocity rescaling could also help catch some particles, as we aim towards conserving energy in the system. I think tuning down the sigma and epsilon terms could also help, whereas before tuning them but not initial velocity was not enough?
 
 Also, at 4 million steps and all the nonsense in my background, we are hitting a major memory wall to the point this program may crash.
+
+## July 18, trying to fix NaN and Inf
+The forces are not being adequately zeroed out, testing shows that no matter how I apply the zero() function to my datatype, nothing indeed happens to the interior values of the argument. But this works in a generically prepared array of MVecs on my scratchpad. A for loop and map routine is able to eventually solve the problem, but it's syntactically ridiculous to have:
+```julia
+    for each in eachindex(force)
+        map!(x->x, force[each], MVector{3, T}(0.0, 0.0, 0.0))
+    end
+```
+instead of
+```julia
+zero(force)
+```
+So a new task for the devdirections, extending the zero function a Vec3D? Though maybe the zero function is just a wrapper for a fill with zeros function.

@@ -40,12 +40,12 @@ const Vec3D{T} = Vector{MVector{3, T}}
 const StatVec3D{T} = Vector{SVector{3, T}}
 
 abstract type ObjectCollection end
-mutable struct GenericObjectCollection{K, L, T<:AbstractFloat} <: ObjectCollection 
-    currentstep::Vector{K}
+mutable struct GenericObjectCollection{T<:AbstractFloat} <: ObjectCollection 
+    currentstep::Vector{Int64}
     name::Vector{String}
-    mass::Vector{L}
+    mass::Vector{T}
     radius::Vector{T}
-    index::Vector{K}
+    index::Vector{Int64}
     position::Vector{MVector{3, T}}
     velocity::Vector{MVector{3, T}}
     force::Vector{MVector{3, T}}
@@ -78,8 +78,7 @@ Collector supertype for simulation initialization.
 
 """
 struct GenericRandomCollector{T<:AbstractFloat} <: Collector
-    T
-    objectnumber::Integer
+    objectnumber::Int64
     min_xDim::T
     min_yDim::T
     min_zDim::T
@@ -326,7 +325,7 @@ Return a GenericObjectCollection with positions and speeds randomly seeded, as s
 
 """
 
-function collect_objects(Collector::GenericRandomCollector)
+function collect_objects(Collector::GenericRandomCollector{T}) where T
 
     velocityRange = Uniform(Collector.minspeed, Collector.maxspeed)
 
@@ -334,15 +333,15 @@ function collect_objects(Collector::GenericRandomCollector)
     step_n=1
 
     # TODO update the Collector Series so that the user can input names and masses and radii.
-    simCollection = GenericObjectCollection{Int64, Float64, Collector.T}(
+    simCollection = GenericObjectCollection{T}(
         fill(step_n, objectcount),
         fill("duck", objectcount),
         rand(1:5, objectcount),
         fill(0.01, objectcount),
         [1:objectcount;],
         generate_positions(Collector),
-        [MVector{3, Collector.T}(rand(velocityRange, 3)) for each in 1:objectcount],
-        [MVector{3, Collector.T}(zeros(Float64, 3)) for each in 1:objectcount],
+        [MVector{3, T}(rand(velocityRange, 3)) for each in 1:objectcount],
+        [MVector{3, T}(zeros(Float64, 3)) for each in 1:objectcount],
         )
     #density_check(simCollection, Collector)
 

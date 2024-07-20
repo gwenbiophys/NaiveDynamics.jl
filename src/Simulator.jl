@@ -60,38 +60,51 @@ In the case of position, the return pair list is a vector of static vectors of 2
 
 This is the most Naive pairlist writer.
 """
-function unique_pairlist!(a::Vec3D{T}, threshold::Float64) where T
+function unique_pairlist!(a::Vec3D{T}, threshold::T) where T
     # TODO only push unique pairs to the list for eachindex(a), instead of for each pair
     
     # im doing this to hopefully cut down on type instability, though it probably worked fine by just annotating
         # what 'a' is supposed to be
-    a = copy(convert(T, 0.5))
-    list = [tuple(1, 1, a, a, a, a)]::Vector{Tuple{Int64, Int64, T, T, T, T}}
-    empty!(list)
+    #b = copy(convert(T, 0.5))
+    #list = [tuple(1, 1, b, b, b, b)]::Vector{Tuple{Int64, Int64, T, T, T, T}}
+    #empty!(list)
+    list = []
 
     counter = 0
     j_cutoff = length(a)-1
 
     
-    dx = 1.0
-    dy = 1.0
-    dz = 1.0
-    d2 = 1.0
+    #dx = 1.0::T
+    #dy = 1.0::T
+    #dz = 1.0::T
+    #d2 = 1.0::T
+    if length(a) == 2
 
-
-    #does not even theoretically work until this line is deleted. just needs 1 more gloss over with the brain
-    for i in 1:length(a)-1
+        dx = a[1][1] - a[2][1]
+        dy = a[1][2] - a[2][2] 
+        dz = a[1][3] - a[2][3]
+        d2 = sqrt(dx^2 + dy^2 + dz^2) 
+        if d2 < threshold
+            push!(list, tuple(1, 2, dx, dy, dz, d2))
+        end
+    else
+        
+        #does not even theoretically work until this line is deleted. just needs 1 more gloss over with the brain
+        for i in 1:length(a)-1
             for j in i+1:length(a)-1 
                 dx = a[i][1] - a[j][1]
                 dy = a[i][2] - a[j][2] 
                 dz = a[i][3] - a[j][3]
                 d2 = sqrt(dx^2 + dy^2 + dz^2)  
                 if d2 < threshold
-                    push!(list, tuple{Int64, Int64, T, T, T, T}(i, j, dx, dy, dz, d2)) #could have pairlist be arbitarily large and just set to zero? eh. patience.
+                    push!(list, tuple(i, j, dx, dy, dz, d2)) #could have pairlist be arbitarily large and just set to zero? eh. patience.
                 end   
             end
 
+        end
     end
+
+
     return list
 end
 
@@ -117,20 +130,25 @@ function generate_distance_i!(i, pairslist)
 end
 
 
-function force_lennardjones!(force::Vec3D,  pairslist, position)
+function force_lennardjones!(force::Vec3D{T},  pairslist, position) where T
     #TODO make epsilon and sigma user configurable 
-    eps = 1.0f-8
-    #eps = 0.00000001 any value diff from this causes instant chaos
-    σ = 0.0003
+    eps = 1f-20
 
-    #distance_i = generate_distance_i(i, pairslist)
+    σ = 1f-1
+    # this is silly
+    for each in eachindex(force)
+        map!(x->x, force[each], MVector{3, T}(0.0, 0.0, 0.0))
+    end
+    #zero(force)
+    #for each in eachindex(force)
+        #zero.(force[each])
+    #end
+
+
 
     #neighborlist() fails when it has zero neighbors, this is a temporary fix
     if length(pairslist) < 1
         return
-    end
-    for each in eachindex(force)
-        zero(force[each])
     end
 
     for each in eachindex(pairslist)
@@ -151,11 +169,15 @@ function force_lennardjones!(force::Vec3D,  pairslist, position)
 end
 
 function sum_forces!(force, force1)
-    dumloop_add!(force, force1)
-
-    for each in eachindex(force1)
-        zero(force1[each])
+    for each in eachindex(force)
+        force[each] .= force1[each]
     end
+
+
+    #unecessary as this is handled in force_LJ
+    #for each in eachindex(force1)
+     #   zero(force1[each])
+    #end
     return force
 end
 
@@ -231,11 +253,11 @@ At June 29th, best performing and minimal allocations per time step. better perf
 but does not interoperate with other functions like boundary_reflect!() or forces.
 """
 
-function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::GenericRandomCollector)
+function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::GenericRandomCollector{T}) where T
 
 
-    force_nextstep::Vec3D{Float32} = copy(sys.force)
-    force_LJ::Vec3D{Float32} = copy(sys.force)
+    force_nextstep::Vec3D{Float32} = deepcopy(sys.force)
+    force_LJ::Vec3D{Float32} = deepcopy(sys.force)
 
     chunk_index::Int64 = 2
 
@@ -255,7 +277,7 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
         #neighborlist!(pairslist)
 
         #pairslist = neighborlist(position, 0.02;)
-        pairslist = unique_pairlist!(sys.position, 0.01)
+        pairslist = unique_pairlist!(sys.position, convert(T, 0.1))
 
         force_lennardjones!(force_LJ, pairslist, sys.position)
         sum_forces!(sys.force, force_LJ)
@@ -285,22 +307,14 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
         end
         boundary_reflect!(sys.position, sys.velocity, clct)
 
-        #sys.force = force_nextstep
-        #for i in eachindex(sys.force)
-            #fill!.(sys.force[i], force_nextstep[i])
-            #map!(x->x, sys.force[i], force_nextstep[i])
-            #sys.force = copy.(force_nextstep)
-        #end
-
         map!(x->x, sys.force, force_nextstep)
 
 
         currentstep = 1:step_n
 
-        push!(poslog, copy.(sys.position))
+        push!(poslog, deepcopy(sys.position))
+
         #chunk_index = record_simulation(step_n, chunk_index, spec.logChunkLength, simChunk, simLog, sys)
-
-
         #update!(pairslist, position)
     end
 

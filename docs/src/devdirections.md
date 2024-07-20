@@ -97,7 +97,8 @@
 - [] organize helpGwen.md
 - [] test out and redevelop struct of arrays of arrays for the Log of ObjectCollections and get a write up on how it's going. it went poorly last time and I am not certain why and I would have to manually search the diary to see if I wrote anything. and maybe i wrote nothign
 - [] integrate the julian testing packages as part of a refactor to make naming consistent but also make it easier. for instance, I keep mispelling simLog as simlog when simlog works absolutely fine and syslog might make more sense. or just log.
-- [] find documentation bug
+- [] fix documentation syntax so that documenter.jl transforms the markdown correctly
+- [] extend zero() so that it works correctly for a Vec3D and we simpl.ify the zeroing of forces before new calculations
 
 
 ### Version 0.00.5
