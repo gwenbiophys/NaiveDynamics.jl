@@ -15,11 +15,12 @@ export
 
 
 abstract type SimulationSpecification end
-struct GenericSpec{T} <: SimulationSpecification where T
+struct GenericSpec{T, K} <: SimulationSpecification
     duration::T
     stepwidth::T
     currentstep::T
     logChunkLength::T
+    velocityDampening::K #idk a better way to handle this
 end
 
 
@@ -181,37 +182,6 @@ function sum_forces!(force, force1)
     return force
 end
 
-function boundary_reflect!(ithCoord, ithVelo, collector::Collector)
-    # can this be evaluated more efficiently?
-    #restructureing would allow a simple forloop
-    if collector.min_xDim > ithCoord[1] 
-        ithVelo[1] = -ithVelo[1] 
-        ithCoord[1] = collector.min_xDim
-    end
-    if collector.max_xDim < ithCoord[1] 
-        ithVelo[1] = -ithVelo[1] 
-        ithCoord[1] = collector.max_xDim
-    end
-
-    if collector.min_yDim > ithCoord[2] 
-        ithVelo[2] = -ithVelo[2] 
-        ithCoord[2] = collector.min_yDim
-    end
-    if collector.max_yDim < ithCoord[2] 
-        ithVelo[2] = -ithVelo[2] 
-        ithCoord[2] = collector.max_yDim
-    end
-
-    if collector.min_zDim > ithCoord[3] 
-        ithVelo[3] = -ithVelo[3] 
-        ithCoord[3] = collector.min_zDim
-    end
-    if collector.max_zDim < ithCoord[3] 
-        ithVelo[3] = -ithVelo[3] 
-        ithCoord[3] = collector.max_zDim
-    end
-end
-
 function boundary_reflect!(position::Vec3D, velocity::Vec3D, collector::GenericRandomCollector)
     # does not actually reflect, just reverses the particle
     for each in eachindex(position)
@@ -243,6 +213,42 @@ function boundary_reflect!(position::Vec3D, velocity::Vec3D, collector::GenericR
         end
     end
 end
+"""
+    rescale_velocity(velocity, Tf, gamma)
+
+For gamma=1, we will achieve full rescaling of velocity at the end of each step.
+No rescaling for zero.
+"""
+
+function rescale_velocity!(velocity::Vec3D{T}, Tf::T, γ::T, mass::Vector{T}, objectcount::Int64) where T
+    Ti = 0.0
+    convert(T, Ti)
+
+    kb = 1.0
+    convert(T, kb)
+    v = 0.0
+    convert(T, v)
+    objects = convert(T, objectcount)
+
+    
+    for each in eachindex(velocity)
+
+        v = (velocity[each][1]^2 + velocity[each][2]^2 + velocity[each][3]^2) ^ 0.5
+        #println("here is v ", v)
+
+        Ti += (2/(3 * objects * kb)) * v * mass[each]/2
+        #println("Ti after calc ", Ti)
+    end
+
+    β = (1 + γ * (Tf/Ti - 1) ) ^ 0.5
+
+    #println("here is β ", β)
+
+    for each in eachindex(velocity)
+        velocity[each] .*= β
+    end
+
+end
 
 """
     simulate!(simulation::GenericSimulation, collector)
@@ -256,8 +262,8 @@ but does not interoperate with other functions like boundary_reflect!() or force
 function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::GenericRandomCollector{T}) where T
 
 
-    force_nextstep::Vec3D{Float32} = deepcopy(sys.force)
-    force_LJ::Vec3D{Float32} = deepcopy(sys.force)
+    force_nextstep::Vec3D{T} = deepcopy(sys.force)
+    force_LJ::Vec3D{T} = deepcopy(sys.force)
 
     chunk_index::Int64 = 2
 
@@ -265,13 +271,15 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
     #simLog = []::Vector{GenericObjectCollection}
    # simChunk = [sys for _ in 1:spec.logChunkLength]::Vector{GenericObjectCollection}
     
-    poslog = [sys.position]::Vector{Vec3D{Float32}}
+    poslog = [sys.position]::Vector{Vec3D{T}}
+    #sizehint!(poslog, spec.duration)
     #push!(poslog, copy.(sys.position)::Vector{Vec3D{Float32}})
-    accels_t = copy.(sys.force)::Vec3D{Float32}
-    accels_t_dt = copy.(sys.force)::Vec3D{Float32}
+    accels_t = copy.(sys.force)::Vec3D{T}
+    accels_t_dt = copy.(sys.force)::Vec3D{T}
 
     #pairslist = InPlaceNeighborList(x=position, cutoff=0.1, parallel=false)
     pairslist = []
+
     for step_n in 1:spec.duration
 
         #neighborlist!(pairslist)
@@ -279,7 +287,7 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
         #pairslist = neighborlist(position, 0.02;)
         pairslist = unique_pairlist!(sys.position, convert(T, 0.1))
 
-        force_lennardjones!(force_LJ, pairslist, sys.position)
+      #  force_lennardjones!(force_LJ, pairslist, sys.position)
         sum_forces!(sys.force, force_LJ)
 
         for i in eachindex(accels_t)
@@ -298,7 +306,7 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
 
 
 
-        force_lennardjones!(force_LJ, pairslist, sys.position)
+       # force_lennardjones!(force_LJ, pairslist, sys.position)
         sum_forces!(force_nextstep, force_LJ)
 
 
@@ -316,6 +324,8 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
 
         #chunk_index = record_simulation(step_n, chunk_index, spec.logChunkLength, simChunk, simLog, sys)
         #update!(pairslist, position)
+
+        rescale_velocity!(sys.velocity, clct.temperature, spec.velocityDampening, sys.mass, clct.objectnumber)
     end
 
     return poslog
@@ -429,7 +439,7 @@ function simulate_dumloop!(sys::GenericObjectCollection, spec::GenericSpec, clct
         #@btime record_position($positionLog, $currentstep, $objectname, $objectindex, $position)
         #update!(pairslist, position)
     end
-    #println(sys.position)
+
 
 
     #return simLog

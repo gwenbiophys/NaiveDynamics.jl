@@ -496,3 +496,10 @@ instead of
 zero(force)
 ```
 So a new task for the devdirections, extending the zero function a Vec3D? Though maybe the zero function is just a wrapper for a fill with zeros function.
+
+
+Towards velocity rescaling, life appeared to be working fine until the rescale_velocity!() function found its way. When calculating Ti in the nested loop, Ti turns into NaN at the first calculation. Why is that? 
+```julia
+Ti += (2/(3 * objectcount * kb)) * v * mass[each]/2
+```
+When Ti is calculated in this expression for each particle, the presence of v

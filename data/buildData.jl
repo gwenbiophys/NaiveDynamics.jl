@@ -17,13 +17,13 @@ using GLMakie
 #@btime logpos = simulate_bravado!($myCollection, $mySpec, $myCollector)
 #@code_warntype simulate_bravado!(myCollection, mySpec, myCollector)
 #@profview logpos = simulate!(myCollection, mySpec, myCollector)
-myCollector = GenericRandomCollector{Float32}(20, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, -0.02, 0.02, 0.001)
+myCollector = GenericRandomCollector{Float32}(20, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 0.0001, false, 1.0, 5.0, 0.001)
 myCollection = collect_objects(myCollector)
-mySpec = GenericSpec{Int64}(4000, 1, 1, 10)
+mySpec = GenericSpec{Int64, Float32}(50000, 1, 1, 10, 0.0)
 logpos = simulate!(myCollection, mySpec, myCollector)
 #@btime logpos2 = simulate!($myCollection, $mySpec, $myCollector)
 
-record_video("./NaiveDynamics.jl/data/newhope.mp4", logpos, myCollector; frameinterval = 1 )
+record_video("./NaiveDynamics.jl/data/newhope.mp4", logpos, myCollector; frameinterval = 100 )
 
 
 #myCollector = GenericRandomCollector(Float32, 40, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, -0.02, 0.02, 0.001)

@@ -93,8 +93,11 @@ struct GenericRandomCollector{T<:AbstractFloat} <: Collector
     #minDimension::MVector{3, AbstractFloat}
     #maxDimension::MVector{3, AbstractFloat}
 
-    minspeed::T
-    maxspeed::T
+    temperature::T
+    randomvelocity::Bool
+
+    minmass::T
+    maxmass::T
     minimumdistance::T
 end
 
@@ -327,20 +330,43 @@ Return a GenericObjectCollection with positions and speeds randomly seeded, as s
 
 function collect_objects(Collector::GenericRandomCollector{T}) where T
 
-    velocityRange = Uniform(Collector.minspeed, Collector.maxspeed)
-
+    massRange = Uniform(Collector.minmass, Collector.maxmass)
     objectcount = Collector.objectnumber
     step_n=1
+    mass = rand(massRange, Collector.objectnumber)
+    
+    velocity = [MVector{3, T}(zeros(Float64, 3)) for each in 1:objectcount]
+    kb = 1 # stand-in for Boltzmann constant in a dimensionless system
+
+    if Collector.randomvelocity
+
+        for i in eachindex(velocity[1])
+            veldist = rand(T, objectcount)
+            veldist ./= sum(veldist)
+            for each in eachindex(veldist)
+                velocity[each][i] = Collector.temperature * veldist[each] * 3*objectcount * kb / mass[each]
+            end
+        end
+        
+
+    elseif !Collector.randomvelocity
+        for i in eachindex(velocity[1])
+            for each in eachindex(velocity)
+                velocity[each][i] = Collector.temperature / objectcount * 3*objectcount * kb / mass[each]
+            end
+        end
+
+    end
 
     # TODO update the Collector Series so that the user can input names and masses and radii.
     simCollection = GenericObjectCollection{T}(
         fill(step_n, objectcount),
         fill("duck", objectcount),
-        rand(1:5, objectcount),
+        deepcopy(mass),
         fill(0.01, objectcount),
         [1:objectcount;],
         generate_positions(Collector),
-        [MVector{3, T}(rand(velocityRange, 3)) for each in 1:objectcount],
+        deepcopy(velocity),
         [MVector{3, T}(zeros(Float64, 3)) for each in 1:objectcount],
         )
     #density_check(simCollection, Collector)
