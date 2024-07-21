@@ -502,4 +502,6 @@ Towards velocity rescaling, life appeared to be working fine until the rescale_v
 ```julia
 Ti += (2/(3 * objectcount * kb)) * v * mass[each]/2
 ```
-When Ti is calculated in this expression for each particle, the presence of v
+When Ti is calculated in this expression for each particle, the presence of v---
+
+hold hold HOLD the phone. whenever two particles get close enough for an Epic amount of repulsion, they go NaN and this somehow breaks every other particle

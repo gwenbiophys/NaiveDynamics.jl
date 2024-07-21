@@ -133,9 +133,9 @@ end
 
 function force_lennardjones!(force::Vec3D{T},  pairslist, position) where T
     #TODO make epsilon and sigma user configurable 
-    eps = 1f-20
+    eps = -2
 
-    σ = 1f-1
+    σ = 1f-2
     # this is silly
     for each in eachindex(force)
         map!(x->x, force[each], MVector{3, T}(0.0, 0.0, 0.0))
@@ -241,7 +241,7 @@ function rescale_velocity!(velocity::Vec3D{T}, Tf::T, γ::T, mass::Vector{T}, ob
     end
 
     β = (1 + γ * (Tf/Ti - 1) ) ^ 0.5
-
+    #β = (Tf/Ti) ^ 0.5
     #println("here is β ", β)
 
     for each in eachindex(velocity)
@@ -287,7 +287,7 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
         #pairslist = neighborlist(position, 0.02;)
         pairslist = unique_pairlist!(sys.position, convert(T, 0.1))
 
-      #  force_lennardjones!(force_LJ, pairslist, sys.position)
+        force_lennardjones!(force_LJ, pairslist, sys.position)
         sum_forces!(sys.force, force_LJ)
 
         for i in eachindex(accels_t)
@@ -306,7 +306,7 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
 
 
 
-       # force_lennardjones!(force_LJ, pairslist, sys.position)
+        force_lennardjones!(force_LJ, pairslist, sys.position)
         sum_forces!(force_nextstep, force_LJ)
 
 
@@ -324,8 +324,9 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
 
         #chunk_index = record_simulation(step_n, chunk_index, spec.logChunkLength, simChunk, simLog, sys)
         #update!(pairslist, position)
-
-        rescale_velocity!(sys.velocity, clct.temperature, spec.velocityDampening, sys.mass, clct.objectnumber)
+        if step_n % 10 == 0
+            rescale_velocity!(sys.velocity, clct.temperature, spec.velocityDampening, sys.mass, clct.objectnumber)
+        end
     end
 
     return poslog

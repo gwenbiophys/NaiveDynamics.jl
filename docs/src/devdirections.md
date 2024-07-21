@@ -81,7 +81,9 @@
 - [] fix velocity verlet to prevent velocity from depreciating for no reason. most likely, the velocity values are being overwritten by intermediates, which are based on forces. as forces tend to zero, so shall intermediates and velocities. or the force is just whacked up. not sure!
 - [] use for each fill!() for all instances of IntermediateVector = DataVector
 - [x] allow record_video() to have user input for the frame recording interval. do this by pushing every multiple of frameInterval to the positions vector
-
+- [] add additional user-fill parameters types for each force, separately to the sim spec
+- [] make these userfill parameters easy to fill in, for name awareness of each paremter
+      by having a function of the same name fxn(; param, param, param, defaultparam=1)
 
 
 ### Version 0.00.4
