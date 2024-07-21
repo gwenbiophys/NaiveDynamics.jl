@@ -13,7 +13,7 @@ using CellListMap
 using NearestNeighbors
 
 
-using CUDA
+#using CUDA
 using GLMakie
 
 
