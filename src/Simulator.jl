@@ -51,7 +51,7 @@ end
 function record_position(positionLog, currentstep, objectname, objectindex, position)
 end
 
-function update_pairslist(a::Vec3D{T}, list) where T
+function update_pairslist!(a::Vec3D{T}, list) where T
 
     
     if length(a) == 2
@@ -64,12 +64,25 @@ function update_pairslist(a::Vec3D{T}, list) where T
         list[1] = tuple(1, 2, dx, dy, dz, d2)
 
     else
-        
-        # this probably works, but i dont have a test suite so *shrug*
-        for i in eachindex(list) 
-            dx = a[i][1] - a[j][1]
-            dy = a[i][2] - a[j][2] 
-            dz = a[i][3] - a[j][3]
+
+
+        for each in eachindex(list)
+
+            i = list[each][1]
+            j = list[each][2]
+
+            xi = a[i][1]
+            xj = a[j][1]
+
+            yi = a[i][2]
+            yj = a[j][2]
+
+            zi = a[i][3]
+            zj = a[j][3]
+
+            dx = xi - xj
+            dy = yi - yj
+            dz = zi - zj
             d2 = sqrt(dx^2 + dy^2 + dz^2)  
 
            list[i] = tuple(i, j, dx, dy, dz, d2) 
@@ -88,7 +101,7 @@ function unique_pairs(a::Vec3D{T}) where T
     convert(T, v)
 
     list = fill(tuple(1, 2, v, v, v, v), list_length)
-    update_pairlist(a, list)
+    update_pairslist!(a, list)
     
 
 
@@ -162,7 +175,7 @@ function force_lennardjones!(force::Vec3D{T},  pairslist, position) where T
         i = pairslist[each][1]
         j = pairslist[each][2]
 
-        d = position[i] .- position[j]
+        d = pairslist[each][6]
 
 
         force[i] .+= (24*eps ./ d ) .* ((2*σ ./ d).^12 .- (σ ./ d).^6)
@@ -173,16 +186,37 @@ function force_lennardjones!(force::Vec3D{T},  pairslist, position) where T
     #return force
 end
 
-function sum_forces!(force, force1)
+function force_coulomb!(force::Vec3D{T}, pairslist, charge) where T
+    k = 1 # coulomb constant
     for each in eachindex(force)
-        force[each] .= force1[each]
+        map!(x->x, force[each], MVector{3, T}(0.0, 0.0, 0.0))
     end
 
+    for each in eachindex(pairslist)
+        i = pairslist[each][1]
+        j = pairslist[each][2]
+        dx = pairslist[each][3]
+        dy = pairslist[each][4]
+        dz = pairslist[each][5]
 
-    #unecessary as this is handled in force_LJ
-    #for each in eachindex(force1)
-     #   zero(force1[each])
-    #end
+        #d = pairslist[each][6]
+
+        force[i][1] += k * charge[i] * charge[j] / dx^2
+        force[i][2] += k * charge[i] * charge[j] / dy^2
+        force[i][3] += k * charge[i] * charge[j] / dz^2
+        force[j][1] -= force[i][1]
+        force[j][2] -= force[i][2]
+        force[j][3] -= force[i][3]
+
+    end
+end
+
+function sum_forces!(force, force1, force2)
+
+    for each in eachindex(force)
+        force[each] .= force1[each] .+ force2[each] 
+    end
+
     return force
 end
 
@@ -268,6 +302,7 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
 
     force_nextstep::Vec3D{T} = deepcopy(sys.force)
     force_LJ::Vec3D{T} = deepcopy(sys.force)
+    force_C::Vec3D{T} = deepcopy(sys.force)
 
     chunk_index::Int64 = 2
 
@@ -289,10 +324,12 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
         #neighborlist!(pairslist)
 
         #pairslist = neighborlist(position, 0.02;)
+        update_pairslist!(sys.position, pairslist)
         LJ_pairs = threshold_pairs(pairslist, convert(T, 0.1))
 
-        force_lennardjones!(force_LJ, LJ_pairs, sys.position)
-        sum_forces!(sys.force, force_LJ)
+        #force_lennardjones!(force_LJ, LJ_pairs, sys.position)
+        force_coulomb!(force_C, pairslist, sys.charge)
+        sum_forces!(sys.force, force_LJ, force_C)
 
         for i in eachindex(accels_t)
             accels_t[i] .= sys.force[i] ./ sys.mass[i]
@@ -310,8 +347,9 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
 
 
 
-        force_lennardjones!(force_LJ, pairslist, sys.position)
-        sum_forces!(force_nextstep, force_LJ)
+        #force_lennardjones!(force_LJ, pairslist, sys.position)
+        force_coulomb!(force_C, pairslist, sys.charge)
+        sum_forces!(force_nextstep, force_LJ, force_C)
 
 
         for i in eachindex(sys.velocity)
@@ -378,7 +416,7 @@ function simulate_dumloop!(sys::GenericObjectCollection, spec::GenericSpec, clct
         pairslist = unique_pairlist!(sys.position, 0.3)
 
         force_lennardjones!(force_LJ, pairslist, sys.position)
-        sys.force = sum_forces!(sys.force, force_LJ)
+        #sys.force = sum_forces!(sys.force, force_LJ)
 
         positionIntermediate1 = copy.(sys.velocity)
         #fill!(positionIntermediate1, sys.velocity)
@@ -403,7 +441,7 @@ function simulate_dumloop!(sys::GenericObjectCollection, spec::GenericSpec, clct
 
 
         force_lennardjones!(force_LJ, pairslist, sys.position)
-        force_nextstep = sum_forces!(force_nextstep, force_LJ)
+        #force_nextstep = sum_forces!(force_nextstep, force_LJ)
 
         #println("velocity before we intermediate???")
         #println(sys.velocity)

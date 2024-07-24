@@ -44,6 +44,7 @@ mutable struct GenericObjectCollection{T<:AbstractFloat} <: ObjectCollection
     currentstep::Vector{Int64}
     name::Vector{String}
     mass::Vector{T}
+    charge::Vector{T}
     radius::Vector{T}
     index::Vector{Int64}
     position::Vector{MVector{3, T}}
@@ -99,6 +100,8 @@ struct GenericRandomCollector{T<:AbstractFloat} <: Collector
     minmass::T
     maxmass::T
     minimumdistance::T
+    mincharge::T
+    maxcharge::T
 end
 
 struct GenericStaticRandomCollector{T<:AbstractFloat} <: Collector
@@ -331,9 +334,11 @@ Return a GenericObjectCollection with positions and speeds randomly seeded, as s
 function collect_objects(Collector::GenericRandomCollector{T}) where T
 
     massRange = Uniform(Collector.minmass, Collector.maxmass)
+    chargeRange = Uniform(Collector.mincharge, Collector.maxcharge)
     objectcount = Collector.objectnumber
     step_n=1
     mass = rand(massRange, Collector.objectnumber)
+    charge = rand(chargeRange, Collector.objectnumber)
     
     velocity = [MVector{3, T}(zeros(Float64, 3)) for each in 1:objectcount]
     kb = 1 # stand-in for Boltzmann constant in a dimensionless system
@@ -358,11 +363,13 @@ function collect_objects(Collector::GenericRandomCollector{T}) where T
 
     end
 
+
     # TODO update the Collector Series so that the user can input names and masses and radii.
     simCollection = GenericObjectCollection{T}(
         fill(step_n, objectcount),
         fill("duck", objectcount),
         deepcopy(mass),
+        deepcopy(charge),
         fill(0.01, objectcount),
         [1:objectcount;],
         generate_positions(Collector),
@@ -422,12 +429,16 @@ function collect_objects(Collector::GenericUserValueCollector )
     #arrayDimensions = (Collector.objectnumber, Collector.objectnumber, Collector.objectnumber)
     position = Collector.userposition
     velocity = Collector.uservelocity
+    chargeRange = Uniform(Collector.mincharge, Collector.maxcharge)
     objectcount = Collector.objectnumber
     step_n=1
+    mass = rand(massRange, Collector.objectnumber)
+    charge = rand(chargeRange, Collector.objectnumber)
     myObjectCollection = GenericObjectCollection(
         fill(step_n, objectcount),
         fill("duck", objectcount),
         rand(1:5, objectcount),
+        deepcopy(charge),
         fill(0.01, objectcount),
         [1:objectcount;],
         position,

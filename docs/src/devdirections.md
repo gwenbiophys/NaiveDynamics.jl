@@ -43,7 +43,7 @@
 - [x] develop independent methods for MVec  until and unless nonindexable SVec's start winning
 - [] improve naming for Vec3D and Stat(ic)?Vec3D
 - [x] NaiveLennardJones based on MVec
-- [] NaiveCoulomb based on MVec
+- [x] NaiveCoulomb based on MVec
 - [x] Naive Logging and storage of data as a text file by snapshotting the whole struct~~
 - [x] change structuring, so that the object collection is not nested within misc structs
       get rid of the name pile at the start of simulate!()
@@ -52,13 +52,20 @@
 - [x] update simulate!() and object collection so that the force is the force of the current step, so that for a logg of position and force, the listed force sum is the force that (along with velocity and other methods) that caused the particles to change positions between the previous step and the current step
 - [x] get rid of dumloop_product!() as it is just an unnecessary composite of larger pieces
 - [x] GLMakie integration and MP4 deliverable for data analysis
-- [] add temperature rescaling to catch molecules that suddenly acquire an obscene velocity.
+- [x] add temperature rescaling to catch molecules that suddenly acquire an obscene velocity. Side effect: now only these super fast pairs have any velocity left over
 - [x] fix bugs that cause particles to exit the box
 - [x] fix bugs that cause unnecessary allocations in VelVer
 - [x] notice that a simulation records n_steps + 1 position sets, when trying using frameintervals of 10s, have to shift the value by 1
 
 
+
 ### Version 0.00.3
+- [] fix broken performance by tuple allocation hell, consider switching pairslist to an MVector for values overwrite or trying named tuple shenanigans?
+- [] fix velocity rescaling / substitute with alternative method. fix behavior of interactions and parameterization in order to prevent crazy molecular behavior
+- [] force LJ may not work correctly. I might have just broken it, but i am uncertain that it correctly calculates the component forces, isntead of just assigning the overall force to each dimension, or something else entirely!
+- [] abstract away force computations
+- [] deliver a working simulation of coulomb and/or LJ
+
 
 - [] Improve design of the Logger to be compatible with makie
 - [x] Github work flow for a private uhh workspace
@@ -101,7 +108,9 @@
 - [] integrate the julian testing packages as part of a refactor to make naming consistent but also make it easier. for instance, I keep mispelling simLog as simlog when simlog works absolutely fine and syslog might make more sense. or just log.
 - [] fix documentation syntax so that documenter.jl transforms the markdown correctly
 - [] extend zero() so that it works correctly for a Vec3D and we simpl.ify the zeroing of forces before new calculations
-
+- [] think about how pairwise forces codes have common-boilerplate, can this be abstracted away?
+- [] spread into more files, reduce code weight on each file (.5 instead?)
+- [] modify LJ potential of random run to have a sigma and epsilon for each unique atom
 
 ### Version 0.00.5
 
