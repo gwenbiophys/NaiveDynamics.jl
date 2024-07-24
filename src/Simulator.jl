@@ -46,67 +46,71 @@ function record_simulation(step_n, chunk_index, chunk_length, simChunk, simLog, 
         println("something got bungle grundled in record_simulation")
     end
 
-
 end
 
 function record_position(positionLog, currentstep, objectname, objectindex, position)
 end
 
-"""
-    unique_pairlist(a::AbstractArray)
-
-Return a vector of tuples, wherein each tuple 
-contains the indices and squared distance of pairs within a threshold float and the component distances.
-In the case of position, the return pair list is a vector of static vectors of 2 mutable vectors of 3 floats each.
-
-This is the most Naive pairlist writer.
-"""
-function unique_pairlist!(a::Vec3D{T}, threshold::T) where T
-    # TODO only push unique pairs to the list for eachindex(a), instead of for each pair
-    
-    # im doing this to hopefully cut down on type instability, though it probably worked fine by just annotating
-        # what 'a' is supposed to be
-    #b = copy(convert(T, 0.5))
-    #list = [tuple(1, 1, b, b, b, b)]::Vector{Tuple{Int64, Int64, T, T, T, T}}
-    #empty!(list)
-    list = []
-
-    counter = 0
-    j_cutoff = length(a)-1
+function update_pairslist(a::Vec3D{T}, list) where T
 
     
-    #dx = 1.0::T
-    #dy = 1.0::T
-    #dz = 1.0::T
-    #d2 = 1.0::T
     if length(a) == 2
 
         dx = a[1][1] - a[2][1]
         dy = a[1][2] - a[2][2] 
         dz = a[1][3] - a[2][3]
         d2 = sqrt(dx^2 + dy^2 + dz^2) 
-        if d2 < threshold
-            push!(list, tuple(1, 2, dx, dy, dz, d2))
-        end
+
+        list[1] = tuple(1, 2, dx, dy, dz, d2)
+
     else
         
-        #does not even theoretically work until this line is deleted. just needs 1 more gloss over with the brain
-        for i in 1:length(a)-1
-            for j in i+1:length(a)-1 
-                dx = a[i][1] - a[j][1]
-                dy = a[i][2] - a[j][2] 
-                dz = a[i][3] - a[j][3]
-                d2 = sqrt(dx^2 + dy^2 + dz^2)  
-                if d2 < threshold
-                    push!(list, tuple(i, j, dx, dy, dz, d2)) #could have pairlist be arbitarily large and just set to zero? eh. patience.
-                end   
-            end
+        # this probably works, but i dont have a test suite so *shrug*
+        for i in eachindex(list) 
+            dx = a[i][1] - a[j][1]
+            dy = a[i][2] - a[j][2] 
+            dz = a[i][3] - a[j][3]
+            d2 = sqrt(dx^2 + dy^2 + dz^2)  
+
+           list[i] = tuple(i, j, dx, dy, dz, d2) 
+
 
         end
     end
 
 
+end
+
+function unique_pairs(a::Vec3D{T}) where T
+    # can optimize this later, but have to test how the tupling works
+    list_length = (length(a)-1) * length(a) # is this correct?
+    v = 0.0
+    convert(T, v)
+
+    list = fill(tuple(1, 2, v, v, v, v), list_length)
+    update_pairlist(a, list)
+    
+
+
+
     return list
+end
+
+
+function threshold_pairs(list, threshold::T) where T
+    thresh_list = []
+    # would it more perf-efficient to define a threshold list as long as the unique pairs list
+    # at small n particles, and just reorder the threshlist between valid and invalid values
+    # and jsut instruct functions to use the 'valid' region of the array?
+    for i in eachindex(list)
+        # replace with named tuple?
+        if list[i][6] ≤ threshold
+            push!(thresh_list, list[i])
+        end
+    end
+
+    return thresh_list
+
 end
 
 function generate_distance_i!(i, pairslist)
@@ -278,16 +282,16 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
     accels_t_dt = copy.(sys.force)::Vec3D{T}
 
     #pairslist = InPlaceNeighborList(x=position, cutoff=0.1, parallel=false)
-    pairslist = []
+    pairslist = unique_pairs(sys.position)
 
     for step_n in 1:spec.duration
 
         #neighborlist!(pairslist)
 
         #pairslist = neighborlist(position, 0.02;)
-        pairslist = unique_pairlist!(sys.position, convert(T, 0.1))
+        LJ_pairs = threshold_pairs(pairslist, convert(T, 0.1))
 
-        force_lennardjones!(force_LJ, pairslist, sys.position)
+        force_lennardjones!(force_LJ, LJ_pairs, sys.position)
         sum_forces!(sys.force, force_LJ)
 
         for i in eachindex(accels_t)

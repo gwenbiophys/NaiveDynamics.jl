@@ -23,7 +23,7 @@ mySpec = GenericSpec{Int64, Float32}(50000, 1, 1, 10, 1)
 @time logpos = simulate!(myCollection, mySpec, myCollector)
 #@btime logpos2 = simulate!($myCollection, $mySpec, $myCollector)
 
-@time record_video("./NaiveDynamics.jl/data/newhope.mp4", logpos, myCollector; frameinterval = 100 )
+@time record_video("C:/Users/kucer/Desktop/julia/NaiveDynamics.jl/data/newhope.mp4", logpos, myCollector; frameinterval = 100 )
 
 
 #myCollector = GenericRandomCollector(Float32, 40, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, -0.02, 0.02, 0.001)
