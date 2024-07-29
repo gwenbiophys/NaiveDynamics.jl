@@ -122,7 +122,7 @@ end
 
 
 function threshold_pairs(list, threshold::T) where T
-    thresh_list = []
+    thresh_list::Vector{Tuple{Int64, Int64, T, T, T, T}} = [] # this is a silly fix
     # would it more perf-efficient to define a threshold list as long as the unique pairs list
     # at small n particles, and just reorder the threshlist between valid and invalid values
     # and jsut instruct functions to use the 'valid' region of the array?

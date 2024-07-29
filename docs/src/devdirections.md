@@ -71,7 +71,7 @@
 - [x] Github work flow for a private uhh workspace
 - [x] Github based integrations of the code at start and endpoints
 - [] Figure out how to start getting test coverage and using formal unit testing procedures
-- [] Wrap custome types in functions so that a user can call a function and assign labeled arguments (eg "duration=10"), rather than having nameless and ordered fields
+- [x] Wrap custome types in functions so that a user can call a function and assign labeled arguments (eg "duration=10"), rather than having nameless and ordered fields
 - [] These wrapper functions may also contain side logic for checking inputs are correct as well as the actual logic to be done on the particular system, as shown in Molly.setup
 - [] Output logfile with modification of the set up routine to allow the user to add in a place and a type of output, but defaulting to a generic
 - [x] Random generation for each component. Check that this works
