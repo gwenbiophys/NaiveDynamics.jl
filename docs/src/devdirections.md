@@ -62,9 +62,10 @@
 ### Version 0.00.3 - towards a half formal repository
 - [] fix broken performance by tuple allocation hell, consider switching pairslist to an MVector for values overwrite or trying named tuple shenanigans?
 - [] fix velocity rescaling / substitute with alternative method. fix behavior of interactions and parameterization in order to prevent crazy molecular behavior
-- [] force LJ may not work correctly. I might have just broken it, but i am uncertain that it correctly calculates the component forces, isntead of just assigning the overall force to each dimension, or something else entirely!
+- [x] force LJ may not work correctly. I might have just broken it, but i am uncertain that it correctly calculates the component forces, isntead of just assigning the overall force to each dimension, or something else entirely! ----- TENTATIVELY FIXED, pairslist was messed up generating NaNs and also not doing anything
 - [] abstract away force computations
 - [] deliver a working simulation of coulomb and/or LJ
+- [x] fix broken update_pairslist
 
 
 - [] Improve design of the Logger to be compatible with makie
@@ -86,7 +87,7 @@
 - [] add ```simulate!()``` resolution so that the system can log the last few steps, if the last step does not trigger a logging of the chunk
 - [x] fix bug in simulation recorder where the chunk_index has to be updated inside the for each step loop. when placed inside the record_simulation if statement, then the value will be reset by simulate!() to it's initial definition value each step, even if the place where the value was defined as '2' sits outside of the stepper loop. this could be automagically fixed when we move to more direct function arguments rather than the equivalency pile up top.
 - [] fix velocity verlet to prevent velocity from depreciating for no reason. most likely, the velocity values are being overwritten by intermediates, which are based on forces. as forces tend to zero, so shall intermediates and velocities. or the force is just whacked up. not sure!
-- [] use for each fill!() for all instances of IntermediateVector = DataVector
+- [x] use for each map!() for all instances of IntermediateVector = DataVector
 - [x] allow record_video() to have user input for the frame recording interval. do this by pushing every multiple of frameInterval to the positions vector
 - [] add additional user-fill parameters types for each force, separately to the sim spec
 - [] make these userfill parameters easy to fill in, for name awareness of each paremter

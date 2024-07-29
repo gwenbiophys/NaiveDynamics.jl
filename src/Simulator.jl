@@ -95,25 +95,32 @@ function update_pairslist!(a::Vec3D{T}, list) where T
             dy = yi - yj
             dz = zi - zj
             d2 = sqrt(dx^2 + dy^2 + dz^2)  
+            result = tuple(i, j, dx, dy, dz, d2)
 
-           list[i] = tuple(i, j, dx, dy, dz, d2) 
+            list[i] = result
+           
 
 
         end
     end
 
-
+    return list
 end
 
 function unique_pairs(a::Vec3D{T}) where T
     # can optimize this later, but have to test how the tupling works
     list_length = (length(a)-1) * length(a) # is this correct?
-    v = 0.0
-    convert(T, v)
+    list = []
 
-    list = fill(tuple(1, 2, v, v, v, v), list_length)
+    for i in 1:length(a)-1
+        for j in i+1:length(a)-1 
+            push!(list, Tuple{Int64, Int64, T, T, T, T}([i, j, a[1][1], a[1][1], a[1][1], a[1][1]]))
+        end
+    end
+
     update_pairslist!(a, list)
-    
+
+
 
 
 
@@ -163,7 +170,9 @@ function force_lennardjones!(force::Vec3D{T},  pairslist, position) where T
     #TODO make epsilon and sigma user configurable 
     eps = -2
 
-    σ = 1f-2
+    σ = 0.001   
+    
+
     # this is silly
     for each in eachindex(force)
         map!(x->x, force[each], MVector{3, T}(0.0, 0.0, 0.0))
@@ -173,7 +182,7 @@ function force_lennardjones!(force::Vec3D{T},  pairslist, position) where T
         #zero.(force[each])
     #end
 
-
+    
 
     #neighborlist() fails when it has zero neighbors, this is a temporary fix
     if length(pairslist) < 1
@@ -181,19 +190,34 @@ function force_lennardjones!(force::Vec3D{T},  pairslist, position) where T
     end
 
     for each in eachindex(pairslist)
-    
         #d2 = pairslist[each][3]
         i = pairslist[each][1]
         j = pairslist[each][2]
+        dx = pairslist[each][3]
+        dy = pairslist[each][4]
+        dz = pairslist[each][5]
 
         d = pairslist[each][6]
 
+        # i hate this, profoundly
+        force[i][1] += (24*eps / dx ) * ((2*σ / dx)^12 - (σ / dx)^6)
+        force[i][2] += (24*eps / dy ) * ((2*σ / dy)^12 - (σ / dy)^6)
+        force[i][3] += (24*eps / dz ) * ((2*σ / dz)^12 - (σ / dz)^6)
 
-        force[i] .+= (24*eps ./ d ) .* ((2*σ ./ d).^12 .- (σ ./ d).^6)
-        force[j] .-= force[i]
+        force[j][1] -= force[i][1]
+        force[j][2] -= force[i][2]
+        force[j][3] -= force[i][3]
+        
+
+
+
+        # incorrect, overall force is being applied to each component
+        #force[i] .+= (24*eps ./ d ) .* ((2*σ ./ d).^12 .- (σ ./ d).^6)
+        #force[j] .-= force[i]
         
     end
-    #println(typeof(force))
+
+
     #return force
 end
 
@@ -331,6 +355,7 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
     pairslist = unique_pairs(sys.position)
 
     for step_n in 1:spec.duration
+        
 
         #neighborlist!(pairslist)
 
@@ -338,9 +363,11 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
         update_pairslist!(sys.position, pairslist)
         LJ_pairs = threshold_pairs(pairslist, convert(T, 0.1))
 
-        #force_lennardjones!(force_LJ, LJ_pairs, sys.position)
+        force_lennardjones!(force_LJ, LJ_pairs, sys.position)
         #force_coulomb!(force_C, pairslist, sys.charge)
+
         sum_forces!(sys.force, force_LJ, force_C)
+        
 
         for i in eachindex(accels_t)
             accels_t[i] .= sys.force[i] ./ sys.mass[i]
@@ -358,7 +385,7 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
 
 
 
-        #force_lennardjones!(force_LJ, pairslist, sys.position)
+        force_lennardjones!(force_LJ, pairslist, sys.position)
         #force_coulomb!(force_C, pairslist, sys.charge)
         sum_forces!(force_nextstep, force_LJ, force_C)
 
@@ -369,6 +396,7 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
         boundary_reflect!(sys.position, sys.velocity, clct)
 
         map!(x->x, sys.force, force_nextstep)
+
 
 
         currentstep = 1:step_n

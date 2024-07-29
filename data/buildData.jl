@@ -44,7 +44,7 @@ mySpec = GenericSpec(; inttype=Int64,
                     currentstep=1,
                     logLength=10,
                     vDamp=1)
-@time logpos = simulate!(myCollection, mySpec, myCollector)
+logpos = simulate!(myCollection, mySpec, myCollector)
 #@profview_allocs simulate!(myCollection, mySpec, myCollector)
 #@btime logpos2 = simulate!($myCollection, $mySpec, $myCollector)
 
