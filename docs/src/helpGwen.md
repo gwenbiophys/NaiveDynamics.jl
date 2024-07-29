@@ -26,3 +26,7 @@ when just @profview will measure the execution time distribution
 if b is already defined, we are not asking julia to overwrite each value in a with the values in b, while maintaining a's structure, so long as a and b have the same structure.
 
 We are asking Julia to ignore the value of a (if it has already been defined), and to point to b.
+
+### on rowan's copmuter, get running with: 
+activate C:/Users/kucer/Desktop/julia/NaiveDynamics.jl
+using NaiveDynamics

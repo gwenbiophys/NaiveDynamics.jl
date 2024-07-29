@@ -4,7 +4,7 @@
    <summary>Roadmap</summary>
    
 ## Roadmap
-### Version 0.00.1
+### Version 0.00.1 - the very beginning
 
 - [x] System instantiation for a generic method and object
 - [x] Generic methods, structures, and types to establish an architecture --grtting there
@@ -19,7 +19,7 @@
 - [x] Get rid of GenericCollector, toss it into the GenericSystem? No, it's just an initialization. But can pull the initial number of atoms from MDInput
 
 
-### Version 0.00.2
+### Version 0.00.2 - foundations
 
 - [x] From initialization of a genericObjectCollection, or the function call of a simulation, generate a pairlist of every unique pair. Hoepfully design this function to be extensible to any number of unique groupings, rather than only pairs -- yes but only with a library
 - [x] Vectorize unique pairs, just for shits, giggles,  and curiosity testing? --- no, julian for loops may be faster than vectorized process
@@ -59,7 +59,7 @@
 
 
 
-### Version 0.00.3
+### Version 0.00.3 - towards a half formal repository
 - [] fix broken performance by tuple allocation hell, consider switching pairslist to an MVector for values overwrite or trying named tuple shenanigans?
 - [] fix velocity rescaling / substitute with alternative method. fix behavior of interactions and parameterization in order to prevent crazy molecular behavior
 - [] force LJ may not work correctly. I might have just broken it, but i am uncertain that it correctly calculates the component forces, isntead of just assigning the overall force to each dimension, or something else entirely!
@@ -77,10 +77,10 @@
 - [x] Random generation for each component. Check that this works
 - [] Aqua.jl
 - [] Consider putting in architecture to read data from input files so we can test coverage with fixed values and analyze for changes with feature development.
-- [] add several Naive implementations
-- [] For instance, sigma6th and sigma12 should be calculated prior to simulation for each unique radius of objects in our objectcollection --- lord willing the compiler will do this at compile time, but i trust nothing and no one.
+
+
 - [] check the naive unique pairs function for correctness. I was kinda just throwing stuff at a wall to see if it worked
-- [] fix precision bug where the precision selected by the user is actually the precision applied throughout
+- [] fix precision bug where the precision can be selected by user exactly one time and is persistent throughout.
 - [] Get test coverage working and automated with each commit
 - [] Fix position recording so that the simulation can be logged for a user specified number of runs
 - [] add ```simulate!()``` resolution so that the system can log the last few steps, if the last step does not trigger a logging of the chunk
@@ -93,8 +93,8 @@
       by having a function of the same name fxn(; param, param, param, defaultparam=1)
 
 
-### Version 0.00.4
-
+### Version 0.00.4 - feature extensions
+- [] Refine functions , ex: sigma6th and sigma12 should be calculated prior to simulation for each unique radius of objects in our objectcollection --- lord willing the compiler will do this at compile time, but i trust nothing and no one.
 - [] Improve the boundary_reflect!() in some way to either reduce frequency of checking (pair list), use an aligned array(s) to broadcast that checks in a single statement rather than 6 if statements, convert wall actions into a potential,something else, or all of the above. At leat make it Naive+ rather than just Naive.
 - [] Research how boundary conditions are set so as to avoid assessing the value of every particle to see if it exists in the box or not at each time step
 - [] optimize naive implementations so that they dont endlessly allocate temporary values and obtain pre-allocated overwrite spaces prior to entering the for-each-step loop
@@ -109,8 +109,10 @@
 - [] fix documentation syntax so that documenter.jl transforms the markdown correctly
 - [] extend zero() so that it works correctly for a Vec3D and we simpl.ify the zeroing of forces before new calculations
 - [] think about how pairwise forces codes have common-boilerplate, can this be abstracted away?
-- [] spread into more files, reduce code weight on each file (.5 instead?)
-- [] modify LJ potential of random run to have a sigma and epsilon for each unique atom
+- [] spread package into more files, reduce code weight on each file (.5 instead?)
+- [] modify LJ potential of random run to have a sigma and epsilon for each particle
+- [] user requestable plots with generic generation method - so we can track the position of particle i throughout a sim, or the mean velocity for a specific duration range and assume these are pictures generated in the local directory as the file that created them
+- [] Logging of velocity and position (and any other dynamic property) at a selectable interval
 
 ### Version 0.00.5
 
@@ -132,7 +134,6 @@ Version
 - [] Definition of a simple particle
 - [x] Velocity verlet-based calcuation of stepwise forces, velocities, and positions
 - [x] Modeling of spheroids with a lennard jones potential
-- [] Logging of velocity and position (and any other dynamic property) at a selectable interval
 - [] Particle in a well simulation where the box does something based on the particles being equal or less than a constant distance too close to the wall
 - [] Render spheres bouncing against each other in a prism
 

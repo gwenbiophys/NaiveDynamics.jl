@@ -55,6 +55,7 @@ mutable struct GenericObjectCollection{T<:AbstractFloat} <: ObjectCollection
 
 end
 
+
 struct GenericStaticCollection{K, L, T<:AbstractFloat} <: ObjectCollection 
     currentstep::Vector{K}
     name::Vector{String}
@@ -68,6 +69,7 @@ struct GenericStaticCollection{K, L, T<:AbstractFloat} <: ObjectCollection
     #uniqueID::AbstractArray{UUID,1}
 
 end
+
 
 
 
@@ -102,6 +104,27 @@ struct GenericRandomCollector{T<:AbstractFloat} <: Collector
     minimumdistance::T
     mincharge::T
     maxcharge::T
+end
+
+function GenericRandomCollector(;
+                                floattype=float32,
+                                objectnumber,
+                                min_xDim,
+                                min_yDim,
+                                min_zDim,
+                                max_xDim,
+                                max_yDim,
+                                max_zDim,
+                                temperature,
+                                randomvelocity,
+                                minmass,
+                                maxmass,
+                                minimumdistance,
+                                mincharge,
+                                maxcharge
+                                    )
+    return GenericRandomCollector{floattype}(objectnumber, min_xDim, min_yDim, min_zDim, max_xDim, max_yDim, max_zDim, 
+            temperature, randomvelocity, minmass, maxmass, minimumdistance, mincharge, maxcharge)
 end
 
 struct GenericStaticRandomCollector{T<:AbstractFloat} <: Collector

@@ -22,6 +22,17 @@ struct GenericSpec{T, K} <: SimulationSpecification
     logChunkLength::T
     velocityDampening::K #idk a better way to handle this
 end
+function GenericSpec(;
+                    inttype=Int64,
+                    floattype=Float32,
+                    duration,
+                    stepwidth,
+                    currentstep,
+                    logLength=10,
+                    vDamp
+                        )
+    return GenericSpec{inttype, floattype}(duration, stepwidth, currentstep, logLength, vDamp)
+end
 
 
 function write_chunk!(simLog, simChunk)
@@ -328,7 +339,7 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
         LJ_pairs = threshold_pairs(pairslist, convert(T, 0.1))
 
         #force_lennardjones!(force_LJ, LJ_pairs, sys.position)
-        force_coulomb!(force_C, pairslist, sys.charge)
+        #force_coulomb!(force_C, pairslist, sys.charge)
         sum_forces!(sys.force, force_LJ, force_C)
 
         for i in eachindex(accels_t)
@@ -348,7 +359,7 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
 
 
         #force_lennardjones!(force_LJ, pairslist, sys.position)
-        force_coulomb!(force_C, pairslist, sys.charge)
+        #force_coulomb!(force_C, pairslist, sys.charge)
         sum_forces!(force_nextstep, force_LJ, force_C)
 
 

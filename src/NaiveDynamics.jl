@@ -12,6 +12,7 @@ using StructArrays
 using CellListMap
 using NearestNeighbors
 
+using Aqua #is this correct? should probably go in test files!
 
 #using CUDA
 using GLMakie
