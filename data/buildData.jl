@@ -20,7 +20,7 @@ using Revise
 #@profview logpos = simulate!(myCollection, mySpec, myCollector)
 #myCollector = GenericRandomCollector{Float32}(50, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 0.0001, false, 1.0, 5.0, 0.001, -5.0, 5.0)
 myCollector = GenericRandomCollector(; floattype=Float32,
-                                    objectnumber=50,
+                                    objectnumber=5,
                                     min_xDim=-1.0,
                                     min_yDim=-1.0,
                                     min_zDim=-1.0,
@@ -32,8 +32,8 @@ myCollector = GenericRandomCollector(; floattype=Float32,
                                     minmass=1.0,
                                     maxmass=5.0,
                                     minimumdistance=0.001,
-                                    mincharge=-5.0,
-                                    maxcharge=5.0
+                                    mincharge=-1f-10,
+                                    maxcharge=1f-10
                                     )
 myCollection = collect_objects(myCollector)
 #mySpec = GenericSpec{Int64, Float32}(50, 1, 1, 10, 1)

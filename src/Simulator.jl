@@ -108,31 +108,28 @@ function update_pairslist!(a::Vec3D{T}, list) where T
 end
 
 function unique_pairs(a::Vec3D{T}) where T
-    # can optimize this later, but have to test how the tupling works
-    list_length = (length(a)-1) * length(a) # is this correct?
-    list = []
+    list_length = convert(Int64, (length(a)-1) * length(a) / 2)
 
-    for i in 1:length(a)-1
-        for j in i+1:length(a)-1 
-            push!(list, Tuple{Int64, Int64, T, T, T, T}([i, j, a[1][1], a[1][1], a[1][1], a[1][1]]))
-        end
-    end
 
+    list = [tuple(i, j, a[1][1], a[1][1], a[1][1], a[1][1]) for i in 1:length(a)-1 for j in i+1:length(a)]
     update_pairslist!(a, list)
-
-
-
-
 
     return list
 end
 
 
 function threshold_pairs(list, threshold::T) where T
+    
+    return [list[i] for i in eachindex(list) if list[i][6] ≤ threshold]
+
+end
+
+function threshold_pairs_old(list, threshold::T) where T
     thresh_list::Vector{Tuple{Int64, Int64, T, T, T, T}} = [] # this is a silly fix
     # would it more perf-efficient to define a threshold list as long as the unique pairs list
     # at small n particles, and just reorder the threshlist between valid and invalid values
     # and jsut instruct functions to use the 'valid' region of the array?
+    thresh_list = []
     for i in eachindex(list)
         # replace with named tuple?
         if list[i][6] ≤ threshold
@@ -168,9 +165,9 @@ end
 
 function force_lennardjones!(force::Vec3D{T},  pairslist, position) where T
     #TODO make epsilon and sigma user configurable 
-    eps = -2
+    eps = -1f10
 
-    σ = 0.001   
+    σ = 0.0001   
     
 
     # this is silly
@@ -294,13 +291,10 @@ No rescaling for zero.
 """
 
 function rescale_velocity!(velocity::Vec3D{T}, Tf::T, γ::T, mass::Vector{T}, objectcount::Int64) where T
-    Ti = 0.0
-    convert(T, Ti)
+    Ti::T = 0.0
+    kb::T = 1.0
+    v::T = 0.0
 
-    kb = 1.0
-    convert(T, kb)
-    v = 0.0
-    convert(T, v)
     objects = convert(T, objectcount)
 
     
@@ -335,9 +329,9 @@ but does not interoperate with other functions like boundary_reflect!() or force
 function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::GenericRandomCollector{T}) where T
 
 
-    force_nextstep::Vec3D{T} = deepcopy(sys.force)
-    force_LJ::Vec3D{T} = deepcopy(sys.force)
-    force_C::Vec3D{T} = deepcopy(sys.force)
+    force_nextstep = deepcopy(sys.force)::Vec3D{T}
+    force_LJ = deepcopy(sys.force)::Vec3D{T}
+    force_C = deepcopy(sys.force)::Vec3D{T}
 
     chunk_index::Int64 = 2
 
@@ -346,13 +340,16 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
    # simChunk = [sys for _ in 1:spec.logChunkLength]::Vector{GenericObjectCollection}
     
     poslog = [sys.position]::Vector{Vec3D{T}}
+    #poslog = [sys.position for each in 1:spec.duration]
     #sizehint!(poslog, spec.duration)
     #push!(poslog, copy.(sys.position)::Vector{Vec3D{Float32}})
     accels_t = copy.(sys.force)::Vec3D{T}
     accels_t_dt = copy.(sys.force)::Vec3D{T}
 
     #pairslist = InPlaceNeighborList(x=position, cutoff=0.1, parallel=false)
+
     pairslist = unique_pairs(sys.position)
+
 
     for step_n in 1:spec.duration
         
@@ -360,11 +357,12 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
         #neighborlist!(pairslist)
 
         #pairslist = neighborlist(position, 0.02;)
-        update_pairslist!(sys.position, pairslist)
-        LJ_pairs = threshold_pairs(pairslist, convert(T, 0.1))
+
+        LJ_pairs = threshold_pairs(pairslist, convert(T, 1.0))
+
 
         force_lennardjones!(force_LJ, LJ_pairs, sys.position)
-        #force_coulomb!(force_C, pairslist, sys.charge)
+        force_coulomb!(force_C, pairslist, sys.charge)
 
         sum_forces!(sys.force, force_LJ, force_C)
         
@@ -386,7 +384,8 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
 
 
         force_lennardjones!(force_LJ, pairslist, sys.position)
-        #force_coulomb!(force_C, pairslist, sys.charge)
+        force_coulomb!(force_C, pairslist, sys.charge)
+
         sum_forces!(force_nextstep, force_LJ, force_C)
 
 
@@ -401,13 +400,23 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
 
         currentstep = 1:step_n
 
-        push!(poslog, deepcopy(sys.position))
 
-        #chunk_index = record_simulation(step_n, chunk_index, spec.logChunkLength, simChunk, simLog, sys)
+
+        #### end of step processing
+
         #update!(pairslist, position)
+
+
+
+        update_pairslist!(sys.position, pairslist)
+
         if step_n % 10 == 0
             rescale_velocity!(sys.velocity, clct.temperature, spec.velocityDampening, sys.mass, clct.objectnumber)
         end
+
+        push!(poslog, deepcopy(sys.position))
+        #copyto!(poslog[step_n], sys.position) # this implementation is broken atm
+        #chunk_index = record_simulation(step_n, chunk_index, spec.logChunkLength, simChunk, simLog, sys)
     end
 
     return poslog

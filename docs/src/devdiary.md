@@ -505,3 +505,30 @@ Ti += (2/(3 * objectcount * kb)) * v * mass[each]/2
 When Ti is calculated in this expression for each particle, the presence of v---
 
 hold hold HOLD the phone. whenever two particles get close enough for an Epic amount of repulsion, they go NaN and this somehow breaks every other particle
+
+## July 31, a fun case study
+```julia
+function threshold_pairs(list, threshold::T) where T
+    
+    return [list[i] for i in eachindex(list) if list[i][6] ≤ threshold]
+
+end
+
+function threshold_pairs_old(list, threshold::T) where T
+    thresh_list::Vector{Tuple{Int64, Int64, T, T, T, T}} = [] # this is a silly fix
+    # would it more perf-efficient to define a threshold list as long as the unique pairs list
+    # at small n particles, and just reorder the threshlist between valid and invalid values
+    # and jsut instruct functions to use the 'valid' region of the array?
+    thresh_list = []
+    for i in eachindex(list)
+        # replace with named tuple?
+        if list[i][6] ≤ threshold
+            push!(thresh_list, list[i])
+        end
+    end
+
+    return thresh_list
+
+end
+```
+in this case, since the type of thresh_list inside threshold_pairs_old is already secured, the generator expression does not seem to improve speed, and saves up to 2 allocations. But if the type of the array we are push!-ing to inside a loop is insecure, then we get heavy handed allocations. Fixing this insecurity in the unique_pairs function by using a generator expression and not with type-annotations offered an impressive speed up: 912.800 μs (19998 allocations: 481.22 KiB) -> 17.200 μs (7 allocations: 86.34 KiB), which greatly speeds up the initialization step.
