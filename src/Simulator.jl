@@ -233,9 +233,9 @@ function force_coulomb!(force::Vec3D{T}, pairslist, charge) where T
 
         #d = pairslist[each][6]
 
-        force[i][1] += k * charge[i] * charge[j] / dx^2
-        force[i][2] += k * charge[i] * charge[j] / dy^2
-        force[i][3] += k * charge[i] * charge[j] / dz^2
+        force[i][1] += k * charge[i] * charge[j] / (dx^2)
+        force[i][2] += k * charge[i] * charge[j] / (dy^2)
+        force[i][3] += k * charge[i] * charge[j] / (dz^2)
         force[j][1] -= force[i][1]
         force[j][2] -= force[i][2]
         force[j][3] -= force[i][3]
@@ -340,7 +340,8 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
    # simChunk = [sys for _ in 1:spec.logChunkLength]::Vector{GenericObjectCollection}
     
     poslog = [sys.position]::Vector{Vec3D{T}}
-    #poslog = [sys.position for each in 1:spec.duration]
+
+    #poslog = [sys.position for i in 1:spec.duration]
     #sizehint!(poslog, spec.duration)
     #push!(poslog, copy.(sys.position)::Vector{Vec3D{Float32}})
     accels_t = copy.(sys.force)::Vec3D{T}
@@ -358,7 +359,7 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
 
         #pairslist = neighborlist(position, 0.02;)
 
-        LJ_pairs = threshold_pairs(pairslist, convert(T, 1.0))
+        LJ_pairs = threshold_pairs(pairslist, convert(T, 0.01))
 
 
         force_lennardjones!(force_LJ, LJ_pairs, sys.position)
@@ -415,7 +416,12 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
         end
 
         push!(poslog, deepcopy(sys.position))
-        #copyto!(poslog[step_n], sys.position) # this implementation is broken atm
+        #copyto!(poslog[step_n], values(sys.position)) # this implementation is broken atm
+        #for each in eachindex(sys.position)
+            #poslog[step_n][each] .= sys.position[each] # wth, why doesnt even this one work?
+        #end
+        #poslog[step_n] .= sys.position
+        #println(poslog[step_n])
         #chunk_index = record_simulation(step_n, chunk_index, spec.logChunkLength, simChunk, simLog, sys)
     end
 

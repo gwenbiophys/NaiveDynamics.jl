@@ -60,11 +60,11 @@
 
 
 ### Version 0.00.3 - towards a half formal repository
-- [] fix broken performance by tuple allocation hell, consider switching pairslist to an MVector for values overwrite or trying named tuple shenanigans?
+- [x] fix broken performance by tuple allocation hell, consider switching pairslist to an MVector for values overwrite or trying named tuple shenanigans?
 - [] fix velocity rescaling / substitute with alternative method. fix behavior of interactions and parameterization in order to prevent crazy molecular behavior
 - [x] force LJ may not work correctly. I might have just broken it, but i am uncertain that it correctly calculates the component forces, isntead of just assigning the overall force to each dimension, or something else entirely! ----- TENTATIVELY FIXED, pairslist was messed up generating NaNs and also not doing anything
 - [] abstract away force computations
-- [] deliver a working simulation of coulomb and/or LJ
+
 - [x] fix broken update_pairslist
 
 
@@ -81,7 +81,7 @@
 
 
 - [] check the naive unique pairs function for correctness. I was kinda just throwing stuff at a wall to see if it worked
-- [] fix precision bug where the precision can be selected by user exactly one time and is persistent throughout.
+- [] fix precision selection so the precision can be selected by user exactly one time and is persistent throughout.
 - [] Get test coverage working and automated with each commit
 - [] Fix position recording so that the simulation can be logged for a user specified number of runs
 - [] add ```simulate!()``` resolution so that the system can log the last few steps, if the last step does not trigger a logging of the chunk
@@ -126,6 +126,8 @@
 - [] By replacing GenericObjColl with a vector of Tuples that contain alll of the information? Maintain broadcasting functionality by a vector of tuples of numbers, M/SVectors of numbers, and strings
 Version
 - [] Should the component forces LJ, Coulomb etc. be dumped at the very end of each step, given that they are completely recomputed in the next step based on the old situation, rather than additive?
+- [] why do particles tend to have velocity almost mostly in the z-direction?
+- [] parameterization processing / case study report for relative box size, particle interaction radii and magnitude, temperature, temporal resolution ?
 
 
 ### Version 0.01

@@ -532,3 +532,10 @@ function threshold_pairs_old(list, threshold::T) where T
 end
 ```
 in this case, since the type of thresh_list inside threshold_pairs_old is already secured, the generator expression does not seem to improve speed, and saves up to 2 allocations. But if the type of the array we are push!-ing to inside a loop is insecure, then we get heavy handed allocations. Fixing this insecurity in the unique_pairs function by using a generator expression and not with type-annotations offered an impressive speed up: 912.800 μs (19998 allocations: 481.22 KiB) -> 17.200 μs (7 allocations: 86.34 KiB), which greatly speeds up the initialization step.
+
+
+### NaN and Inf are unavoidable
+and statistical consequences of having extremely powerful forces involved for a given simulation temperature, box size, and temporal resolution. We can only reduce the probability of occurrence, or maybbe drastically increasing temporal resolution so  that a LJ force can balance repulsion with coulombic and LJ attractions, rather than generating some obscene repulsion.
+
+
+### now my particles don't move even though i see the positions changing in the poslog

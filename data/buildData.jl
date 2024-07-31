@@ -20,35 +20,35 @@ using Revise
 #@profview logpos = simulate!(myCollection, mySpec, myCollector)
 #myCollector = GenericRandomCollector{Float32}(50, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 0.0001, false, 1.0, 5.0, 0.001, -5.0, 5.0)
 myCollector = GenericRandomCollector(; floattype=Float32,
-                                    objectnumber=5,
+                                    objectnumber=50,
                                     min_xDim=-1.0,
                                     min_yDim=-1.0,
                                     min_zDim=-1.0,
                                     max_xDim=1.0,
                                     max_yDim=1.0,
                                     max_zDim=1.0,
-                                    temperature=0.1,
+                                    temperature=0.01,
                                     randomvelocity=false,
                                     minmass=1.0,
                                     maxmass=5.0,
                                     minimumdistance=0.001,
-                                    mincharge=-1f-10,
-                                    maxcharge=1f-10
+                                    mincharge=-1f-9,
+                                    maxcharge=1f-9
                                     )
 myCollection = collect_objects(myCollector)
 #mySpec = GenericSpec{Int64, Float32}(50, 1, 1, 10, 1)
 mySpec = GenericSpec(; inttype=Int64,
                     floattype=Float32,
-                    duration=500,
+                    duration=10000,
                     stepwidth=1,
                     currentstep=1,
                     logLength=10,
                     vDamp=1)
 logpos = simulate!(myCollection, mySpec, myCollector)
-#@profview_allocs simulate!(myCollection, mySpec, myCollector)
+#@profview simulate!(myCollection, mySpec, myCollector)
 #@btime logpos2 = simulate!($myCollection, $mySpec, $myCollector)
 
-record_video("C:/Users/kucer/Desktop/julia/NaiveDynamics.jl/data/newhope.mp4", logpos, myCollector; frameinterval = 1 )
+record_video("C:/Users/kucer/Desktop/julia/NaiveDynamics.jl/data/newhope.mp4", logpos, myCollector; frameinterval = 10)
 
 
 
