@@ -538,4 +538,76 @@ in this case, since the type of thresh_list inside threshold_pairs_old is alread
 and statistical consequences of having extremely powerful forces involved for a given simulation temperature, box size, and temporal resolution. We can only reduce the probability of occurrence, or maybbe drastically increasing temporal resolution so  that a LJ force can balance repulsion with coulombic and LJ attractions, rather than generating some obscene repulsion.
 
 
-### now my particles don't move even though i see the positions changing in the poslog
+## 7 August, bitmadness
+```julia
+# this is specifically disallowed in Julia
+a = "000000000000000000000000000000000000000000000000000000000000000"
+println(a[1])
+```
+
+
+from stackoverflow to set an nth' bit to 1, 
+```julia
+N |= 1<<(n-1)
+#where N is a number and n is the nth bit we are flipping
+# or
+#but 2^n is lsower than 1<<n
+```
+
+Where
+```julia
+N ⊻= 1<<(n-1)
+``` 
+will flip the state of the bit at 'index' n.
+
+## 10 August, morton coding towards a ray castable BVH
+Here is to spelling out the process as I am getting lost in the sauce.
+
+Given an array of positions, we must
+1. Define boundaries of an array of AABBs
+2. Split the simulation window into a user selectable set of bins
+3. Sort each dimension least to greatest
+For the morton interleacing, interalce from the centroid or bdounaries?
+4. Assign the new ordering an index ranking for each dimension
+5. Interleave in a bitwise fashion the first 10 bits of each index ranking into a single Morton code. I don't know if there should be 1, 2, or 3 morton codes for the centroid, the min boundary, and the max boundary. I guess we will find out later in traversal!
+Or we find out now, the morton codes would alll be identical bc we end up just having a grid based around *these* values or *those* values which are related to each other by a constant and universal shift value of the critical radius.
+
+
+Oh this is annoying, given the constructor:
+```julia
+bvhspec = SpheresBVHSpecs(; floattype=Float32, 
+                            interaction_distance=0.1, 
+                            atoms_count=length(myCollection.position), 
+                            bins_count=length(myCollection.position) )
+build_bvh(myCollection.position, bvhspec, myCollector )
+```
+I am getting a no method errror
+
+```julia
+ERROR: MethodError: no method matching build_bvh(::Vector{StaticArraysCore.MVector{3, Float32}}, ::SpheresBVHSpecs{Float32}, ::GenericRandomCollector{Float32})
+
+Closest candidates are:
+  build_bvh(::Array{StaticArraysCore.MVector{3, T}, 1}, ::NaiveDynamics.SpheresBVHSpecs, ::Collector) where T
+
+```
+which is very annoying, what part of this have I done wrong? Curiously, the REPL had highlighted ```::NaiveDynamics.SpheresBVHSpecs``` red, causing me to think that was the problem. Upon the reload, it became clear the problem was to do with the Collector typing, as subtype where a field-less abstract type was expected. A similar sort of error appears later on in the track. So if we close Julia and load it again, is life now fixed? Yep! As far as I can tell I changed nothing, but reloaded the REPL recursively to ilet ti fix its own. This language TRULY is not meant to be used with a text editor other than its own command line.
+
+
+
+Next!
+```julia
+Failed to precompile NaiveDynamics [ef6c0610-87db-4406-b8dc-01afecc28d92] to "C:\\Users\\kucer\\.julia\\compiled\\v1.10\\NaiveDynamics\\jl_FB4C.tmp".
+ERROR: LoadError: UndefVarError: `update_bvh!` not defined
+```
+Truly confusing! I have no idea why this doesn't work. Curiously, this error changed from covering my build_bvh function to my update_bvh! function just when I changed their order. Ah, this one was my fault, I forgot a comma in the previous line.
+
+Onwards!
+```julia
+struct GridKey{T} <: AABBGridKey
+    index::T
+    morton_code::T
+end
+
+ERROR: setfield!: immutable struct of type GridKey cannot be changed
+```
+If we are running bitwise arithmetic on the morton_code field of an array of GridKeys, should this error out? I don't think so as we are simply manipulating the bits of the value, not changing its type nor changing the shape of the structure. But who knows! Mutable!

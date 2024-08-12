@@ -47,9 +47,9 @@ function record_video(              output_path::AbstractString,
     scatter!(ax, positionsToPlot; color=color, markersize=markersize, transparency=transparency,
                 markerspace=:data, kwargs...)
     
-    xlims!(ax, collector.min_xDim*w, collector.max_xDim*w)
-    ylims!(ax, collector.min_yDim*w, collector.max_yDim*w)
-    zlims!(ax, collector.min_zDim*w, collector.max_zDim*w)
+    xlims!(ax, collector.minDim[1]*w, collector.maxDim[1]*w)
+    ylims!(ax, collector.minDim[2]*w, collector.maxDim[2]*w)
+    zlims!(ax, collector.minDim[3]*w, collector.maxDim[3]*w)
 
     frames = 1:length(positions)
     #if frames[frame_i] % frame_i == 0

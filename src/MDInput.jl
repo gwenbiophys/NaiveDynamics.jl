@@ -82,19 +82,11 @@ Collector supertype for simulation initialization.
 """
 struct GenericRandomCollector{T<:AbstractFloat} <: Collector
     objectnumber::Int64
-    min_xDim::T
-    min_yDim::T
-    min_zDim::T
-    max_xDim::T
-    max_yDim::T
-    max_zDim::T
+
     
-    
-    # i am uncertain if the 3D vector or the 1D vector will be easier.
-    #minDimension::MVector{1, AbstractFloat}
-    #maxDimension::MVector{1, AbstractFloat}
-    #minDimension::MVector{3, AbstractFloat}
-    #maxDimension::MVector{3, AbstractFloat}
+
+    minDim::Tuple{T, T, T}
+    maxDim::Tuple{T, T, T}
 
     temperature::T
     randomvelocity::Bool
@@ -109,12 +101,8 @@ end
 function GenericRandomCollector(;
                                 floattype=float32,
                                 objectnumber,
-                                min_xDim,
-                                min_yDim,
-                                min_zDim,
-                                max_xDim,
-                                max_yDim,
-                                max_zDim,
+                                minDim,
+                                maxDim,
                                 temperature,
                                 randomvelocity,
                                 minmass,
@@ -123,7 +111,7 @@ function GenericRandomCollector(;
                                 mincharge,
                                 maxcharge
                                     )
-    return GenericRandomCollector{floattype}(objectnumber, min_xDim, min_yDim, min_zDim, max_xDim, max_yDim, max_zDim, 
+    return GenericRandomCollector{floattype}(objectnumber, minDim, maxDim, 
             temperature, randomvelocity, minmass, maxmass, minimumdistance, mincharge, maxcharge)
 end
 
@@ -188,19 +176,12 @@ Return a position vector of 3-dimensional mutable vectors when given box dimensi
 """
 
 function generate_positions(Collector::GenericRandomCollector)
-    # TODO maybe jsut close these in. for development i built a function outside of this file and then
-    # fitted the function here, calling on the stack of equal signs. but a quick copy paste could make it briefer
-    min_xDim = Collector.min_xDim
-    min_yDim = Collector.min_yDim
-    min_zDim = Collector.min_zDim
-    max_xDim = Collector.max_xDim
-    max_yDim = Collector.max_yDim
-    max_zDim = Collector.max_zDim
+
     objectcount = Collector.objectnumber
 
-    xDimRange = Uniform(min_xDim, max_xDim)
-    yDimRange = Uniform(min_yDim, max_yDim)
-    zDimRange = Uniform(min_zDim, max_zDim)
+    xDimRange = Uniform(Collector.minDim[1], Collector.maxDim[1])
+    yDimRange = Uniform(Collector.minDim[2], Collector.maxDim[2])
+    zDimRange = Uniform(Collector.minDim[3], Collector.maxDim[3])
 
     x = rand(xDimRange, objectcount)
     y = rand(yDimRange, objectcount)
@@ -242,9 +223,9 @@ function generate_onePosition(Collector::GenericStaticRandomCollector)
     max_zDim = Collector.max_zDim
     objectcount = Collector.objectnumber
 
-    xDimRange = Uniform(min_xDim, max_xDim)
-    yDimRange = Uniform(min_yDim, max_yDim)
-    zDimRange = Uniform(min_zDim, max_zDim)
+    xDimRange = Uniform(Collector.minDim[1], Collector.maxDim[1])
+    yDimRange = Uniform(Collector.minDim[2], Collector.maxDim[2])
+    zDimRange = Uniform(Collector.minDim[3], Collector.maxDim[3])
 
     x = rand(xDimRange, objectcount)
     y = rand(yDimRange, objectcount)

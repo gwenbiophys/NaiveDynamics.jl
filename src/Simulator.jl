@@ -255,31 +255,31 @@ end
 function boundary_reflect!(position::Vec3D, velocity::Vec3D, collector::GenericRandomCollector)
     # does not actually reflect, just reverses the particle
     for each in eachindex(position)
-        if collector.min_xDim > position[each][1] 
+        if collector.minDim[1] > position[each][1] 
             velocity[each][1] *= -1
-            position[each][1] = collector.min_xDim
+            position[each][1] = collector.minDim[1]
         end
-        if collector.max_xDim < position[each][1] 
+        if collector.maxDim[1] < position[each][1] 
             velocity[each][1] *= -1
-            position[each][1] = collector.max_xDim
+            position[each][1] = collector.maxDim[1]
         end
 
-        if collector.min_yDim > position[each][2] 
+        if collector.minDim[2] > position[each][2] 
             velocity[each][2] *= -1 
-            position[each][2] = collector.min_yDim
+            position[each][2] = collector.minDim[2]
         end
-        if collector.max_yDim < position[each][2] 
+        if collector.maxDim[2] < position[each][2] 
             velocity[each][2] *= -1
-            position[each][2] = collector.max_yDim
+            position[each][2] = collector.maxDim[2]
         end
 
-        if collector.min_zDim > position[each][3] 
+        if collector.minDim[3] > position[each][3] 
             velocity[each][3] *= -1 
-            position[each][3] = collector.min_zDim
+            position[each][3] = collector.minDim[3]
         end
-        if collector.max_zDim < position[each][3] 
+        if collector.maxDim[3] < position[each][3] 
             velocity[each][3] *= -1
-            position[each][3] = collector.max_zDim
+            position[each][3] = collector.maxDim[3]
         end
     end
 end

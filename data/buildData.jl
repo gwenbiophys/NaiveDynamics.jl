@@ -21,12 +21,8 @@ using Revise
 #myCollector = GenericRandomCollector{Float32}(50, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 0.0001, false, 1.0, 5.0, 0.001, -5.0, 5.0)
 myCollector = GenericRandomCollector(; floattype=Float32,
                                     objectnumber=50,
-                                    min_xDim=-1.0,
-                                    min_yDim=-1.0,
-                                    min_zDim=-1.0,
-                                    max_xDim=1.0,
-                                    max_yDim=1.0,
-                                    max_zDim=1.0,
+                                    minDim=tuple(-1.0, -1.0, -1.0),
+                                    maxDim=tuple(1.0, 1.0, 1.0),
                                     temperature=0.01,
                                     randomvelocity=false,
                                     minmass=1.0,
@@ -35,6 +31,7 @@ myCollector = GenericRandomCollector(; floattype=Float32,
                                     mincharge=-1f-9,
                                     maxcharge=1f-9
                                     )
+
 myCollection = collect_objects(myCollector)
 #mySpec = GenericSpec{Int64, Float32}(50, 1, 1, 10, 1)
 mySpec = GenericSpec(; inttype=Int64,
