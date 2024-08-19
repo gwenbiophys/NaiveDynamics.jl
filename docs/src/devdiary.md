@@ -611,3 +611,24 @@ end
 ERROR: setfield!: immutable struct of type GridKey cannot be changed
 ```
 If we are running bitwise arithmetic on the morton_code field of an array of GridKeys, should this error out? I don't think so as we are simply manipulating the bits of the value, not changing its type nor changing the shape of the structure. But who knows! Mutable!
+
+
+Sometimes when evaluating the length of the common prefix between L of i with L of i-1 or L of i+1, both turn out to have a common prefix length of zero. How does this happen and what does it  indicate? It perhaps indicates that the internal node, I, has only 1 child leaf, L. The question then is, how is this possible and why does it happen virtually every single time? There are other artifacts too in bvh solver at the moment, such as j sometimes being wrongly posed as some value way outside of the range, as currently there is no control circuitry when we finally get a common prefix shorter than the root node to pull l or lmax (wwhichever it is) back to the previous value and work it's way incrementally to find the true maximum index away from i. So in the ordering of our morton codes, I am now curious. It turns out, our ordering is at fault, from least to greatest rather than lexicographical, or left to right, bitwise.  Consider the bit strings of 0, 1, 2. They are ...000, ...001, ...010. Finding which direction "d" should go from the perspective of the morton code = Int(2) is impossible, and it likewise impossible for others. We need to work on our morton sorter! Though this now creats a new problem that inspecting either direction may yield a common prefix greater than from i to j. So now we just have to compare the larger of the two, I suppose?
+
+Also, my methodd has no protections that each morton code is unique. ALSO, this adjustment to the sorting does not resolve the problem, I still see a zero prefix surrounded by 1 prefixes and vice versa. How perilous! Upon further investigation, I now understand the meaning of prefix in this situation. Hah! Fixing the prefix finder and tossing in some control logic for when j = i +/- 1 solves that issue!
+
+
+On the sorting method, we are in an annoying spot!
+```
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000001101
+00000000000000000000000000000011
+00000000000000000000000000000011
+00000000000000000000000000000110
+00000000000000000000000000000111
+00000000000000000000000000000111
+00000000000000000000000000001000
+00000000000000000000000000001000
+```
+I would assert that this is incorrectly sorted, but maybe bitstring() instead of string() sortby will help. I dont remember why sortby bitstring didn't work, though. Ah, I may have changed from bitstring because sometimes the morton codes are identical either side of the comparison, but that is no fault of the sorting process but a fault of the morton assignment process. There are 2 tricky details. The first and simplest, two particles can exist arbitrarily closer together in real space. The second arise from Karras implying that morton codes are not bitwise interleaved integers, but float values themselves that are interleaved. But from then on in the text and elsewhere they are treated as integers. This difficulty came to me first wwhen I tried implementing the digit interleaving and found I really could not effectively represent the positions of a Float32 as an Int32 but just multipliying the Float by some large factor, and then rounding it and converting to an integer. The problem I ran into was overflow from trying to catch too many digits of the float in the int. 

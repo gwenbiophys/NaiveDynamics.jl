@@ -82,6 +82,7 @@
 [] change structure definitions in MDINput to be Vec3D instead of Vector{MVector} etc etc
 [] add kernel abstractions and AMDGPU and oneAPI and CUDA as formal extensions so that they are only precompiled when the script file to use this package *uses* them directly.
 [] change all 2 factor ranges to a 2 length tuple
+[] change vectors of structs to be structs of vectors, and add in relevant infrastructure to enable a resort of say the minboundary to change the order in the exact same way of the other elements of the simulation.
 
 
 [] check the naive unique pairs function for correctness. I was kinda just throwing stuff at a wall to see if it worked
@@ -96,6 +97,7 @@
 [] add additional user-fill parameters types for each force, separately from but integreted into the sim spec
 [x] make these userfill parameters easy to fill in, for name awareness of each paremter
       by having a function of the same name fxn(; param, param, param, defaultparam=1)
+[] wwhere user information is important, use the functions that instantiate the sim specs and collection specs. this gets rid of redundant declaration of the data precision in Collector and SimSpec, and allows structs to infer additional information based on other things the user input, like if single precision, then morton encode to 32 bits.
 
 
 ### Version 0.00.4 - feature extensions
@@ -133,6 +135,7 @@ Version
 [x] Should the component forces LJ, Coulomb etc. be dumped at the very end of each step, given that they are completely recomputed in the next step based on the old situation, rather than additive? -- dumped prior to recalculation
 [] why do particles tend to have velocity almost mostly in the z-direction?
 [] parameterization processing / case study report for relative box size, particle interaction radii and magnitude, temperature, temporal resolution ?
+[] allow user specification of what properties are to be logged
 
 
 ### Version 0.01

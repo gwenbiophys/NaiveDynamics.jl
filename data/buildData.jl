@@ -41,14 +41,30 @@ mySpec = GenericSpec(; inttype=Int64,
                     currentstep=1,
                     logLength=10,
                     vDamp=1)
-logpos = simulate!(myCollection, mySpec, myCollector)
+#logpos = simulate!(myCollection, mySpec, myCollector)
 #@profview simulate!(myCollection, mySpec, myCollector)
 #@btime logpos2 = simulate!($myCollection, $mySpec, $myCollector)
 
-record_video("C:/Users/kucer/Desktop/julia/NaiveDynamics.jl/data/newhope.mp4", logpos, myCollector; frameinterval = 10)
+#record_video("C:/Users/kucer/Desktop/julia/NaiveDynamics.jl/data/newhope.mp4", logpos, myCollector; frameinterval = 10)
 
 
 
+myCollector1 = GenericRandomCollector(; floattype=Float32,
+                                    objectnumber=1000,
+                                    minDim=tuple(-1.0, -1.0, -1.0),
+                                    maxDim=tuple(1.0, 1.0, 1.0),
+                                    temperature=0.01,
+                                    randomvelocity=false,
+                                    minmass=1.0,
+                                    maxmass=5.0,
+                                    minimumdistance=0.001,
+                                    mincharge=-1f-9,
+                                    maxcharge=1f-9
+                                    )
+myCollection1 = collect_objects(myCollector1)
+
+bvhspec = SpheresBVHSpecs(; floattype=Float32, interaction_distance=0.1, atoms_count=length(myCollection1.position), bins_count=length(myCollection1.position) )
+build_bvh(myCollection1.position, bvhspec, myCollector1 )
 
 
 #myCollector = GenericRandomCollector(Float32, 40, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, -0.02, 0.02, 0.001)
