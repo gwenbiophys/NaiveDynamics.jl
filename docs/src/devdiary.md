@@ -632,3 +632,15 @@ On the sorting method, we are in an annoying spot!
 00000000000000000000000000001000
 ```
 I would assert that this is incorrectly sorted, but maybe bitstring() instead of string() sortby will help. I dont remember why sortby bitstring didn't work, though. Ah, I may have changed from bitstring because sometimes the morton codes are identical either side of the comparison, but that is no fault of the sorting process but a fault of the morton assignment process. There are 2 tricky details. The first and simplest, two particles can exist arbitrarily closer together in real space. The second arise from Karras implying that morton codes are not bitwise interleaved integers, but float values themselves that are interleaved. But from then on in the text and elsewhere they are treated as integers. This difficulty came to me first wwhen I tried implementing the digit interleaving and found I really could not effectively represent the positions of a Float32 as an Int32 but just multipliying the Float by some large factor, and then rounding it and converting to an integer. The problem I ran into was overflow from trying to catch too many digits of the float in the int. 
+
+
+```MethodError: Cannot `convert` an object of type Tuple{Int64, Int64, GridKey{Int32}, GridKey{Int32}} to an object of type GridKey{Int32}```
+So here the problem is in trying to set the Julian version of a pointer, a Ref. But the Ref expects a fixed type, but an internal node may have at the left a leaf, and thus a gridkey type, or an internal node tuple. How difficult! We can get rid of the problem by creating an INode struct:
+```julia
+mutable struct INode{T} <: NaiveNode
+    leaf_indices::Tuple{T, T}
+    left::Ref{Union{GridKey, NaiveNode}}
+    right::Ref{Union{GridKey, NaiveNode}}
+end
+```
+but this introduces for the first time in this code base the difficult side effect of changing the types of the fields of a struct *at runtime*. This is likely an unavoidable structure of a garbage collected language, which allows me to abstract memory management away, but prevents me from having an array of pointers that purely point to fixed addresses in memory. I suppose in a HPC  C-code that could be terrifyingly bad practice, but how else?

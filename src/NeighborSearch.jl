@@ -9,6 +9,8 @@ export
     traverse_bvh
 
 # how to build towards an API that makes it easy to extend a BVH procedure to different kinds of shapes and considering different distances, as in the Noneuclidean paper?
+
+
 struct SpheresBVHSpecs{T, K} <: SimulationSpecification
     critical_distance::T
     atoms_count::Int64
@@ -16,7 +18,15 @@ struct SpheresBVHSpecs{T, K} <: SimulationSpecification
     morton_length::Vector{K}
 
 end
+"""
+    function SpheresBVHSpecs(; floattype, interaction_distance, atoms_count, bins_count=atoms_count )
 
+Instantiate a specification towards a BVH of sphere primitives. The ```interaction_distance``` is the maximum interaction distance for the set of 
+pairwise interactions that a BVH+traversal algorithm finds the neighbors of. The ```bins_count``` is the number of chunks each axis will be divided by
+in order convert particles from real space to grid space. By default, ```bins_count = atoms count```. Morton_length. Though Howard et al., 2019 chose 1023 bins to fit each 
+grid axis within a UInt8, instead of here where the integer that fits a grid space axis has the same number of bits as the ```floattype```. 
+
+"""
 function SpheresBVHSpecs(; floattype, interaction_distance, atoms_count, bins_count=atoms_count )
 
     if floattype==Float32
@@ -59,11 +69,27 @@ struct QuantizedAABB{T} <: AxisAlignedBoundingBox
     max::MVector{3, T}
 end
 
+# does this need to be mutable?
 mutable struct GridKey{T} <: AABBGridKey
     index::T
     morton_code::T
 end
 
+# struct internal node
+    #leaf indices::Vector(Tuple{T, T})
+    #left traversal pointer::Vector{Ref{?}}
+    #right traversal pointer::Vector{Ref{?}}
+
+    #leaf indices::Tuple{T, T}
+    #left::Ref{Union{internalnode, gridkey}}
+    #left::Ref{Union{internalnode, gridkey}}
+    #but then this cannot be an array
+abstract type NaiveNode end
+mutable struct INode{T} <: NaiveNode
+    leaf_indices::Tuple{T, T}
+    left::Ref{Union{GridKey, NaiveNode}}
+    right::Ref{Union{GridKey, NaiveNode}}
+end
 
 
 
@@ -232,11 +258,11 @@ end
 function bvh_solver!(L, I, spec)
     # type security in the return of delta is going to be bad
     #δmin = δ(I[1][1], I[1][2], L, spec)
-    println("startingup")
-    println([L[each].morton_code for each in eachindex(L)])
-    for each in eachindex(L)
-        println(bitstring(L[each].morton_code))
-    end
+   # println("startingup")
+    #println([L[each].morton_code for each in eachindex(L)])
+   # for each in eachindex(L)
+        #println(bitstring(L[each].morton_code))
+    #end
 
     #println(δmin)
     # this forloop should be parallelizable to 1 processer for each i in L
@@ -251,6 +277,8 @@ function bvh_solver!(L, I, spec)
         γ = 0
         
         s = 0
+        left = Ref(L, 1)
+        right = Ref(L, 1)
 
 
 
@@ -261,34 +289,39 @@ function bvh_solver!(L, I, spec)
         #dminus = δ(i, i-1, L, spec)
         d = sign(δ(i, i+1, L, spec) - δ(i, i-1, L, spec))
         δmin = δ(i, i-d, L, spec)
-        println("del min ", δmin)
-        println("d ", d)
+        #println("del min ", δmin)
+        #println("d ", d)
         #println("del- ", δ(i, i-1, L, spec))
-        println("del+ ", δ(i, i+d, L, spec))
+        #println("del+ ", δ(i, i+d, L, spec))
             #if δ(i, i-1, L, spec) > δmin || δ(i, i-1, L, spec) == δmin
                # d = 1
            # elseif δ(i, i+1, L, spec) > δmin || δ(i, i+1, L, spec) == δmin
                # d = -1
             #end
         #end
+
+
+
+        # Here belongs control logic to resolve issues where the morton codes of 2 different atoms are identical.
+            # I have no idea how this conflict is resolved.
         if d == 0
-            println("oh shit")
-            println("i ", bitstring(L[i].morton_code))
-            println("i-", bitstring(L[i-1].morton_code))
-            println("i+", bitstring(L[i+1].morton_code))
+            #println("oh shit")
+            #println("i ", bitstring(L[i].morton_code))
+            #println("i-", bitstring(L[i-1].morton_code))
+            #println("i+", bitstring(L[i+1].morton_code))
             return
         end
         #f = l
-        while (I[1][1] <= i + lmax*d <= I[1][2]) && (δ(i, i + lmax*d, L, spec) > δmin)
+        while (I[1].leaf_indices[1] <= i + lmax*d <= I[1].leaf_indices[2]) && (δ(i, i + lmax*d, L, spec) > δmin)
             #f = l
-            println(δ(i, i + lmax*d, L, spec))
-            println("entered here ")
+            #println(δ(i, i + lmax*d, L, spec))
+            #println("entered here ")
             lmax *= 2
 
         end
         # i am uncertain if this is necesary
         #lmax ÷= 2
-        println("lmax ", lmax)
+        #println("lmax ", lmax)
         #println("post l ", l)
 
         # here i want to implement the 'binary search where by each iteration in the for loop,
@@ -327,19 +360,29 @@ function bvh_solver!(L, I, spec)
             # i have no idea how to implement this in julia, haha!
             # i also don't know where the gamma or pointer information would go.
             #also, I be reordered upon the generation of its data, and how?
+            # Ref(L, γ) etc is the 'poitner' structure
         if min(i, j) == γ
-            #'left = L[gamma]' # the leftpointer to carryout traversal
+            #left = Ref(L, γ)[] # the leftpointer to carryout traversal
+            left = L[γ]
         else
-            #lef= I[gamma]
+            #left = Ref(I, γ)[]
+            left = I[γ]
         end
         if max(i, j) == γ + 1
-            # right = [Lgamma+1]
+            #right = Ref(L, γ+1)[]# right = [Lgamma+1]
+            right = L[γ+1]
         else 
-            # right = I[gamma+1]
+            #right = Ref(I, γ+1)[]# right = I[gamma+1]
+            right = I[γ+1]
         end
 
+        #println("here is i ", i)
+        #println(typeof(left))
+        #println(typeof(right))
 
-        I[i] = tuple(i, j)
+        I[i].leaf_indices = tuple(i, j)#, left, right)
+        I[i].left = left
+        I[i].right = right
 
 
 
@@ -351,22 +394,23 @@ end
 
 
 
-function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T}, clct::GenericRandomCollector{T}) where T
+function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
     #L is an array of leaf nodes, 1 leaf per atom or 'primitive'
     L = create_mortoncodes(position, spec, clct)
     #println(L)
-
     #change type of int here to spec.morton_int, probably with Tuple(spec.morton_int[i, length(L)])
-    I = [tuple(i, length(L)) for i in 1:length(L)-1] # -1 from L because we want to have nodes = # atoms - 1 in this construction. Howard et al. chose a fixed 1024-1, but eh
-    i = 3
-    j = 4
+
+    #I = [tuple(i, length(L), Ref(L, i)[], Ref(L, i)[]) for i in 1:length(L)-1] # -1 from L because we want to have nodes = # atoms - 1 in this construction. Howard et al. chose a fixed 1024-1, but eh
+    I = [INode{K}(tuple(i, length(L)), Ref(L, i)[], Ref(L, i)[]) for i in 1:length(L)-1]
+    #i = 3
+    #j = 4
     #println(bitstring(L[i].morton_code))
     #println(bitstring(L[j].morton_code))
     #δ(L, i, j, spec)
     #println(I)
-    println(I)
+    #println(I)
     bvh_solver!(L, I, spec)
-    println(I)
+
 end
 
 
