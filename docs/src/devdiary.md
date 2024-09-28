@@ -644,3 +644,90 @@ mutable struct INode{T} <: NaiveNode
 end
 ```
 but this introduces for the first time in this code base the difficult side effect of changing the types of the fields of a struct *at runtime*. This is likely an unavoidable structure of a garbage collected language, which allows me to abstract memory management away, but prevents me from having an array of pointers that purely point to fixed addresses in memory. I suppose in a HPC  C-code that could be terrifyingly bad practice, but how else?
+
+
+## 24 Sept, I remain silly
+1. I want to reconstruct this from a simple stream of thoughts, mostly of 'this is the bizarre problem i have, everything must be borken and i am the victim' to audience oriented blog posts and shift all the stuff for me that goes here into a do not include section of the git(?)
+2. i want, maybe separately, a state of the union to sign off from a coding session discussing what i accomplished, maybe some metrics around it, and immediately directly going forawwrd, so as to reduce the time of rediscovery. i leave for a month and come back with no idea if my algorithm generates a hierarchy. I believe what ti does is correct, but it doesnt do anything to make it traversable? as in, how do we determine the traversal tree. or at least, what the hell is Karras using atomic counters for??
+3. I also want more formalized decomposition of an article series for my work. an intermediary between the initial reading, the paper decomposition and the final coded product. The intermediary should be where i concretely describe whwat i am trying to do, what my current implementation looks like, questions about the meaning of the text(s) and their interactions. this would better ground the theory, but also is maybe not super practical, as i prefer to learn by running my face into a wall. but maybe it is soomethign to try in order to implement the super method from prokopenko, especilaly as their paper is centered around the exact kind of decomposition i am now thinking of, albeit an abridged version. I think it is important towwards the problems of uninformed and meaningless meandering, misunderstanding the theories and ideas altogether, and misreadings/underreadings of the source text hiding information from myself.
+4. i want bettter structuring of the neighbor seearch file, yeesh i am having a hard time ith the redundant data structures, trying to figure out where i should go! i dont want to change to many thigns and bash my head for subtley  breaking many of them.
+
+
+Starting from ```Inode[1]```, how do I determine which Inodes are the left and right children? We determine boundaries, where ```INode[1]``` is always the left child of the root and ```INode[n]``` the right, and they have bounds as half of the box. So need to add to the data structs our boundary tuples! Two coordinates recombined will grant the 8 points of the box that encloses the 'van der waals' sphere surrounding an atom.
+
+WE construct all INodes in 'parallel', how do we affix a 'parent pointer' to the leaf node at the end of each parallel construction? Running through the logic, if the minim value between the Inode being considered, i, and the Inode beign determined, j, is the same as the breakpoint between them, then the left child of Inode i is the leaf node gamma. (there is the equivalent max case too) Therefore, it follows that the parent of the leaf node gamma is Inode i. or, 
+```
+if min(i, j) == γ
+    left = L[γ]
+    L[γ].parent_INode = i
+```
+
+
+So if we had an atomic add for each node, how do we determine the boundaries of each inode in a parallel way? IN the present implementation, I believe I require another for loop after bvh_solver over each leaf node.
+1. If right or left child, leaf node will give parent the min or max value
+2. Do we ahve to march up the tree to determine the boundaries of the nonterminating Inodes, or can we nab the boundary in parallel? Feels pretty sequential to me
+
+
+### hopefulyl i will go back and read my work
+but this is still broken in bvh_solver in some way or another, as the vsits counter does nto exceed 2 even for 500 particles, and all visit counts past about inode 15 are zero. Many things may still be breoken, new logic and old!
+
+
+## 25 Sept
+
+I dont understand the sense of Howard 2016's use of do block. It feels like a loop that evaluates forever and it depends on v eventualyl being zero, triggering a return. But we always increment v by 1 before evalulating if it is zero 
+I also don't understand we cancel out the first leaf thread, and only allowing the second to evalutate the parent. Double counting feels inevitable. I don't even understand the ssignificance of the visit count. I can appreciate that the least visited nodes are terminating nodes, and the most visited are the root. But we already have the reference unions telling us which data point to go if our particle fits in this or that half of an aabb, whic by the way, what about this halfway marking value???? How do we decide to go to the left or right neighbor if we don't know the barrier plane in space between the left and right children of a parent? Maybe we have to hope julia can handle this internally?? ugh.
+
+And then the merge part, first we decide which boundary is larger or samller between 2 things, then assign
+
+Gods this is messy stuff. I am thining through a 4 parter logic whwere we have to ask what data structure we have and which data structure has the smaller value. That is terrible and I refuse to think this is the awy it happens. But INodes have left or right, and while we can refer to thjose
+
+
+Okay so, Howard2016's do block is either incorrectly notated or it is not a loop construct
+
+
+
+
+## 26 Sept
+so we have parent pointers. How do we have a for loop starting from every leaf travel upwards and give every INode their boundaries? The lit describes some elimination process so that only 1 thread processes 1 node. I have no idea how to achieve that with atomics, and probably don't understand atomics either. But I believe we can make do by reducing our work efficiency. The expression,
+```julia
+I[p].min = (I[p].left.min < I[p].right.min) * I[p].left.min + (I[p].left.min > I[p].right.min) * I[p].right.min
+```
+will grant some Inodes with incorrect bounds, for all parents of a leaf and a branch. But the leaf nodes at the bottom of the tree should ideally be processed after these elevated branches are processed, thus hopefully resolving the issue. But this is not necessarily true, and it makes this neighbor finder nondeterministic, which is the point,, moreover, solving it sequentially is bound to create artifacts. For now I suppose we have to expand the work further to catch cases of nonanswers. 
+
+Wait, this expression won't work anyways because the 'min' is a mutable vector, not a single value. Darn! WSwe have to calculate distances anyway to follow this scheme! Useless in place distances just to determine which point is overall closer to the origin than the other. We could adjust and just right the overall sum without squaring by assuming a unit square simulation, like we were supposed to anyways. Hah!
+
+
+27 Sept
+Another query, whty is the Inode procedure not performed on the root node? It is incorrect! But i leave the question here that i might find it later.
+
+
+The new problem I am faced with is trying to process the root correctly in the BVH solver, so that wew can work on traversal. The root node coveres wwhat range of the simulation, and what are it's children? Previously, I had this set to be itself and the last internal node, which is impossible. Ah, it is not set to itself and the last internal node, but to itself and the last leaf. Hence the name, *leaf* indices. Whoops. The root necessarily covers the entire range, so it's calculation perhaps can be simplified to only work on finding the split value to determine which internal nodes are its children. It is important to keep in mind that the array L is sorted according to its morton codings, so covering the netire range of leaf nodes *means* covering the entire simulation window. However we still have to evaluate the conditionals at the end because a sufficiently small tree can result in a root with a leaf child.
+
+
+The second problem surrounds  increment and decrement. If INode number 2 is selected, can it only consider backward to INode 1 and not further back starting from the end of the INode array?
+
+
+When we consider INode 1, wwhat if d=-1? In Karras, there does not appear to be allowance for an exception in the case of i=1 d=-1 (or in the paper's case i=0), nor is index wrapping apparent.
+
+WAIT, what is the consequence of their comment, delta(i,j)=-1 when j is not a member of Inode array?
+
+
+
+
+The struggle now is that Howward 2019 uses stackless, where if a particle overlaps with a node at all, then you proceed to the 'left child', and if you dont you proceed to a rope to the next child. Marrying this method would involve a lot of rewriting of my algorithm outside of the traverse function. So oour code can't look the same! Perhaps we can get on wwwith this stackless train later. For now, let's just get the stackfull approach moving.
+
+
+
+And towards the stackful implementation, somehow my hile loop is noww failing to correctly loop and work an INode down into a gridkey. The while loop should only exit after appropriately testing a leaf against an atom or ending up with a value that is a leaf/gridkey. If I am correct, the current set up ending up with a nothing result happens whenever one of the children of a node is a leaf, as there is no mutation of 'n' at that point. I think we are supposed to consider that the termiantion of that 'thread' and move on?
+
+
+Now wew are up to the next problem in which the neighbor list is written, and then unwritten. And that was much simpler, it was because I wasn't returning 'neighbors' at the end.
+
+
+
+Hrm, as constructed I am not confident binary search is being performed here. Suppose 1 sphere overlaps both the left and right children of a node? We condityionally must evaluate both halves. But then doing that will boot loop us into the hell of nonhalting. And e are taking a result and overriding it before doing anything useful with it. This structure is not working, in other words. We would need to do a thread splitting activity to independently solve cases where an atom overlaps ith both children, or otherwise miss some pairs.
+
+So the hypothesis is that stack management here means noticing that hey, this INode has 2 INodes as children and my query overlaps with both of them, now I need to test both of them, if only there were some way I could set up checking book to keep track of all of the places I need to go to next. Even if that is not stack management, it would be complicated and expensive to deal with. So now we look to skip directly to Prokopenko and Lebrun-Grandie 2024 as their implementation is apparently the best but likely the most detailed. Lovely!
+
+
+Key detail is that the delta-star function changes meaning from computing the common prefix to a 'simpler XOR evaluation'. Apretrei 2014 defines delta(i) as the index of the highest differing bit between the rang of jkeys covered by node i. So let's get testing!

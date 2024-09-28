@@ -60,6 +60,8 @@
 
 
 ### Version 0.00.3 - towards a half formal repository
+[] fix parametric types in neighborsearch, because the T and K switch positions, replace with I and F? or at least make them consistent
+[] update code naming to reflect the fact that AABB's are only first generated right immediately before bvh traversal, and squash down redundant data structures if at all possible
 [x] fix broken performance by tuple allocation hell, consider switching pairslist to an MVector for values overwrite or trying named tuple shenanigans?
 [] fix velocity rescaling / substitute with alternative method. fix behavior of interactions and parameterization in order to prevent crazy molecular behavior
 [] force LJ may not work correctly. I might have just broken it, but i am uncertain that it correctly calculates the component forces, isntead of just assigning the overall force to each dimension, or something else entirely! ----- TENTATIVELY FIXED, pairslist was messed up generating NaNs and also not doing anything

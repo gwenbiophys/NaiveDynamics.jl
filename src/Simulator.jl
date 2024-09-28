@@ -7,10 +7,12 @@ export
     GenericSpec,
     simulate!,
     simulate_dumloop!,
-    simulate_SVec!
+    simulate_SVec!,
     #record_simulation,
     #update_chunk!,
     #write_chunk!
+    unique_pairs,
+    threshold_pairs
 
 
 

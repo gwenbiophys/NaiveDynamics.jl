@@ -70,9 +70,12 @@ struct QuantizedAABB{T} <: AxisAlignedBoundingBox
 end
 
 # does this need to be mutable?
-mutable struct GridKey{T} <: AABBGridKey
+mutable struct GridKey{T, K} <: AABBGridKey
     index::T
     morton_code::T
+    min::MVector{3, K}
+    max::MVector{3, K}
+    parent_INode::T
 end
 
 # struct internal node
@@ -85,10 +88,14 @@ end
     #left::Ref{Union{internalnode, gridkey}}
     #but then this cannot be an array
 abstract type NaiveNode end
-mutable struct INode{T} <: NaiveNode
+mutable struct INode{T, K} <: NaiveNode
     leaf_indices::Tuple{T, T}
     left::Ref{Union{GridKey, NaiveNode}}
     right::Ref{Union{GridKey, NaiveNode}}
+    visits::T #to be marked as an @atomic, somehow
+    min::MVector{3, K}
+    max::MVector{3, K}
+    parent_INode::T
 end
 
 
@@ -179,11 +186,11 @@ function assign_mortoncodes(aabb_array, spec::SpheresBVHSpecs{T, K}, clct) where
     #idk how this should be better done to prevent runtime evaluation of a stupid if statement
 
 
-    quantized_aabbs = [QuantizedAABB{K}(i, MVector{3, K}(0, 0, 0),  MVector{3, K}(0, 0, 0), MVector{3, K}(0, 0, 0)) for i in 1:spec.bins_count]
+    quantized_aabbs = [QuantizedAABB{K}(i, MVector{3, K}(0, 0, 0),  MVector{3, K}(0, 0, 0), MVector{3, K}(0, 0, 0)) for i in 1:spec.bins_count]::Vector{QuantizedAABB{K}}
 
     update_gridkeys!(quantized_aabbs, aabb_array, spec, K, clct)
 
-    L = [GridKey{K}(quantized_aabbs[i].index, 0) for i in 1:spec.atoms_count]
+    L = [GridKey{K, T}(quantized_aabbs[i].index, 0, aabb_array[i].min, aabb_array[i].max, 0) for i in 1:spec.atoms_count]
 
     update_mortoncodes!(L, quantized_aabbs, spec.morton_length, K)
 
@@ -193,15 +200,15 @@ end
 
 
 
-function sort_mortoncodes!(L::Vector{GridKey{T}}) where T
+function sort_mortoncodes!(L::Vector{GridKey{T, K}}) where {T, K}
 
     sort!(L, by = x -> bitstring(x.morton_code)) 
-    #sort!(L, by = x -> string(x.morton_code)) # somtimes does not sort lexicographically
+    #sort!(L, by = x -> string(x.morton_code)) # somtimes does not sort lexicographically ?
 
     return L
 end
 
-function create_mortoncodes(position, spec::SpheresBVHSpecs{T}, clct::GenericRandomCollector{T}) where T
+function create_mortoncodes(position, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
     #TODO is the kind of function scoping we want? -- ask again in the refactor
     aabb_array = generate_aabb(position, spec)
     L = assign_mortoncodes(aabb_array, spec, clct)
@@ -217,7 +224,7 @@ function create_mortoncodes(position, spec::SpheresBVHSpecs{T}, clct::GenericRan
 
 end
 
-###### Phase 2: Binary radix tree / bvh construction and updating
+###### Phase 2: Binary radix tree / bvh construction and boundary solving
 
 """
     δ(L::Vector{GridKey{K}}, i, j, spec::SpheresBVHSpecs{T,K}) where {T, K}
@@ -227,7 +234,7 @@ wherein the first or second bits of the prefix would be the final or final 2 bit
 
 
 """
-function δ(i, j, L::Vector{GridKey{K}}, spec::SpheresBVHSpecs{T,K}) where {T, K}# only use where if you are going to use both of these!
+function δ(i, j, L::Vector{GridKey{K, T}}, spec::SpheresBVHSpecs{T,K}) where {T, K}# only use where if you are going to use both of these!
     common_prefix = 0
     #println("i in δ ", i)
     #println("j in δ ", j)
@@ -236,7 +243,7 @@ function δ(i, j, L::Vector{GridKey{K}}, spec::SpheresBVHSpecs{T,K}) where {T, K
     prefixarray = [Int32(i) for i in 1:32]
     reverse!(prefixarray)
     if j > length(L) || j < 1
-        return common_prefix -= 1
+        return common_prefix = -1
     else
         for n in prefixarray
 
@@ -255,6 +262,84 @@ function δ(i, j, L::Vector{GridKey{K}}, spec::SpheresBVHSpecs{T,K}) where {T, K
     return common_prefix
 end
 
+
+
+
+
+function solve_node_1(L, I, spec)
+
+    d = 1
+    i = 1
+    j = length(L)
+    l = 0
+    lmax = 1
+    zed = 1
+    iter = 1
+    γ = 0
+    
+    s = 0
+    left = Ref(L, 1)
+    right = Ref(L, 1)
+
+
+
+    δnode = δ(i, j, L, spec)
+    zed = 1
+    while (iter = l ÷ (2 * zed)) >= 1
+        #iter = lmax ÷ (2 * zed)
+        zed +=1
+        if δ(i, i + (s+iter)*d, L, spec) > δnode
+            s += iter
+        end
+    end
+
+
+
+
+    γ = i + s*d + min(d, 0)
+
+
+
+    # this operation, if implemented, generates pointers for traversal that will point to either the next internal node in the hierarchy
+        # or to a leaf node
+        # i have no idea how to implement this in julia, haha!
+        # i also don't know where the gamma or pointer information would go.
+        #also, I be reordered upon the generation of its data, and how?
+        # Ref(L, γ) etc is the 'poitner' structure
+    if min(i, j) == γ
+        #left = Ref(L, γ)[] # the leftpointer to carryout traversal
+        left = L[γ]
+        L[γ].parent_INode = i 
+        #I[i].visits += 1
+    else
+        #left = Ref(I, γ)[]
+        left = I[γ]
+        I[γ].parent_INode = i
+    end
+    if max(i, j) == γ + 1
+        #right = Ref(L, γ+1)[]# right = [Lgamma+1]
+        right = L[γ+1]
+        L[γ+1].parent_INode = i # i am uncertain if it correctly follows convention to have gamma plus 1 here
+
+    else 
+        #right = Ref(I, γ+1)[]# right = I[gamma+1]
+        right = I[γ+1]
+        I[γ+1].parent_INode = i
+    end
+
+    #println("here is i ", i)
+    #println(typeof(left))
+    #println(typeof(right))
+
+    I[i].leaf_indices = tuple(i, j)#, left, right)
+    I[i].left = left
+    I[i].right = right
+
+
+
+
+end
+
 function bvh_solver!(L, I, spec)
     # type security in the return of delta is going to be bad
     #δmin = δ(I[1][1], I[1][2], L, spec)
@@ -266,8 +351,11 @@ function bvh_solver!(L, I, spec)
 
     #println(δmin)
     # this forloop should be parallelizable to 1 processer for each i in L
+    lengthL = length(L)
+    #solve_node_1(L, I, spec)
 
-    for i in 1+1:length(L)-1
+    for i in 1:lengthL-1 # Threads.@threads when the atomic Inode.visits is figured out.
+        #println(i)
         d = 0
         j = 2
         l = 0
@@ -288,6 +376,7 @@ function bvh_solver!(L, I, spec)
         #dplus = δ(i, i+1, L, spec)
         #dminus = δ(i, i-1, L, spec)
         d = sign(δ(i, i+1, L, spec) - δ(i, i-1, L, spec))
+  
         δmin = δ(i, i-d, L, spec)
         #println("del min ", δmin)
         #println("d ", d)
@@ -312,7 +401,7 @@ function bvh_solver!(L, I, spec)
             return
         end
         #f = l
-        while (I[1].leaf_indices[1] <= i + lmax*d <= I[1].leaf_indices[2]) && (δ(i, i + lmax*d, L, spec) > δmin)
+        while (1 <= i + lmax*d <= lengthL) && (δ(i, i + lmax*d, L, spec) > δmin)
             #f = l
             #println(δ(i, i + lmax*d, L, spec))
             #println("entered here ")
@@ -364,16 +453,22 @@ function bvh_solver!(L, I, spec)
         if min(i, j) == γ
             #left = Ref(L, γ)[] # the leftpointer to carryout traversal
             left = L[γ]
+            L[γ].parent_INode = i 
+            #I[i].visits += 1
         else
             #left = Ref(I, γ)[]
             left = I[γ]
+            I[γ].parent_INode = i
         end
         if max(i, j) == γ + 1
             #right = Ref(L, γ+1)[]# right = [Lgamma+1]
             right = L[γ+1]
+            L[γ+1].parent_INode = i # i am uncertain if it correctly follows convention to have gamma plus 1 here
+
         else 
             #right = Ref(I, γ+1)[]# right = I[gamma+1]
             right = I[γ+1]
+            I[γ+1].parent_INode = i
         end
 
         #println("here is i ", i)
@@ -391,27 +486,92 @@ function bvh_solver!(L, I, spec)
 
 
 end
+function internal_boundaries(iter, L, I, spec)
+    n = iter
+    #if 
+    p = L[iter].parent_INode # p is the index of the INode that is L[i] 's parent
+    #v::Int32 = 0 #maybe store as an array? one for each Inode? represented as I[p].visits
+    if p == 0 return end
 
 
+    # Question TODO what was my goal here?
+    if I[p].left == L[n]
+       local s = I[p].right
+    else
+       local s = I[p].left
+    end
+    #s = # at this moment, i don't know if the nth leaf node is the left or right sibling to the parent
 
-function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
-    #L is an array of leaf nodes, 1 leaf per atom or 'primitive'
-    L = create_mortoncodes(position, spec, clct)
-    #println(L)
-    #change type of int here to spec.morton_int, probably with Tuple(spec.morton_int[i, length(L)])
+    ######attempt to recreate Karras 2012, Howard 2016
+    #this should be an atomic for visits part
+    if I[p].visits != 0 #this will never work, need to be reformed
+        #merge n and s, whatever the hell that means
+        n = p
+    end
 
-    #I = [tuple(i, length(L), Ref(L, i)[], Ref(L, i)[]) for i in 1:length(L)-1] # -1 from L because we want to have nodes = # atoms - 1 in this construction. Howard et al. chose a fixed 1024-1, but eh
-    I = [INode{K}(tuple(i, length(L)), Ref(L, i)[], Ref(L, i)[]) for i in 1:length(L)-1]
-    #i = 3
-    #j = 4
-    #println(bitstring(L[i].morton_code))
-    #println(bitstring(L[j].morton_code))
-    #δ(L, i, j, spec)
-    #println(I)
-    #println(I)
-    bvh_solver!(L, I, spec)
+    ######my attempt
+    #need repeated evaluation at each leaf
+    while p > 0 # continue climbing up hierarchy until reaching the root, except this prevents the root AABB'ing successfully
+        #I[p].visits += 1
+        
+        left = sum(I[p].left[].min)
+        right = sum(I[p].right[].min)
+        if 0 < left  && left < right #|| right == 0 # can this be neatly squashed into a ternary? i think so, but with a surrounding if statement or 2
+            # if the right value is zero, then we do not! want to set the min value because wwe dont have the sibling comparison, so the else should
+            # do nothing, and leave it up to a different 'thread' so bvh_solver
+            # we should prune it up by evaluating only the parents of 2 leaves, wiping out the leaf and branch combos
+            I[p].min = I[p].left[].min
+        elseif 0 < right < left
+            I[p].min = I[p].right[].min
+        else
+            #println("oops in the min node boundaries")
+            #println(left)
+            #println(right)
+        end
+
+        left = sum(I[p].left[].max)
+        right = sum(I[p].right[].max)
+        if 0 < left < right
+            I[p].max = I[p].left[].max
+        elseif 0 < right < left
+            I[p].max = I[p].right[].max
+        else
+           # println("oops in the max node boundaries")
+           # println(left)
+           # println(right)
+        end
+
+                        #a = (I[p].left.min < I[p].right.min) * I[p].left.min  
+                        #b = (I[p].left.min > I[p].right.min) * I[p].right.min#oh my god, we have to figure out if it is a leaf or inode, which sibling has the min coord and which has max coord. this is so broken
+            # i cannot fathom trying to do this this way
+        #I[p].max = (I[p].left.max < I[p].right.max) * I[p].left.max + (I[p].left.max > I[p].right.max) * I[p].right.max
+        #okay, now how do we get a new uhhhhhhhhhh parent to look at? fuckkkk. 
+        #Howard 2016 implies that something that leads us to the new parent is created from mergine the currently considered thread with the sibling
+        p = I[p].parent_INode
+    end
+end
+
+function boundaries_wrapper(L, I, spec)
+
+    
+
+
+    #TODO fix these dirty initializations
+        # whole thing has to be healed up to allow for initialization and then just update after
+        #p::Int32 = 0
+        #n::Int32 = 0
+        for i in eachindex(L)
+            internal_boundaries(i, L, I, spec)
+    
+    
+    
+        end
 
 end
+
+
+
+
 
 
 function update_bvh!(L, I, position, spec::SpheresBVHSpecs{T}, clct::Collector, aabb_array) where T
@@ -426,6 +586,209 @@ end
 function query_points()
 
 end
-function traverse_bvh()
+function stackless_traverse(L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
+    remaining_nodes = length(L) # meant to be an atomic, proceed until this value is zero.
+    neighbors::Vector{Tuple{Int64, Int64, T, T, T, T}} = []
 
+    ### from Howard 2016
+    for atom in L # also a parallelizable loop
+        n = I[1]
+        not_leaf = 1
+        while not_leaf > 0
+            not_leaf -= 1
+            if prod(atom.min .> n.min) || prod(atom.max .< n.max)
+                if typeof(n.left[]) != GridKey
+                    n = n.left[]
+                    not_leaf += 1
+                else
+                    dx = atom.centroid[1] - n.centroid[1]
+                    dy = atom.centroid[2] - n.centroid[2]
+                    dz = atom.centroid[3] - n.centroid[3]
+                    d2 = sqrt(dx^2 + dy^2 + dz^2)  
+
+
+                    if d2 <= spec.critical_distance
+                        push!(neighbors, tuple(atom.index, n.index, dx, dy, dz, d2))
+                    end
+                end
+            else
+                n = n.rope
+                not_leaf += 1
+            end
+       
+                # n = I[1] #root node of bvh
+
+        #while remaining_nodes > 0
+            # if aabb of atom overlaps aabb of n
+
+            
+                #if typeof(n) != GridKey
+                   # n = n.left
+                #else
+                    #for each in 
+
+
+        end
+    end
+
+
+
+    ### From Gwen
+    
+
+
+end
+
+function inner_traverse(neighbors, atom, n, position, L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
+
+    while typeof(n) != GridKey{K, T} #!== GridKey{T, K}
+        #println(typeof(n.left[]))
+        #println(typeof(n.right[]))
+        if prod(atom.min .> n.left[].min) || prod(atom.max .< n.left[].max)
+            #println("here 3")
+            if typeof(n.left[]) == GridKey{K, T}
+                #println("here after 3")
+                dx = position[atom.index][1] - position[n.left[].index][1]
+                dy = position[atom.index][2] - position[n.left[].index][2]
+                dz = position[atom.index][3] - position[n.left[].index][3]
+                d2 = sqrt(dx^2 + dy^2 + dz^2)  
+                #println(d2)
+
+
+                if d2 <= spec.critical_distance
+                    #println("here way after 3")
+                    push!(neighbors, tuple(atom.index, n.left[].index, dx, dy, dz, d2))
+                    #println(neighbors)
+                end
+                return
+            else
+                n = n.left[]
+            end
+        else
+            #println("here too")
+            if typeof(n.right[]) == GridKey{K, T}
+                #println("here after too")
+                dx = position[atom.index][1] - position[n.right[].index][1]
+                dy = position[atom.index][2] - position[n.right[].index][2]
+                dz = position[atom.index][3] - position[n.right[].index][3]
+                d2 = sqrt(dx^2 + dy^2 + dz^2)  
+
+
+                if d2 <= spec.critical_distance
+                    push!(neighbors, tuple(atom.index, n.right[].index, dx, dy, dz, d2))
+                end
+                return
+            else
+                #println("here")
+                n = n.right[]
+            end
+        end
+    end
+end
+
+function traverse_bvh1(position, L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
+    remaining_nodes = length(L) # meant to be an atomic, proceed until this value is zero.
+    neighbors::Vector{Tuple{Int64, Int64, T, T, T, T}} = []
+
+
+    for atom in L
+        n = I[1]
+        ##println(typeof(n), typeof(n) === INode{K, T})
+       
+        inner_traverse(neighbors, atom, n, position, L, I, spec)
+
+        # for once wwe have ran out of internal nodes, process the last leaf(?)
+        if typeof(n) == GridKey{K, T}
+            dx = position[atom.index][1] - position[n.index][1]
+            dy = position[atom.index][2] - position[n.index][2]
+            dz = position[atom.index][3] - position[n.index][3]
+            d2 = sqrt(dx^2 + dy^2 + dz^2)  
+
+
+            if d2 <= spec.critical_distance
+                push!(neighbors, tuple(atom.index, n.index, dx, dy, dz, d2))
+            end
+        end
+    end
+    return neighbors
+end
+
+function traverse_bvh2(L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
+    remaining_nodes = length(L) # meant to be an atomic, proceed until this value is zero.
+    neighbors::Vector{Tuple{Int64, Int64, T, T, T, T}} = []
+
+
+    #### take 2
+    for atom in L
+        n = I[1]
+        while typeof(n) != GridKey
+            if prod(atom.min .> n.min) || prod(atom.max .< n.max) # we use 'or' so we can evaluate all cases of any overlap between atom AABB and node AABB
+                if typeof(n) != GridKey
+                    n = n.left[] # this should not work because we have not tested if it fits more in the left or the right
+                else
+                    dx = atom.centroid[1] - n.centroid[1]
+                    dy = atom.centroid[2] - n.centroid[2]
+                    dz = atom.centroid[3] - n.centroid[3]
+                    d2 = sqrt(dx^2 + dy^2 + dz^2)  
+
+
+                    if d2 ⋜ spec.critical_distance
+                        push!(neighbors, tuple(atom.index, n.index, dx, dy, dz, d2))
+                    end
+                end
+
+            else
+                if typeof(n.right[]) != GridKey
+                    n = n.right[]
+                else
+                    dx = atom.centroid[1] - n.centroid[1]
+                    dy = atom.centroid[2] - n.centroid[2]
+                    dz = atom.centroid[3] - n.centroid[3]
+                    d2 = sqrt(dx^2 + dy^2 + dz^2)  
+
+
+                    if d2 ⋜ spec.critical_distance
+                        push!(neighbors, tuple(atom.index, n.index, dx, dy, dz, d2))
+                    end
+                end
+            end
+        end
+    end
+end
+
+
+
+###### Phase 4: put it all together
+
+# change this name?
+function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
+    #L is an array of leaf nodes, 1 leaf per atom or 'primitive'
+    L = create_mortoncodes(position, spec, clct)::Vector{GridKey{K, T}} 
+    ##println(L)
+    #change type of int here to spec.morton_int, probably with Tuple(spec.morton_int[i, length(L)])
+
+    #I = [tuple(i, length(L), Ref(L, i)[], Ref(L, i)[]) for i in 1:length(L)-1] # -1 from L because we want to have nodes = # atoms - 1 in this construction. Howard et al. chose a fixed 1024-1, but eh
+    I= [INode{K, T}(tuple(i, length(L)), Ref(L, i)[], Ref(L, i)[], 0,  MVector{3, T}(0, 0, 0), MVector{3, T}(0, 0, 0), 0) for i in 1:length(L)-1]::Vector{INode{K, T}} 
+    #i = 3
+    #j = 4
+    ##println(bitstring(L[i].morton_code))
+    ##println(bitstring(L[j].morton_code))
+    #δ(L, i, j, spec)
+    ##println(I)
+    ##println(I)
+
+    bvh_solver!(L, I, spec)
+
+    
+    boundaries_wrapper(L, I, spec)
+    #for i in eachindex(I)
+        ##println("parentINode ",  I[i].parent_INode)#, ", ", I[i].max)
+       # #println(I[i].min)
+        ##println(I[i].max)
+    #end
+    ##println(I[1])
+    ##println()
+    #println(I[2].leaf_indices)
+    #return neighborlist = println(traverse_bvh1(position, L, I, spec))
+    return traverse_bvh1(position, L, I, spec)
 end
