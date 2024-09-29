@@ -16,7 +16,7 @@ struct SpheresBVHSpecs{T, K} <: SimulationSpecification
     critical_distance::T
     atoms_count::Int64
     bins_count::Int64
-    morton_length::Vector{K}
+    morton_length::K
 
 end
 """
@@ -32,13 +32,13 @@ function SpheresBVHSpecs(; floattype, interaction_distance, atoms_count, bins_co
 
     if floattype==Float32
         morton_type = Int32
-        morton_length = [Int32(i) for i in 1:30]
+        morton_length = Int32(10)
 
         #morton_power = 10
         return SpheresBVHSpecs{floattype, morton_type}(interaction_distance, atoms_count, bins_count, morton_length)
     elseif floattype==Float64
         morton_type = Int64
-        mort_length = [Int64(i) for i in 1:63]
+        mort_length = Int64(21)
 
         #morton_power = 21
         return SpheresBVHSpecs{floattype, morton_type}(interaction_distance, atoms_count, bins_count, morton_length)
@@ -170,6 +170,9 @@ function update_mortoncodes!(L, quantized_aabbs, morton_length, morton_type)
     #n is the current nth bit of our morton code to change we wish to change, and it corresponds with every 3rd bit of our grid positions
 
     for each in eachindex(L)
+        #for a in eachindex(quantized_aabbs[each].centroid)
+            #println(bitstring(quantized_aabbs[each].centroid[a]))
+        #end
         for n in morton_length 
             for dim in eachindex(quantized_aabbs[1].centroid)
                 n_xyz = t3 * n + dim - t3 # we shift which position where on the morton code a bit should be written based on there being 3 spatial dimensions
@@ -187,9 +190,86 @@ function update_mortoncodes!(L, quantized_aabbs, morton_length, morton_type)
             end
 
         end
-        #println("morton code for atom ", L[each].index, " ", (bitstring(L[each].morton_code)))
+
+
     end
 end
+
+# airlifted from Julia LeetCode190
+function reverse_bit!(n::Int32)::Int32
+    ret, power = 0, 31
+    while n != 0
+        ret += (n & 1) << power
+        power -= 1
+        n = n >> 1
+    end
+
+    return n = ret
+end
+function update_mortoncodes2!(L, quantized_aabbs, morton_length, morton_type) 
+    #TODO clean up this function to use L, aabbs, and spec?
+    inbit = morton_type(0)
+    t3 = morton_type(3)
+    t1 = morton_type(1)
+    #L is an array of grid keys with an 'index' field which points to the 'nth index of a vector in the objectCollection struct' 
+        # or a particular atom
+    #n is the current nth bit of our morton code to change we wish to change, and it corresponds with every 3rd bit of our grid positions
+    for each in eachindex(L)
+        for m in t1:morton_length #morton_type(morton_length):-1:t1
+            for dim in t1:t3
+
+                inbit = (quantized_aabbs[each].centroid[dim] << (32 - m)) >>> 31
+
+                L[each].morton_code = (L[each].morton_code << 1) | inbit
+
+
+        
+
+        
+            end
+
+        end
+
+        reverse_bit!(L[each].morton_code)
+    end
+
+
+end
+
+##### this is the best version of the function, or will be once it is accurate. We should be able to 
+# directly generate out number ithout reversing, mostly by reversing the order in which numbers are
+# filled in. However, this version generates deceivingly incorrect results.
+
+function update_mortoncodes3!(L, quantized_aabbs, morton_length, morton_type) 
+    #TODO clean up this function to use L, aabbs, and spec?
+    inbit = morton_type(0)
+    t3 = morton_type(3)
+    t1 = morton_type(1)
+    #L is an array of grid keys with an 'index' field which points to the 'nth index of a vector in the objectCollection struct' 
+        # or a particular atom
+    #n is the current nth bit of our morton code to change we wish to change, and it corresponds with every 3rd bit of our grid positions
+    for each in eachindex(L)
+
+        for m in morton_type(morton_length):-1:t1#t1:morton_length#morton_type(morton_length):-1:t1
+            #println(m)
+
+            for dim in t1:t3
+ 
+
+                inbit = (quantized_aabbs[each].centroid[dim] << (32 - m)) >>> 31
+                #println("d aft ", bitstring(L[each].morton_code))
+                L[each].morton_code = (L[each].morton_code << 1) | inbit
+
+            end
+
+        end
+        println(bitstring(L[each].morton_code))
+
+    end
+
+
+end
+
 function assign_mortoncodes(aabb_array, spec::SpheresBVHSpecs{T, K}, clct) where {T, K}
     morton_length = 0::Int64
     morton_string = " "::String
@@ -203,8 +283,9 @@ function assign_mortoncodes(aabb_array, spec::SpheresBVHSpecs{T, K}, clct) where
 
     L = [GridKey{K, T}(quantized_aabbs[i].index, 0, aabb_array[i].min, aabb_array[i].max, 0, 1, 1) for i in 1:spec.atoms_count]
 
-    update_mortoncodes!(L, quantized_aabbs, spec.morton_length, K)
+    update_mortoncodes2!(L, quantized_aabbs, spec.morton_length, K)
 
+    #update_mortoncodes3!(L, quantized_aabbs, spec.morton_length, K)
     return L
 
 end
@@ -223,6 +304,7 @@ function create_mortoncodes(position, spec::SpheresBVHSpecs{T, K}, clct::Generic
     #TODO is the kind of function scoping we want? -- ask again in the refactor
     aabb_array = generate_aabb(position, spec)
     L = assign_mortoncodes(aabb_array, spec, clct)
+
 
 
     sort_mortoncodes!(L)
@@ -631,7 +713,7 @@ function stackless_interior(bad_return, parray::Vector{Base.Threads.Atomic{Int64
     q = -1
 
 
-
+    #continue will also termate an iteration and move on
     if i == n - 1 
         L[i].skip = 0 #this rope connection should become the sentinenl node, which in Apetrei is algorithmically I[n-1] but maybe I[1] in Prok?
         # sentinel node is a nartificial node
@@ -642,16 +724,8 @@ function stackless_interior(bad_return, parray::Vector{Base.Threads.Atomic{Int64
             L[i].skip = -1 * (i + 1)
         end
     end
-    counter = 0
-    while i > 1
-        println("i $i")
-        println("rangel $rangel")
-        println("ranger $ranger")
-        println("dell $dell")
-        println("delr $delr")
-        println("p ", parray[i])
-        println("q $q")
-        println()
+    counter = 0 
+    while 2 > 1 # accursed
         counter+=1
         #println(" i $i")
         if delr < dell
@@ -665,10 +739,13 @@ function stackless_interior(bad_return, parray::Vector{Base.Threads.Atomic{Int64
             end
             delr = del(ranger, ranger + 1, L, spec)
         else
-            parray[i] = Base.Threads.Atomic{Int64}(ranger - 1)# Atomic(rangel - 1)
+            parray[i] = Base.Threads.Atomic{Int64}(rangel - 1)# Atomic(rangel - 1)
+ 
+
             rangel = Threads.atomic_cas!(parray[i], -1, ranger) #@atomicreplace parray[i].x -1 => ranger
+
             #println("dell >= delr")
-            if ranger > n-1 || ranger < 1
+            if rangel > n-1 || rangel < 1
                 println("a thread is exiting wwell")
                 return
             end
@@ -680,6 +757,8 @@ function stackless_interior(bad_return, parray::Vector{Base.Threads.Atomic{Int64
         else
             q = rangel
         end
+
+
 
         if rangel == q
             I[q].left = i
@@ -712,6 +791,9 @@ function stackless_interior(bad_return, parray::Vector{Base.Threads.Atomic{Int64
             bad_return += 1
             println(bad_return)
             return 
+        end
+        if i < 2
+            return
         end
     end
     println("a thread has escaped while")
@@ -933,12 +1015,16 @@ function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::Generi
 
     stacklessbottom_bvh(L, I, spec)
     for i in eachindex(L)
+        println(L[i].morton_code)
+    end
+    """
+    for i in eachindex(L)
         println(L[i])
     end
     for i in eachindex(I)
         println(I[i])
     end
-
+    """
     
     #boundaries_wrapper(L, I, spec)
     #for i in eachindex(I)

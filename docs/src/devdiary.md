@@ -748,4 +748,67 @@ Nexter! How do we resolve 2 morton codes being identical? In Karras 2012, it is 
 
 Nexeter! It turns ourt *none* of the threads are entering the exit condition, meaning the program does not halt. I waws hoping fixing the other things would get me far enough along towards a resolution, but it is not so. The key is that the while loop proceeds in Prokopendo and Lebrun-Grandie until i = 0 or until range-right or range-left receive an unacceptable error. The text describes I0 as the root, which my ordering does not have! Maybe that will help. Checkin up on the left and skip connections, we have a value of -11, which is worrying, there should only be L-1 internal nodes. The great difficulty is that the threads are not in lock-step but instead executing randomly. So let's try to investigate if it will still run without multithreading. OUr exit sequences should work regardless of threading. Threads rarely exit the while loop or hit the return calls, and usually a ranger or a rangel value gets stuck at 1 place and function evaluation does not mutate it.
 
-One fail case arrises when dell == delr, and seemingly another wwhen rangel == p == ranger == q. HOwever, if i == rangel == ranger and p[i] == q, then it seems to exit just fine through the if-return. This is what test driven development is for, i am preparing these tests, albeit slowly, they should go in their own test section so the same code can continue to exist! I do Have a logical inconsistency, Prokopenko and Lebrun-Grandie have an if else nested in an if else, where I have an if elseif else. Let's tighten these up first! A second inconsistency in the same block, del-star (i) means to my code del(i, i+1, L, spec). In the paper, they use del-star(i + 1), which to me should read as del(i+1, i+2), yes? Well, a thread still exits badly if i == rangel == p[i] == q. One question I have a this point is around atomics, I have p as an array for atomics, one for each L, shouldn't rangel and ranger and q also be arrays of atomics to each L?
+One fail case arrises when dell == delr, and seemingly another wwhen rangel == p == ranger == q. HOwever, if i == rangel == ranger and p[i] == q, then it seems to exit just fine through the if-return. This is what test driven development is for, i am preparing these tests, albeit slowly, they should go in their own test section so the same code can continue to exist! I do Have a logical inconsistency, Prokopenko and Lebrun-Grandie have an if else nested in an if else, where I have an if elseif else. Let's tighten these up first! A second inconsistency in the same block, del-star (i) means to my code del(i, i+1, L, spec). In the paper, they use del-star(i + 1), which to me should read as del(i+1, i+2), yes? Well, a thread still exits badly if i == rangel == p[i] == q. One question I have a this point is around atomics, I have p as an array for atomics, one for each L, shouldn't rangel and ranger and q also be arrays of atomics to each L? Or what values, if any, should be held as atomic and given unique memory locations for each index of L?
+
+Oh my god, I am missing and entire if statement before the atomic cas. WWHATTTT. No! I am NOT!. I waws checking against algorithm 3. Damnit!!!!!!!!!!! Finding out I was looking against the wrong source is even worse than not correctly reading it the first time. I waws so excited because I thought I had caught my mistake, afterall I was taling about "oh this is a problem" with rangel == ranger. That's frustrating.
+
+Okay, we found a legit typo, one 'ranger' was supposed to be 'rangel'. And! A second instance of it! Even wwith these corrections, it would appear the code is still broken. But I would like to add for the paper's syntax. They have 'repeat until i = 0', which means what? Does it mean evaluate at the word repeat 'is i == 0', or only at the bottom immediately before beginning the loop? If Prokopenko and Lebrun-Grandie intended an evaluation at the top, then they would have just used wwhile. Additionally, this structure means that the first Leaf node will never be processed. So we need to have a while loop which goes on forever, with an escape sequence at it's end. There is an important detail about this, at the level of the for loop, i is the index of the Leaf nodes. But within the repeat until 0 loop, i becomes the index of the INodes. Adding a fix for this presents a different problem, given the stack:
+```julia
+i = 1
+rangel = 1
+ranger = 1
+dell = -1
+delr = 3
+p = Base.Threads.Atomic{Int64}(-1)
+q = -1
+```
+we get an error crash out for trying to access I[0]. Rangel was set by the atomiccas to zero. I understand it that this is the first 'thread' (the print statements show this), so the atomic value should be changed, causing the check value to become negative 1, and the thread should exit at the check. Final answer: another typo. When checking if less than 1, we have ranger and rangel, when it should only be the range value that was mutated (or not) in the previous line, (here as rangel). That error is now sorted, back to the looping.
+
+## Also dont forget that the computation of the bounding boxes is done during the cpmutation of relations!. They just leave that bit as an exercise to the reader
+
+
+We need to fix morton_coding, we shouldd NOT have redundant codes at 10 atoms. We have a mode of addressing this in del(i,j), but it's still ridiculous for this to not work already.
+Where m is the output, and e is the expected code.
+```julia
+x00000000000000000000000000001010          
+y00000000000000000000000000000111
+z00000000000000000000000000000001
+m00000000000000000000000000001010
+e00000000000000000000000001011110
+
+x00000000000000000000000000001000
+y00000000000000000000000000000010
+z00000000000000000000000000001010
+m00000000000000000000000000001010
+e00000000000000000000101000110000
+
+
+x00000000000000000000000000000010
+y00000000000000000000000000001001
+z00000000000000000000000000000100
+m00000000000000000000000000000100
+e00000000000000000000010100001010
+
+x00000000000000000000000000000110
+y00000000000000000000000000000101
+z00000000000000000000000000000110
+m00000000000000000000000000000100
+e00000000000000000000000111101110
+```
+I can't pretend fixing these values will save my day, but the actual ansers are *dramatically* different from the generated answers.
+
+So working on a neww fresh method for updating the morton codes. I have spent years down in the mines and I just don't get it. I made a setup to shift bits around:
+
+ if y = 1 m = 1 n = 2
+        then << 31
+        then >>> 31
+    if y = 2 m = 2 n = 5
+        then << 30
+        then >>> 31
+    if y = 3 m = 3 n = 8
+        then << 29
+        then >>> 31
+
+We ask a number  to left shift 1 pace, it does so by 2, by three, by -- why am I incrementing how much I want to shift the Morton code by. . . . I only want to move it by 1. I spent a while fudging around with the algebra so I wouldn't have to introduce if-statements (and thus pursue a very complicated implementation). But I can run throug the hidden f(x) analytically by iterating over the index of the input and over which dimension I should be picking. With those iterating away, whichever n'th position of the output morton code is doesn't have to be determined, it just has to shift left 1 bit per lowest level iteration. Nice! Now to reverse a bitstring,,,,,,,,,
+
+The future will hopefully directly generate ithout having to generate and then reverse, but currently, just trying to reverse the order in which bits are added to the result changes the result in an as-of-yet unknown way. A function call, reversebit(n::Int32) allegedly modifies a data structure, and it is seen the result that it does not. At first I was going to freak out, but *inspecting the function closer* it is not a mutating function, takes an argument and offers a new result.
