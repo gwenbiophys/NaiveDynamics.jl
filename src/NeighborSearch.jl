@@ -241,7 +241,7 @@ end
 # filled in. However, this version generates deceivingly incorrect results.
 
 function update_mortoncodes3!(L, quantized_aabbs, morton_length, morton_type) 
-    #TODO clean up this function to use L, aabbs, and spec?
+
     inbit = morton_type(0)
     t3 = morton_type(3)
     t1 = morton_type(1)
@@ -249,25 +249,14 @@ function update_mortoncodes3!(L, quantized_aabbs, morton_length, morton_type)
         # or a particular atom
     #n is the current nth bit of our morton code to change we wish to change, and it corresponds with every 3rd bit of our grid positions
     for each in eachindex(L)
-
         for m in morton_type(morton_length):-1:t1#t1:morton_length#morton_type(morton_length):-1:t1
-            #println(m)
-
-            for dim in t1:t3
- 
-
+            for dim in t3:-1:t1
                 inbit = (quantized_aabbs[each].centroid[dim] << (32 - m)) >>> 31
-                #println("d aft ", bitstring(L[each].morton_code))
                 L[each].morton_code = (L[each].morton_code << 1) | inbit
 
             end
-
         end
-        println(bitstring(L[each].morton_code))
-
     end
-
-
 end
 
 function assign_mortoncodes(aabb_array, spec::SpheresBVHSpecs{T, K}, clct) where {T, K}
@@ -283,9 +272,8 @@ function assign_mortoncodes(aabb_array, spec::SpheresBVHSpecs{T, K}, clct) where
 
     L = [GridKey{K, T}(quantized_aabbs[i].index, 0, aabb_array[i].min, aabb_array[i].max, 0, 1, 1) for i in 1:spec.atoms_count]
 
-    update_mortoncodes2!(L, quantized_aabbs, spec.morton_length, K)
+    update_mortoncodes3!(L, quantized_aabbs, spec.morton_length, K)
 
-    #update_mortoncodes3!(L, quantized_aabbs, spec.morton_length, K)
     return L
 
 end

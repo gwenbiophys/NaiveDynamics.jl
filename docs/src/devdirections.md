@@ -60,6 +60,7 @@
 
 
 ### Version 0.00.3 - towards a half formal repository
+[] make all Big functions part of a a public API so that they can be tested and developed easier. Especially assembly functions with host functional functions.
 [] fix parametric types in neighborsearch, because the T and K switch positions, replace with I and F? or at least make them consistent
 [] update code naming to reflect the fact that AABB's are only first generated right immediately before bvh traversal, and squash down redundant data structures if at all possible
 [x] fix broken performance by tuple allocation hell, consider switching pairslist to an MVector for values overwrite or trying named tuple shenanigans?
