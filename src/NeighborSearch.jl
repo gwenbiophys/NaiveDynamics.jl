@@ -7,6 +7,7 @@ export
     update_bvh!,
     build_bvh,
     traverse_bvh
+    #Atomic
 
 # how to build towards an API that makes it easy to extend a BVH procedure to different kinds of shapes and considering different distances, as in the Noneuclidean paper?
 
@@ -75,7 +76,11 @@ mutable struct GridKey{T, K} <: AABBGridKey
     morton_code::T
     min::MVector{3, K}
     max::MVector{3, K}
-    parent_INode::T
+    parent_INode::T # this may be repurposed as the index of the skip connection
+    #left::Ref{Union{GridKey, NaiveNode}}
+    #right::Ref{Union{GridKey, NaiveNode}}
+    left::T
+    skip::T
 end
 
 # struct internal node
@@ -90,13 +95,19 @@ end
 abstract type NaiveNode end
 mutable struct INode{T, K} <: NaiveNode
     leaf_indices::Tuple{T, T}
-    left::Ref{Union{GridKey, NaiveNode}}
-    right::Ref{Union{GridKey, NaiveNode}}
+    #left::Ref{Union{GridKey, NaiveNode}}
+    #right::Ref{Union{GridKey, NaiveNode}}
+    left::T
+    skip::T
     visits::T #to be marked as an @atomic, somehow
     min::MVector{3, K}
     max::MVector{3, K}
     parent_INode::T
+    
 end
+
+#mutable struct Atomic{T}; @atomic x::T; end
+
 
 
 
@@ -190,7 +201,7 @@ function assign_mortoncodes(aabb_array, spec::SpheresBVHSpecs{T, K}, clct) where
 
     update_gridkeys!(quantized_aabbs, aabb_array, spec, K, clct)
 
-    L = [GridKey{K, T}(quantized_aabbs[i].index, 0, aabb_array[i].min, aabb_array[i].max, 0) for i in 1:spec.atoms_count]
+    L = [GridKey{K, T}(quantized_aabbs[i].index, 0, aabb_array[i].min, aabb_array[i].max, 0, 1, 1) for i in 1:spec.atoms_count]
 
     update_mortoncodes!(L, quantized_aabbs, spec.morton_length, K)
 
@@ -224,7 +235,7 @@ function create_mortoncodes(position, spec::SpheresBVHSpecs{T, K}, clct::Generic
 
 end
 
-###### Phase 2: Binary radix tree / bvh construction and boundary solving
+###### Phase 3: Binary radix tree based on Karras 2012 and Howard 2016 and 2019
 
 """
     δ(L::Vector{GridKey{K}}, i, j, spec::SpheresBVHSpecs{T,K}) where {T, K}
@@ -553,9 +564,6 @@ end
 
 function boundaries_wrapper(L, I, spec)
 
-    
-
-
     #TODO fix these dirty initializations
         # whole thing has to be healed up to allow for initialization and then just update after
         #p::Int32 = 0
@@ -569,11 +577,6 @@ function boundaries_wrapper(L, I, spec)
 
 end
 
-
-
-
-
-
 function update_bvh!(L, I, position, spec::SpheresBVHSpecs{T}, clct::Collector, aabb_array) where T
     update_aabb!(position, spec, aabb_array)
 
@@ -581,7 +584,156 @@ function update_bvh!(L, I, position, spec::SpheresBVHSpecs{T}, clct::Collector, 
 end
 
 
-###### Phase 3: Tree traversal
+
+
+
+
+
+
+
+
+###### PHase 4: moving on to Prokopenko
+# From Apetrei 2014 / Prokopenko and Lebrun-Grandie 2024, instead of countering common bits, were find the highest differing bit instead. 
+## Though I am unconvinced this is the highest and not the lowest differing bit. Should be fine!
+
+
+# according to Apetrei 2014, just returning the XOR is sufficient, finding the particular index of the relvant bit is unnecessary!
+
+function del(i, j, L::Vector{GridKey{K, T}}, spec::SpheresBVHSpecs{T,K}) where {T, K}
+
+    if j > length(L) || j < 1 || i > length(L) || i < 1 # i dont know if the same operation should be done to i, but idk how else to fix
+        return -1
+    end
+
+    # XOR the two numbers to get a number with bits set where a and b differ
+    if L[i].morton_code == L[j].morton_code
+        return i ⊻ j
+    end
+    
+    return L[i].morton_code ⊻ L[j].morton_code
+    
+    
+    # Find the highest set bit in the difference
+    #index = 0
+    #while diff > 0
+    #    diff >>= 1
+    #    index += 1
+    #end
+    
+    #return index
+
+end
+function stackless_interior(bad_return, parray::Vector{Base.Threads.Atomic{Int64}}, i, n, L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
+    rangel = i # left
+    ranger = i
+    dell = del(rangel - 1, rangel, L, spec)
+    delr = del(ranger, ranger + 1, L, spec)
+    q = -1
+
+
+
+    if i == n - 1 
+        L[i].skip = 0 #this rope connection should become the sentinenl node, which in Apetrei is algorithmically I[n-1] but maybe I[1] in Prok?
+        # sentinel node is a nartificial node
+    else 
+        if delr < del(i + 1, i + 2, L, spec)
+            L[i].skip = i + 1
+        else
+            L[i].skip = -1 * (i + 1)
+        end
+    end
+    counter = 0
+    while i > 1
+        println("i $i")
+        println("rangel $rangel")
+        println("ranger $ranger")
+        println("dell $dell")
+        println("delr $delr")
+        println("p ", parray[i])
+        println("q $q")
+        println()
+        counter+=1
+        #println(" i $i")
+        if delr < dell
+            #println("dell <= delr")
+            parray[i] = Base.Threads.Atomic{Int64}(ranger) #Atomic(ranger)
+            ranger = Threads.atomic_cas!(parray[i], -1, rangel)#@atomicreplace parray[i].x -1 => rangel #ranger = atomic cas(storep, -1, rangel)
+
+            if ranger > n-1 || ranger < 1
+                println("a thread is exiting wwell")
+                return
+            end
+            delr = del(ranger, ranger + 1, L, spec)
+        else
+            parray[i] = Base.Threads.Atomic{Int64}(ranger - 1)# Atomic(rangel - 1)
+            rangel = Threads.atomic_cas!(parray[i], -1, ranger) #@atomicreplace parray[i].x -1 => ranger
+            #println("dell >= delr")
+            if ranger > n-1 || ranger < 1
+                println("a thread is exiting wwell")
+                return
+            end
+            dell = del(rangel, rangel + 1, L, spec)
+        end
+
+        if delr < dell
+            q = ranger
+        else
+            q = rangel
+        end
+
+        if rangel == q
+            I[q].left = i
+        else
+            I[q].left = -1 * i
+        end
+
+        if ranger == n - 1
+            I[q].skip = 0
+        else
+            r = ranger + 1
+            if delr < del(r, r + 1, L, spec)
+                I[q].skip = r
+            else
+                I[q].skip = -1 * r
+            end
+        end
+
+        i = q
+        if counter == 10
+            println("a thread is exiting badly :()")
+            println("i $i")
+            println("rangel $rangel")
+            println("ranger $ranger")
+            println("dell $dell")
+            println("delr $delr")
+            println("p ", parray[i])
+            println("q $q")
+            println()
+            bad_return += 1
+            println(bad_return)
+            return 
+        end
+    end
+    println("a thread has escaped while")
+
+end
+#by convention, if left or skip are negative, then they are referring to the index of the Inode, and positive is index of Leaf
+function stacklessbottom_bvh(L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
+    bad_return = 0
+    # smth is supposed to be initialized here, entries in a store, to -1
+    n = length(L)
+    parray = [Base.Threads.Atomic{Int64}(-1) for i in 1:n]
+    #Threads.@threads 
+    for i in 1:n #in perfect parallel
+        stackless_interior(bad_return, parray, i, n, L, I, spec)
+        
+    end
+    println("bad_return $bad_return")
+
+end
+
+
+###### Phase 5: Tree traversal
 
 function query_points()
 
@@ -758,7 +910,7 @@ end
 
 
 
-###### Phase 4: put it all together
+###### Phase 6: put it all together
 
 # change this name?
 function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
@@ -768,7 +920,7 @@ function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::Generi
     #change type of int here to spec.morton_int, probably with Tuple(spec.morton_int[i, length(L)])
 
     #I = [tuple(i, length(L), Ref(L, i)[], Ref(L, i)[]) for i in 1:length(L)-1] # -1 from L because we want to have nodes = # atoms - 1 in this construction. Howard et al. chose a fixed 1024-1, but eh
-    I= [INode{K, T}(tuple(i, length(L)), Ref(L, i)[], Ref(L, i)[], 0,  MVector{3, T}(0, 0, 0), MVector{3, T}(0, 0, 0), 0) for i in 1:length(L)-1]::Vector{INode{K, T}} 
+    I= [INode{K, T}(tuple(i, length(L)), 0, 0, 0,  MVector{3, T}(0, 0, 0), MVector{3, T}(0, 0, 0), 0) for i in 1:length(L)-1]::Vector{INode{K, T}} 
     #i = 3
     #j = 4
     ##println(bitstring(L[i].morton_code))
@@ -777,10 +929,18 @@ function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::Generi
     ##println(I)
     ##println(I)
 
-    bvh_solver!(L, I, spec)
+    #bvh_solver!(L, I, spec)
+
+    stacklessbottom_bvh(L, I, spec)
+    for i in eachindex(L)
+        println(L[i])
+    end
+    for i in eachindex(I)
+        println(I[i])
+    end
 
     
-    boundaries_wrapper(L, I, spec)
+    #boundaries_wrapper(L, I, spec)
     #for i in eachindex(I)
         ##println("parentINode ",  I[i].parent_INode)#, ", ", I[i].max)
        # #println(I[i].min)
@@ -790,5 +950,5 @@ function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::Generi
     ##println()
     #println(I[2].leaf_indices)
     #return neighborlist = println(traverse_bvh1(position, L, I, spec))
-    return traverse_bvh1(position, L, I, spec)
+    #return traverse_bvh1(position, L, I, spec)
 end
