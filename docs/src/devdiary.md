@@ -813,4 +813,98 @@ We ask a number  to left shift 1 pace, it does so by 2, by three, by -- why am I
 
 The future will hopefully directly generate ithout having to generate and then reverse, but currently, just trying to reverse the order in which bits are added to the result changes the result in an as-of-yet unknown way. A function call, reversebit(n::Int32) allegedly modifies a data structure, and it is seen the result that it does not. At first I was going to freak out, but *inspecting the function closer* it is not a mutating function, takes an argument and offers a new result. Ah Hah! Okay so I reversed the outside order, not the inside order also. The sides were good to 6 and 8 bits in, but that's only because those wwewwre symmetric until then.
 
-It is very important to brainstorm on a better way to develop code, because writing it out of tree andthen transplanting it into context usually breaks context and requires a lot of annoying syntax adjustment. But the API is not extensible enough to allow me to test each and every function. I think all Big Functions need to be opened up to a public API for in context testing and development.
+## It is very important to brainstorm on a better way to develop code, because writing it out of tree andthen transplanting it into context usually breaks context and requires a lot of annoying syntax adjustment. But the API is not extensible enough to allow me to test each and every function. I think all Big Functions need to be opened up to a public API for in context testing and development.
+
+
+I am still hunting for logic errors. For a moment I believed I caught one about the use of do - until. It is, I suppose, somewhat ambiguous. Do the authors mean that the entire indented block inside the for loop, includign the repeat block, is to be re-repeated until that block hits internal escape sequences or, at the scope of the entire block, a value is obtained of i = 0 (i=1 in our case)? Or does the 'until' line only bind repetition of the repeat block? Considering the fact that the 'until' line is at the same level of indentation as the repeat, as well as the lines of code preceding the until block, I believe my original coding was correct. How would we show this syntax, in this alternative form? And, as it stands, the code breaks because it becomes stuck inside the while loop. Adding yet another loop around that while loop should have no effect. So we have to look for some other detail, some other piece of evidence. For instance, are the morton codes being sorted lexicographically still? I see that they are being sorted in value order, but what about the bitstring? Changing out the sorting method returns me a sorted morton-coding of
+```
+1357
+188
+196
+2259
+283
+362
+423
+560
+```
+which certainly feels closer to being lexicographical. Let's try to narroww in what the literature says about sorting. Lauterbach 2008 sorts by increasing value of the Morton codes. Karras 2012 uses unclear language here, stating that they would 'only consider ordered trees, where the children of each node--and consequently  the leaf nodes--are in lexicographical order. This is equivalent to requiring that the sequence of keys is sorted, which enables representing the keys covered by each node as a linear range [i, j]. Using del(i,j) to denote the length of the longest common prefix between keys ki and kj, the ordering implies that del(i`, j`) is greather than or equal to del(i, j) for any i` and j` that are elements of [i, j].'
+
+This can be tested readily, because Karras et al. helpfully lay out the verification procedure for whichever sorting method we should use. However, I am not using Karras's version of del(i,j), I am using Apetrei's. Apetrei does not make it obvious *how* the keys are sorted in their method, neither do Prokopenko and Lebrun-Grandie. Howard 2016 goes into greater detail of their morton sorting routine. They prepend a bitstring for the particle type to the code, then sort by particle type, then sort 'along the Z-order curve'. 
+
+
+Now we begin to beg wikipedia for more information, as well as analyze the code. My code will either sort the values by increasing value, or the lexicography of their integers, *not* the integer bitstrings. But I think there is a fashion of correcting this. I have some confidence our sorting problem is the largest culprit to progress in this algorithm series. The new challenge is trying to trick sort!() into doing what we ask.
+
+By pulling the reverse bit method back from the Leetcode, it finally produced for us a lexicographically sorted morton code array, but our tests for any interanl del being at least as large as the boundaries del returned false. If it worked, we would have beeen able to return to the original morton encoder, where the order is generated reverseed from iterating upwards instead of downwards.
+
+Just by running and rerunning, we randomly got a series with the desired del() values between morton codes. HOwever, this grouping still resulted in several bad thread exits where they were able to NOw I have to specify because I realize I have been fudghing details here.
+```
+sort!(L, by = x -> bitstring(x.morton_code))
+1.  will sort morton codes of L by left to right, so essentially the code with the most 
+    left zeros (that which has the least value) will rise to the top of L
+2.  never grants del(i`,j`) >= del(i,j)
+3.  some threads randomly exit well
+
+sort!(L, by = x -> bitstring(reverse_bit(x.morton_code)))
+1.  will sort by right to left, so most zeros on the right side of the morton code
+2.  randomly grants del(i`,j`) >= del(i,j)
+3.  some threads randomly exit well
+
+sort!(L, by = x -> string(reverse_bit(x.morton_code)))
+1.  sort lexicographically (left to right) by the digits of the reversed integer
+2.  randomly grants true evaluations
+3.  some threads randomly exit well
+
+sort!(L, by = x -> string((x.morton_code)))
+1.  sort lexicographically (left to right) by the digits of the original integer
+2.  randomly grants true evaluations
+3.  some threads randomly exit well
+```
+We should not favor results in which true evaluations are guaranteed, if that can be engineered. That sense of the common prefix is limited to Karras, and is algorithmically unnecessary. I believe normal lexicographical sort is the most correct method of morton sorting., so the first one in the above block. So we must look either upstream or downstream of Morton sorting for our problem.
+
+We move on to the next phase of testing.
+```
+running at least 5 informal tests:
+At 1 object, thread exits well
+At 2 objects, threads exit well
+At 3 objects, 2 threads exit well, 1 does not
+At 4 objects, 4 threads exit well
+At 5 objects, 3 or 4 threads exit well
+At 6 objects, 3 or 4 threads exit well
+at 7 objects, 3 or 4 threads exit well
+    thread 2 sometimes fails, 4, 5, 6 always fail
+at 8 objects, 5 or 6 threads exit well
+    there are several 'modes' for where threads fail, unlike all previous results
+beyond 8 objects, the ratio of passing to failing threads decreases.
+```
+
+
+Also, it is informally noted that the thread which fails to exit well does not appear to change position, it is held to the index of L
+that if it has that particular index, it will not exit. And in perhaps everycase, the first thread exits normally.
+
+Next experiment, somethign about my implementation of the CAS behavior is incorrect. Because if we have a 3 atom system, the second atom/iteration of the for loop will always fail. The first iteration will change the atomic value, become an invalid value, and then the thread will be closed by the following if statement. The second iteration will run the cas again with the changed result.
+
+AtomicCAS compares the contents of the first argument with the second argument. If the first and second arguments are the same, then the first argument is rewritten with the third argument. It returns the value of the first argument prior to rewriting it. If they are different, then it appears that nothing happens. The effect of using this is that the first thread to encounter this code block will be closed out, whereas the second thread will be allowed to proceed on.
+
+But there is something nagging at me. Here is one detail, there should be a store array equal in length to L with each value set to 1. The indices of store are referenced by p. So wwe messed up the logic around the p atomic, not the atomicCAS. Hooray, we have fixed the looping evaluation.
+
+So now the problem is when evaluating i = 1, we get down to asking p to be 0, and we are trying to index the zero'th place of our p-array. Suppose we just try to add one. It is essentially that same burning question about the wrap-around. In Prokopenko and Lebrun-Grandie, following their pseudocode logic, if i = 0 and dell > delr, p will be set to -1. And the algorithm will ask to loook up index -1. Handling this without custom if statements here in Julia will be truly annoying. ArborX, harboring their implementation, is a C++ clang-16 format. And according to a quick Google, negative indexing in C++ does not wrap around to the end of the array but starts looking atmemory locations in front of the array. So, what? what now?? I tried shifting the access by 1, so p is ranger + 1 or rangel, which works because ranger comes from i, and i will be at most 1 - length(L). Now the loop is broken and stacklessbottom_bvh can execute to its heart's delight. Onto the next problem, are all of the left and skip nodes being generated accordingly?
+
+None of the left children of L have been changed, and an assortment of L.left, I.left, and I.skip have not been changed from the invalid value of -length(L). Threading the for loop does not have a great effect. Remembering myself, L.left should always be a null value. I am going to change these values back to zero instead of some impossible negative number, because a serious portion of Internal nodes should skip to the sentinel (marked by 0), wwhen only 1 or 2 leaf nodes should skip to the sentinel. I say 1 or 2 because the last i == length(L) cannot be considered at all, whereas i = n - 1 can be considered, but is always caught by the sentinel evaluation. But I still worry, there are several internal nodes that have both children as sentinels, which is definitely *not* right. I mean, to the credit, looking at 3 skip ropes of L, they dont point to these no nothing I nodes. Many leaves point to each other. Which is perhaps more maddening than anything else. If there are no complaints, now it is time to calculate bounding areas. 
+
+The issue is, if we hack p to work nicely, we don't know enough about the behavior of this code to determine why it is still failing. It is plainly obvious why it is erroring out, if the code of Algorithm 4 from Prop and Leb is implemented, it will crash out immediately by trying to access the store at index 0. After days of working on this and studying every part, this feels like a brick wall to every other problem I have encountered.
+
+Options at winning a functional and surviving method
+1. I could try to add a series of evaluations that given a negative number or a value too large, wwrap around to the otherside and idnex backwards from there.
+2. Find where my code's problem is in relatino to the text.
+3. Find and interpet the ArborX code, which doubtless will be mcuh improved by now. Find it, chronicle it's hiding places, and figure out how they do it and compare back to here.
+    looking on tree construction.hpp it looks like the p = ranger is p = ranger + 1, and it is p = rangel - 1
+4. ?
+
+
+## No wait the complaints are starting up already, traversal starts at I[1], and in every case so far, I[1] is empty.
+1. trying morton codes
+    sort(string(L)) does not fix t he problem and introduces many many redundant references.
+    sort!(L, by = x -> x.morton_code) same as above
+    sort!(L, by = x -> bitstring(reverse_bit(x.morton_code))) same
+    sort!(L, by = x -> string(reverse_bit(x.morton_code))) same
+

@@ -195,52 +195,20 @@ function update_mortoncodes!(L, quantized_aabbs, morton_length, morton_type)
     end
 end
 
-# airlifted from Julia LeetCode190
-function reverse_bit!(n::Int32)::Int32
-    ret, power = 0, 31
-    while n != 0
-        ret += (n & 1) << power
-        power -= 1
-        n = n >> 1
-    end
+##### this is the best version of the function.
+# Curiously, it seems to be ~3x slower than the above version
+# but at least this version produces the correct result
 
-    return n = ret
-end
+#some how this is 3x slower than the original version at half the operations and same allocation
+"""
+    update_mortoncodes2!(L, quantized_aabbs, morton_length, morton_type)
+
+Take an array of GridKeys, L, an array of 3D integer coordinates, quantized_aabbs, and specification information,
+to generate morton_codes for each GridKey.
+
+
+"""
 function update_mortoncodes2!(L, quantized_aabbs, morton_length, morton_type) 
-    #TODO clean up this function to use L, aabbs, and spec?
-    inbit = morton_type(0)
-    t3 = morton_type(3)
-    t1 = morton_type(1)
-    #L is an array of grid keys with an 'index' field which points to the 'nth index of a vector in the objectCollection struct' 
-        # or a particular atom
-    #n is the current nth bit of our morton code to change we wish to change, and it corresponds with every 3rd bit of our grid positions
-    for each in eachindex(L)
-        for m in t1:morton_length #morton_type(morton_length):-1:t1
-            for dim in t1:t3
-
-                inbit = (quantized_aabbs[each].centroid[dim] << (32 - m)) >>> 31
-
-                L[each].morton_code = (L[each].morton_code << 1) | inbit
-
-
-        
-
-        
-            end
-
-        end
-
-        reverse_bit!(L[each].morton_code)
-    end
-
-
-end
-
-##### this is the best version of the function, or will be once it is accurate. We should be able to 
-# directly generate out number ithout reversing, mostly by reversing the order in which numbers are
-# filled in. However, this version generates deceivingly incorrect results.
-
-function update_mortoncodes3!(L, quantized_aabbs, morton_length, morton_type) 
 
     inbit = morton_type(0)
     t3 = morton_type(3)
@@ -249,9 +217,19 @@ function update_mortoncodes3!(L, quantized_aabbs, morton_length, morton_type)
         # or a particular atom
     #n is the current nth bit of our morton code to change we wish to change, and it corresponds with every 3rd bit of our grid positions
     for each in eachindex(L)
-        for m in morton_type(morton_length):-1:t1#t1:morton_length#morton_type(morton_length):-1:t1
-            for dim in t3:-1:t1
+        # set morton code to zero or else it will not work on second update call
+        L[each].morton_code = morton_type(0)
+
+        for m in morton_type(morton_length):-1:t1 #iterate backwards
+            for dim in t3:-1:t1 #iterate backwards
+
+                # shift left to 'cancel' out the values of all bits before the m'th bit
+                # then shift all the way to the right, filling in zeros
                 inbit = (quantized_aabbs[each].centroid[dim] << (32 - m)) >>> 31
+
+                # shift the morton code left by 1 bit to prevent overwrite
+                # if inbit is 1, then morton_code becomes 1 at the right end
+                # if inbit is 0, then do nothing, morton_code is already correct
                 L[each].morton_code = (L[each].morton_code << 1) | inbit
 
             end
@@ -270,20 +248,30 @@ function assign_mortoncodes(aabb_array, spec::SpheresBVHSpecs{T, K}, clct) where
 
     update_gridkeys!(quantized_aabbs, aabb_array, spec, K, clct)
 
-    L = [GridKey{K, T}(quantized_aabbs[i].index, 0, aabb_array[i].min, aabb_array[i].max, 0, 1, 1) for i in 1:spec.atoms_count]
+    L = [GridKey{K, T}(quantized_aabbs[i].index, 0, aabb_array[i].min, aabb_array[i].max, 0, 0, 0) for i in 1:spec.atoms_count]
 
-    update_mortoncodes3!(L, quantized_aabbs, spec.morton_length, K)
+    update_mortoncodes2!(L, quantized_aabbs, spec.morton_length, K)
+
 
     return L
 
 end
 
 
+function reverse_bit(n::Int32)
+    ret, power = 0, 31
+    while n != 0
+        ret += (n & 1) << power
+        power -= 1
+        n = n >> 1
+    end
 
+    return ret
+end
 function sort_mortoncodes!(L::Vector{GridKey{T, K}}) where {T, K}
 
-    sort!(L, by = x -> bitstring(x.morton_code)) 
-    #sort!(L, by = x -> string(x.morton_code)) # somtimes does not sort lexicographically ?
+    sort!(L, by = x -> bitstring(x.morton_code)) # sorts lexicographically both the binary and the integer
+    #sort!(L, by=x -> count(c -> c == '1', bitstring(x.morton_code)))
 
     return L
 end
@@ -312,6 +300,7 @@ end
 
 Compare morton codes in L[i] and L[j] and return the number of common prefix bits, 
 wherein the first or second bits of the prefix would be the final or final 2 bits one would increment. 
+This is the Karras 2012 method.
 
 
 """
@@ -693,18 +682,23 @@ function del(i, j, L::Vector{GridKey{K, T}}, spec::SpheresBVHSpecs{T,K}) where {
     #return index
 
 end
-function stackless_interior(bad_return, parray::Vector{Base.Threads.Atomic{Int64}}, i, n, L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
+
+
+function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, n, L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
     rangel = i # left
     ranger = i
     dell = del(rangel - 1, rangel, L, spec)
+    #dell = del(rangel - 1, rangel , L, spec)
     delr = del(ranger, ranger + 1, L, spec)
+    println(dell," ", delr)
     q = -1
+    p = -1 #p is local only to the if statment and used no where else, i think
 
 
-    #continue will also termate an iteration and move on
+    #return will also termate an iteration and move on
     if i == n - 1 
         L[i].skip = 0 #this rope connection should become the sentinenl node, which in Apetrei is algorithmically I[n-1] but maybe I[1] in Prok?
-        # sentinel node is a nartificial node
+        # sentinel node is an artificial node
     else 
         if delr < del(i + 1, i + 2, L, spec)
             L[i].skip = i + 1
@@ -714,27 +708,44 @@ function stackless_interior(bad_return, parray::Vector{Base.Threads.Atomic{Int64
     end
     counter = 0 
     while 2 > 1 # accursed
+        """
         counter+=1
-        #println(" i $i")
+        println("i $i")
+        println("rangel $rangel")
+        println("ranger $ranger")
+        println("dell $dell")
+        println("delr $delr")
+        println("p ", p)
+        println("q $q")
+        println()
+        """
+
         if delr < dell
             #println("dell <= delr")
-            parray[i] = Base.Threads.Atomic{Int64}(ranger) #Atomic(ranger)
-            ranger = Threads.atomic_cas!(parray[i], -1, rangel)#@atomicreplace parray[i].x -1 => rangel #ranger = atomic cas(storep, -1, rangel)
+            p = ranger + 1 # added +1 to be more similar to ArborX
+
+            #println("ranger precas $ranger")
+            ranger = Threads.atomic_cas!(store[p], -1, rangel)#@atomicreplace parray[i].x -1 => rangel #ranger = atomic cas(storep, -1, rangel)
+            #println("ranger poscas $ranger")
 
             if ranger > n-1 || ranger < 1
-                println("a thread is exiting wwell")
+                println("a thread is a boundary")
+
                 return
             end
             delr = del(ranger, ranger + 1, L, spec)
         else
-            parray[i] = Base.Threads.Atomic{Int64}(rangel - 1)# Atomic(rangel - 1)
+            println()
+            println(dell," ", delr)
+            p = rangel - 1
  
 
-            rangel = Threads.atomic_cas!(parray[i], -1, ranger) #@atomicreplace parray[i].x -1 => ranger
+            rangel = Threads.atomic_cas!(store[p], -1, ranger) #@atomicreplace parray[i].x -1 => ranger
 
             #println("dell >= delr")
             if rangel > n-1 || rangel < 1
-                println("a thread is exiting wwell")
+                println("a thread is a boundary")
+
                 return
             end
             dell = del(rangel, rangel + 1, L, spec)
@@ -766,25 +777,28 @@ function stackless_interior(bad_return, parray::Vector{Base.Threads.Atomic{Int64
         end
 
         i = q
-        if counter == 10
+        """
+        if counter == 2
             println("a thread is exiting badly :()")
             println("i $i")
             println("rangel $rangel")
             println("ranger $ranger")
             println("dell $dell")
             println("delr $delr")
-            println("p ", parray[i])
+            println("p ", p)
             println("q $q")
             println()
-            bad_return += 1
-            println(bad_return)
+
             return 
         end
-        if i < 2
+        """
+        if i == 1
+            println("A thread has escaped while")
+            #println()
             return
         end
     end
-    println("a thread has escaped while")
+
 
 end
 #by convention, if left or skip are negative, then they are referring to the index of the Inode, and positive is index of Leaf
@@ -792,13 +806,15 @@ function stacklessbottom_bvh(L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
     bad_return = 0
     # smth is supposed to be initialized here, entries in a store, to -1
     n = length(L)
-    parray = [Base.Threads.Atomic{Int64}(-1) for i in 1:n]
+    store = [Base.Threads.Atomic{Int64}(-1) for i in 1:n]
     #Threads.@threads 
-    for i in 1:n #in perfect parallel
-        stackless_interior(bad_return, parray, i, n, L, I, spec)
+    Threads.@threads for i in 1:n-1 #in perfect parallel
+        stackless_interior!(store, i, n, L, I, spec)
+        #println("thread $i is exiting")
+        #println()
         
     end
-    println("bad_return $bad_return")
+
 
 end
 
@@ -853,10 +869,6 @@ function stackless_traverse(L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
         end
     end
 
-
-
-    ### From Gwen
-    
 
 
 end
@@ -1001,18 +1013,23 @@ function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::Generi
 
     #bvh_solver!(L, I, spec)
 
+
     stacklessbottom_bvh(L, I, spec)
-    for i in eachindex(L)
-        println(L[i].morton_code)
-    end
-    """
+
     for i in eachindex(L)
         println(L[i])
     end
-    for i in eachindex(I)
-        println(I[i])
+    
+
+    
+    for i in eachindex(L)
+        println(i, " ", L[i].left, " ", L[i].skip)
     end
-    """
+    println()
+    for i in eachindex(I)
+        println(i, " ", I[i].left, " ", I[i].skip)
+    end
+    
     
     #boundaries_wrapper(L, I, spec)
     #for i in eachindex(I)

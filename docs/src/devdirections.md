@@ -83,14 +83,14 @@
 [] Consider putting in architecture to read/write data so we can test coverage with fixed values and compare changes with feature development.
 [] make it so push! log only runs at every selected interval, and also make this match the frame interval for makie by having makie take the simSpec as default framerate
 [] change structure definitions in MDINput to be Vec3D instead of Vector{MVector} etc etc
-[] add kernel abstractions and AMDGPU and oneAPI and CUDA as formal extensions so that they are only precompiled when the script file to use this package *uses* them directly.
+[] add kernel abstractions and AMDGPU and oneAPI and CUDA as formal extensions so that they are only precompiled when the script file to use this package includes 'use cuda'.
 [] change all 2 factor ranges to a 2 length tuple
 [] change vectors of structs to be structs of vectors, and add in relevant infrastructure to enable a resort of say the minboundary to change the order in the exact same way of the other elements of the simulation.
 
 
 [] check the naive unique pairs function for correctness. I was kinda just throwing stuff at a wall to see if it worked
 [] fix precision selection so the precision can be selected by user exactly one time and is persistent throughout.
-[] Get test coverage working and automated with each commit
+[] Get test coverage working and automated with each commit. Make the testing run locally without waiting for the cloud and fighting around with the cloud not having a GPU.
 [] Fix position recording so that the simulation can be logged for a user specified number of runs
 [] add ```simulate!()``` resolution so that the system can log the last few steps, if the last step does not trigger a logging of the chunk
 [x] fix bug in simulation recorder where the chunk_index has to be updated inside the for each step loop. when placed inside the record_simulation if statement, then the value will be reset by simulate!() to it's initial definition value each step, even if the place where the value was defined as '2' sits outside of the stepper loop. this could be automagically fixed when we move to more direct function arguments rather than the equivalency pile up top.
@@ -139,6 +139,8 @@ Version
 [] why do particles tend to have velocity almost mostly in the z-direction?
 [] parameterization processing / case study report for relative box size, particle interaction radii and magnitude, temperature, temporal resolution ?
 [] allow user specification of what properties are to be logged
+[] improve update_mortoncode2! to dump all of the bits from a grid value into the morton code at once, if it is possible? there should be some sort of way without iteration to point to every third value, and then just 'or' dump it into inbit, and then just 'or' dump these right into the morton code. Should be abble to get rid of the m loop and only loop for each dimension.
+[] consider working the morton code to go directly from integer coordsinates to lexico sorting, as sucggested on the4 Z-order curve wiki
 
 
 ### Version 0.01
