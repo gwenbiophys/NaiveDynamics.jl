@@ -660,16 +660,17 @@ end
 
 function del(i, j, L::Vector{GridKey{K, T}}, spec::SpheresBVHSpecs{T,K}) where {T, K}
 
-    if j > length(L) || j < 1 || i > length(L) || i < 1 # i dont know if the same operation should be done to i, but idk how else to fix
-        return -1
+    if  i >= length(L)-1 || i < 1 #|| j > length(L) || j < 1 # i dont know if the same operation should be done to i, but idk how else to fix
+        return typemax(K)
     end
 
     # XOR the two numbers to get a number with bits set where a and b differ
-    if L[i].morton_code == L[j].morton_code
-        return i ⊻ j
-    end
+    # transcribed from ArborX directly, treeconstruction
+    x = L[i].morton_code ⊻ L[j].morton_code
+
+
     
-    return L[i].morton_code ⊻ L[j].morton_code
+    return x + (x == K(0)) * (typemin(K) + (K(i) ⊻ K(j))) - K(1)
     
     
     # Find the highest set bit in the difference
@@ -722,18 +723,21 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, n, L,
 
         if delr < dell
             #println("dell <= delr")
-            p = ranger + 1 # added +1 to be more similar to ArborX
+            p = ranger #+ 1 # added +1 to be more similar to ArborX
 
             #println("ranger precas $ranger")
             ranger = Threads.atomic_cas!(store[p], -1, rangel)#@atomicreplace parray[i].x -1 => rangel #ranger = atomic cas(storep, -1, rangel)
             #println("ranger poscas $ranger")
 
-            if ranger > n-1 || ranger < 1
+            if ranger == -1 #ranger > n || ranger < 1 
                 println("a thread is a boundary")
 
                 return
             end
             delr = del(ranger, ranger + 1, L, spec)
+
+            #here is wehre boundary computation is performed.
+            # memory has to sync here for data safety
         else
             println()
             println(dell," ", delr)
@@ -743,12 +747,12 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, n, L,
             rangel = Threads.atomic_cas!(store[p], -1, ranger) #@atomicreplace parray[i].x -1 => ranger
 
             #println("dell >= delr")
-            if rangel > n-1 || rangel < 1
+            if rangel == -1#rangel > n || rangel < 1
                 println("a thread is a boundary")
 
                 return
             end
-            dell = del(rangel, rangel + 1, L, spec)
+            dell = del(rangel-1, rangel, L, spec)
         end
 
         if delr < dell
@@ -803,7 +807,7 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, n, L,
 end
 #by convention, if left or skip are negative, then they are referring to the index of the Inode, and positive is index of Leaf
 function stacklessbottom_bvh(L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
-    bad_return = 0
+
     # smth is supposed to be initialized here, entries in a store, to -1
     n = length(L)
     store = [Base.Threads.Atomic{Int64}(-1) for i in 1:n]

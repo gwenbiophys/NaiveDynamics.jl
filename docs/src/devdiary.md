@@ -908,3 +908,37 @@ Options at winning a functional and surviving method
     sort!(L, by = x -> bitstring(reverse_bit(x.morton_code))) same
     sort!(L, by = x -> string(reverse_bit(x.morton_code))) same
 
+## 8 Oct.
+So after digging through ArborX, it was found that their delta-star returns the typemax for out of array bounds of index values. So now the program will run without issue, leaving us in the wastelands of making the algorithm run correctly:
+1. The for loop is only supposed to run across the number of Leaf nodes - 1, meaning that one leaf node is entirely unprocessed.Is this supposed to be the sentinel node?
+2. It appears all INodes either have 2 normal node children or 2 sentinel node children. I am unsure how much of a problem this is.
+3. In the INode array, the same child node appears multiple times. In hypotheory, each node should have a single parent, but possibly many 'skip' parents. This seems least like a problem.
+    In a single run, only 16 of the 30 leaf nodes appeared as children of the INodes, with 2 duplicates. I could almost be convinced that this is correct, except for the fact that 9 INodes were doubly sentinel. When there should be n-1 INodes for n Leaves. Also, the distribution of INode-to-sentinel should spread across as many INodes as there are levels in the hierarchy. If I got it right, for n Leaves, we expect the following function to find the number of INodes pointing to sentinel:
+```julia
+function numberoflevels(n)
+sum = 0
+a = 1
+    while a <= n
+        a *= 2
+        sum += 1
+    end
+    return println(sum)
+end
+```
+So, that wowuld be 5 levels at 30 leaves. So, we are creating far too many sentinels. Rather, we are not changing them from their original state.
+
+4. In ArborX, they havea convention for deltastar that if i is less than zero or greater than or equal to the the number of internal nodes, then the function returns max values for the numeric type.
+    What should my delta do?
+
+    And extending it, for evaluating ranger or rangel with the atomic, I believe I should only ask if rangel/ranger are -1, instead of anything else. The growing convention states that if ranger or rangel are indices marked away from the index of consideration, i, then we reject this evaluation. This change in the code appears to do little, other than remove a single evaluation.
+
+5. Apparent typo from the paper, in line 19 of algorithm 4. They just use delstar of range_left, but in ArborX line 308, it is delstar(range_left - 1). Fixing this issue appears to reduce the average number of untreated INodes from > 10 to ~ 5
+
+6. Their del-star calculates the XOR, and then runs further agumentations based on the index. I am uncertain if this is to reduce divergence by assuming two morton codes are always the same, but it may be more hlepful for me to perform the agumentation than otherwise.
+They have:
+```
+    auto const x = _sorted_morton_codes(i) ^ _sorted_morton_codes(i + 1);
+
+    return x + (!x) * (min_value + (i ^ (i + 1))) - 1;
+```
+Where '!' is logical NOT, where if x is 0, then the morton codes are the same, and if that value x is zero, it is false, and the opposite of false is true., and i + 1 is my j. Implementing this fix appears to reduce the unchanged nodes even further, now below the anticipated number of sentinels. THe next step is to evaluate the setRope function of ArborX.
