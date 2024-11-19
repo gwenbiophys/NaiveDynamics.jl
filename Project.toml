@@ -7,13 +7,13 @@ version = "0.0.1"
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
-CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+
 CellListMap = "69e1c6dd-3888-40e6-b3c8-31ac5f578864"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 DocumenterTools = "35a29f4d-8980-5a13-9543-d66fff28ecb8"
-GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
+
 NamedArrays = "86f7a689-2022-50b4-a561-43c23ac3c673"
 NearestNeighbors = "b8a86587-4115-5ab1-83bc-aa920d37bbce"
 Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
@@ -24,6 +24,10 @@ UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 
 [compat]
 Aqua = "0.8.7"
+
+[weakdeps]
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 
 [extensions]
 NaiveMakie = "GLMakie"

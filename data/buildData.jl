@@ -50,7 +50,7 @@ mySpec = GenericSpec(; inttype=Int64,
 
 
 myCollector1 = GenericRandomCollector(; floattype=Float32,
-                                    objectnumber=1000,
+                                    objectnumber=10,
                                     minDim=tuple(-1.0, -1.0, -1.0),
                                     maxDim=tuple(1.0, 1.0, 1.0),
                                     temperature=0.01,
@@ -60,10 +60,14 @@ myCollector1 = GenericRandomCollector(; floattype=Float32,
                                     minimumdistance=0.001,
                                     mincharge=-1f-9,
                                     maxcharge=1f-9
-                                    )
+)
 myCollection1 = collect_objects(myCollector1)
 
-bvhspec = SpheresBVHSpecs(; floattype=Float32, interaction_distance=0.1, atoms_count=length(myCollection1.position), bins_count=length(myCollection1.position) )
+bvhspec = SpheresBVHSpecs(; floattype=Float32, 
+                            interaction_distance=0.1, 
+                            atoms_count=length(myCollection1.position), 
+                            bins_count=length(myCollection1.position) 
+)
 build_bvh(myCollection1.position, bvhspec, myCollector1 )
 
 

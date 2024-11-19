@@ -1,16 +1,17 @@
-#module NaiveMakie
-#using NaiveDynamics
+module NaiveMakie
+using NaiveDynamics
 
-#using GLMakie
-#using Colors
+using GLMakie
+using Colors
+
 #import NaiveDynamics.record_video
 
 # this extension could not have been written without Molly.jl
     # providing a relevant example for this rendering and Makie unaware tool
-export 
-    record_video
+#export 
+#    record_video
 
-function record_video(              output_path::AbstractString,
+function NaiveDynamics.record_video(              output_path::AbstractString,
                                     simlog,
                                     collector::Collector;
                                     w::Float64 = 1.05, #window scale factor beyond the boundary size
@@ -64,4 +65,4 @@ end
 
 
 
-#end
+end #module

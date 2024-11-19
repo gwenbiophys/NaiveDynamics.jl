@@ -17,16 +17,15 @@ using Aqua #is this correct? should probably go in test files!
 #using KernelAbstractions
 #using AMDGPU
 #using CUDA
-using GLMakie
+#using GLMakie
 
 
 include("MDInput.jl")
 include("Simulator.jl")
 include("BaseExtensions.jl")
-include("NaiveMakie.jl")
 include("NeighborSearch.jl")
 
-#function record_video() end
+function record_video() end
 
 
 end # module NaiveDynamics
