@@ -34,7 +34,3 @@ NaiveMakie = "GLMakie"
 NaiveOneAPI = "oneAPI"
 
 
-[compat]
-Aqua = "0.8.7"
-KernelAbstractions = "0.9.29"
-oneAPI = "1.6.1"
