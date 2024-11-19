@@ -83,7 +83,7 @@
 [] Consider putting in architecture to read/write data so we can test coverage with fixed values and compare changes with feature development.
 [] make it so push! log only runs at every selected interval, and also make this match the frame interval for makie by having makie take the simSpec as default framerate
 [] change structure definitions in MDINput to be Vec3D instead of Vector{MVector} etc etc
-[] add kernel abstractions and AMDGPU and oneAPI and CUDA as formal extensions so that they are only precompiled when the script file to use this package includes 'use cuda'.
+[x] add kernel abstractions and AMDGPU and oneAPI and CUDA as formal extensions so that they are only precompiled when the script file to use this package includes 'use cuda'.
 [] change all 2 factor ranges to a 2 length tuple
 [] change vectors of structs to be structs of vectors, and add in relevant infrastructure to enable a resort of say the minboundary to change the order in the exact same way of the other elements of the simulation.
 
@@ -111,7 +111,7 @@
 [] maybe even create a few fancy implementations or Naive+ Naive++ 
 [] integrate tree based neighbor finding
 [] modify the makie extension with the advice posted on their documentation https://docs.makie.org/stable/explanations/recipes#Full-recipes-with-the-@recipe-macro
-[] fix makie extension so that I don't have to load in GLMakie and all of it's dependencies every single time.
+[x] fix makie extension so that I don't have to load in GLMakie and all of it's dependencies every single time.
 [] fix up collection.current step and how it is updated inside of simulate!(). it is silly to have to allocate a vector filled with the same data point for each particle at every step. But also, is it really a big deal?
 [] organize helpGwen.md
 [] test out and redevelop struct of arrays of arrays for the Log of ObjectCollections and get a write up on how it's going. it went poorly last time and I am not certain why and I would have to manually search the diary to see if I wrote anything. and maybe i wrote nothign
