@@ -101,6 +101,7 @@
       by having a function of the same name fxn(; param, param, param, defaultparam=1)
 information based on other things the user input, like if single precision, then morton encode to 32 bits.
 [x] currently, MakieExt redefines the record_video function stored in PkgExtensions. Will the extension continue to work if it exports record_video on its own?
+[] package extensions methods break upon trying to use them at all because something something Julia doesnt work. In my Dev environment, Iwant as little loaded as possible. Thus, the extensions, but I am tetsint in my dev environment, which means I don't get to use the extension functionality. I believe it would work better for a user situation, in which the Julia environment is not this package's source code. idk
 
 
 ### Version 0.00.4 - feature extensions

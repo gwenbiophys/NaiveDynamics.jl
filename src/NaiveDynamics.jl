@@ -11,6 +11,7 @@ using Revise
 using StructArrays
 using CellListMap
 using NearestNeighbors
+using SortingAlgorithms
 
 using Aqua #is this correct? should probably go in test files!
 

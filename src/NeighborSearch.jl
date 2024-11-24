@@ -273,6 +273,7 @@ function sort_mortoncodes!(L::Vector{GridKey{T, K}}) where {T, K}
 
     sort!(L, by = x -> bitstring(x.morton_code)) # sorts lexicographically both the binary and the integer
     #sort!(L, by=x -> count(c -> c == '1', bitstring(x.morton_code)))
+    #sort!(L, by = x -> x.morton_code), alg=RadixSort #wont run, RadixSort does not have iterate defined
 
     return L
 end
@@ -405,10 +406,6 @@ function solve_node_1(L, I, spec)
     I[i].leaf_indices = tuple(i, j)#, left, right)
     I[i].left = left
     I[i].right = right
-
-
-
-
 end
 
 function bvh_solver!(L, I, spec)
@@ -439,10 +436,6 @@ function bvh_solver!(L, I, spec)
         left = Ref(L, 1)
         right = Ref(L, 1)
 
-
-
-
-       
         #if j < I[1][2] && j > I[1][1] # is there a better method for this bit of control flow? this many if statements should make parallel execution a pain
         #dplus = δ(i, i+1, L, spec)
         #dminus = δ(i, i-1, L, spec)
@@ -459,8 +452,6 @@ function bvh_solver!(L, I, spec)
                # d = -1
             #end
         #end
-
-
 
         # Here belongs control logic to resolve issues where the morton codes of 2 different atoms are identical.
             # I have no idea how this conflict is resolved.
@@ -495,10 +486,7 @@ function bvh_solver!(L, I, spec)
             end
         end
 
-
-
         j = i + l*d
-
 
         δnode = δ(i, j, L, spec)
         zed = 1
@@ -509,10 +497,6 @@ function bvh_solver!(L, I, spec)
                 s += iter
             end
         end
-
-
-
-
         γ = i + s*d + min(d, 0)
 
         # this operation, if implemented, generates pointers for traversal that will point to either the next internal node in the hierarchy
@@ -541,7 +525,6 @@ function bvh_solver!(L, I, spec)
             right = I[γ+1]
             I[γ+1].parent_INode = i
         end
-
         #println("here is i ", i)
         #println(typeof(left))
         #println(typeof(right))
@@ -549,13 +532,7 @@ function bvh_solver!(L, I, spec)
         I[i].leaf_indices = tuple(i, j)#, left, right)
         I[i].left = left
         I[i].right = right
-
-
-
     end
-
-
-
 end
 function internal_boundaries(iter, L, I, spec)
     n = iter
@@ -563,8 +540,6 @@ function internal_boundaries(iter, L, I, spec)
     p = L[iter].parent_INode # p is the index of the INode that is L[i] 's parent
     #v::Int32 = 0 #maybe store as an array? one for each Inode? represented as I[p].visits
     if p == 0 return end
-
-
     # Question TODO what was my goal here?
     if I[p].left == L[n]
        local s = I[p].right
@@ -630,17 +605,12 @@ function boundaries_wrapper(L, I, spec)
         #n::Int32 = 0
         for i in eachindex(L)
             internal_boundaries(i, L, I, spec)
-    
-    
-    
         end
 
 end
 
 function update_bvh!(L, I, position, spec::SpheresBVHSpecs{T}, clct::Collector, aabb_array) where T
     update_aabb!(position, spec, aabb_array)
-
-
 end
 
 
@@ -1020,12 +990,11 @@ function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::Generi
 
     stacklessbottom_bvh(L, I, spec)
 
-    for i in eachindex(L)
-        #println(L[i])
-    end
-    
 
-    
+    for i in eachindex(L)
+        println(L[i].morton_code)
+    end
+    println()
     for i in eachindex(L)
         println(i, " ", L[i].left, " ", L[i].skip)
     end

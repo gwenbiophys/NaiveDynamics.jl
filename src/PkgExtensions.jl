@@ -5,5 +5,5 @@ export
     record_video
 
 
-function record_video() end
+function record_video end
 

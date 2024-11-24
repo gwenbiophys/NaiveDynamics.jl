@@ -1,4 +1,5 @@
 module NaiveSIMD
+
 using NaiveDynamics
 using SIMD
 
