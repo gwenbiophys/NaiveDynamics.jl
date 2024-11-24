@@ -24,8 +24,8 @@ include("MDInput.jl")
 include("Simulator.jl")
 include("BaseExtensions.jl")
 include("NeighborSearch.jl")
-
-function record_video() end
+include("PkgExtensions.jl")
+include("Forces.jl")
 
 
 end # module NaiveDynamics

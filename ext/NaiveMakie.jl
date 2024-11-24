@@ -8,8 +8,7 @@ using Colors
 
 # this extension could not have been written without Molly.jl
     # providing a relevant example for this rendering and Makie unaware tool
-#export 
-#    record_video
+
 
 function NaiveDynamics.record_video(              output_path::AbstractString,
                                     simlog,

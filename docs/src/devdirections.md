@@ -66,7 +66,7 @@
 [x] fix broken performance by tuple allocation hell, consider switching pairslist to an MVector for values overwrite or trying named tuple shenanigans?
 [] fix velocity rescaling / substitute with alternative method. fix behavior of interactions and parameterization in order to prevent crazy molecular behavior
 [] force LJ may not work correctly. I might have just broken it, but i am uncertain that it correctly calculates the component forces, isntead of just assigning the overall force to each dimension, or something else entirely! ----- TENTATIVELY FIXED, pairslist was messed up generating NaNs and also not doing anything
-[] abstract away force computations
+
 
 [x] fix broken update_pairslist
 
@@ -76,7 +76,7 @@
 [x] Github based integrations of the code at start and endpoints
 [] Figure out how to start getting test coverage and using formal unit testing procedures
 [x] Wrap custome types in functions so that a user can call a function and assign labeled arguments (eg "duration=10"), rather than having nameless and ordered fields
-[] These wrapper functions may also contain side logic for checking inputs are correct as well as the actual logic to be done on the particular system, as shown in Molly.setup
+[x] These wrapper functions may also contain side logic for checking inputs are correct as well as the actual logic to be done on the particular system, as shown in Molly.setup
 [] Output logfile with modification of the set up routine to allow the user to add in a place and a type of output, but defaulting to a generic
 [x] Random generation for each component. Check that this works
 [] Aqua.jl integration that only tests the local package and not every dependency
@@ -90,17 +90,17 @@
 
 [] check the naive unique pairs function for correctness. I was kinda just throwing stuff at a wall to see if it worked
 [] fix precision selection so the precision can be selected by user exactly one time and is persistent throughout.
-[] Get test coverage working and automated with each commit. Make the testing run locally without waiting for the cloud and fighting around with the cloud not having a GPU.
+[] Get test coverage working and automated with each commit. Make the testing run locally without waiting for the cloud and fighting around with the cloud not having a GPU OR make a local GPU test? No idea how it works!
 [] Fix position recording so that the simulation can be logged for a user specified number of runs
 [] add ```simulate!()``` resolution so that the system can log the last few steps, if the last step does not trigger a logging of the chunk
 [x] fix bug in simulation recorder where the chunk_index has to be updated inside the for each step loop. when placed inside the record_simulation if statement, then the value will be reset by simulate!() to it's initial definition value each step, even if the place where the value was defined as '2' sits outside of the stepper loop. this could be automagically fixed when we move to more direct function arguments rather than the equivalency pile up top.
 [] fix velocity verlet to prevent velocity from depreciating for no reason. most likely, the velocity values are being overwritten by intermediates, which are based on forces. as forces tend to zero, so shall intermediates and velocities. or the force is just whacked up. not sure!
 [x] use for each map!() for all instances of IntermediateVector = DataVector
 [x] allow record_video() to have user input for the frame recording interval. do this by pushing every multiple of frameInterval to the positions vector
-[] add additional user-fill parameters types for each force, separately from but integreted into the sim spec
 [x] make these userfill parameters easy to fill in, for name awareness of each paremter
       by having a function of the same name fxn(; param, param, param, defaultparam=1)
-[] wwhere user information is important, use the functions that instantiate the sim specs and collection specs. this gets rid of redundant declaration of the data precision in Collector and SimSpec, and allows structs to infer additional information based on other things the user input, like if single precision, then morton encode to 32 bits.
+information based on other things the user input, like if single precision, then morton encode to 32 bits.
+[x] currently, MakieExt redefines the record_video function stored in PkgExtensions. Will the extension continue to work if it exports record_video on its own?
 
 
 ### Version 0.00.4 - feature extensions
@@ -124,6 +124,9 @@
 [] user requestable plots with generic generation method - so we can track the position of particle i throughout a sim, or the mean velocity for a specific duration range and assume these are pictures generated in the local directory as the file that created them
 [] Logging of velocity and position (and any other dynamic property) at a selectable interval
 [] in functions, select whether a CPU, multiCPU, or GPU is to be the analytical device. see how they do this in Molly, as using keyword arguments in function defintions and having different default values cannot be selected for. multiple dispatch only works on types, not on specific fxn inputs.
+[] abstract away force computations to include user defined force weights but also user defined forces.
+[] along with above, user specified interations with type Unions that expect either false, or a parameter. e.g. velocity dampening on a simple rescale is a false on vrescale, or a parameter in the selected Float
+      use 'pruning' functions of the type informatino users fill out to make the types consistent, so no multiple Float32(input), figure that all out in the package
 
 ### Version 0.00.5
 
@@ -141,6 +144,8 @@ Version
 [] allow user specification of what properties are to be logged
 [] improve update_mortoncode2! to dump all of the bits from a grid value into the morton code at once, if it is possible? there should be some sort of way without iteration to point to every third value, and then just 'or' dump it into inbit, and then just 'or' dump these right into the morton code. Should be abble to get rid of the m loop and only loop for each dimension.
 [] consider working the morton code to go directly from integer coordsinates to lexico sorting, as sucggested on the4 Z-order curve wiki
+[] have a documentation structure that describes our components as Generic, rather than naming all of them Generic. Rename everything with shortened terminology, and find an automated tool to perform this for us? At least, have a Test Everthing button to throw in before and after the edits are made
+[] in line with above, change type dispatch in all of the function to variables rather than fixed structured, if this is wise. I think it is a Normal or Julian thing to do, so to avoid these problems. but maybe not!
 
 
 ### Version 0.01
