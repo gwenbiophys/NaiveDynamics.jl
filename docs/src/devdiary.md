@@ -910,7 +910,8 @@ Options at winning a functional and surviving method
 
 ## 8 Oct.
 So after digging through ArborX, it was found that their delta-star returns the typemax for out of array bounds of index values. So now the program will run without issue, leaving us in the wastelands of making the algorithm run correctly:
-1. The for loop is only supposed to run across the number of Leaf nodes - 1, meaning that one leaf node is entirely unprocessed.Is this supposed to be the sentinel node?
+1. The for loop is only supposed to run across the number of Leaf nodes - 1, meaning that one leaf node is entirely unprocessed.Is this supposed to be the sentinel node? --- NO, sentinel is artificial. In ArborX, it is set to negative 1, where solving between INode and Leaf indexing with the same integer is done by shifting Inode values 'up' the number line, compared to leaf indices, rather than as inverse, like I do with negative values.
+
 2. It appears all INodes either have 2 normal node children or 2 sentinel node children. I am unsure how much of a problem this is.
 3. In the INode array, the same child node appears multiple times. In hypotheory, each node should have a single parent, but possibly many 'skip' parents. This seems least like a problem.
     In a single run, only 16 of the 30 leaf nodes appeared as children of the INodes, with 2 duplicates. I could almost be convinced that this is correct, except for the fact that 9 INodes were doubly sentinel. When there should be n-1 INodes for n Leaves. Also, the distribution of INode-to-sentinel should spread across as many INodes as there are levels in the hierarchy. If I got it right, for n Leaves, we expect the following function to find the number of INodes pointing to sentinel:
@@ -942,3 +943,18 @@ They have:
     return x + (!x) * (min_value + (i ^ (i + 1))) - 1;
 ```
 Where '!' is logical NOT, where if x is 0, then the morton codes are the same, and if that value x is zero, it is false, and the opposite of false is true., and i + 1 is my j. Implementing this fix appears to reduce the unchanged nodes even further, now below the anticipated number of sentinels. THe next step is to evaluate the setRope function of ArborX.
+
+## 24 Nov
+Still stuck on a few problems. The first is that the root node, supposedly I[1], has a sentinel skip rope. Second, I[n-1] is a double skip rope. Third, some nodes, I and L, are repeated in the ordering, which I don't think is supposed to be possible. Fourth, both L[n] and L[n-1] have sentinel skips, which should only happen to L[n].
+
+According to Figure 1 in Proko, only L[n] should skip to the sentinel. The root should ALSO skip to the sentinel. Also, L[n] should not be discoverable by any internal node parent. It can only be found during traversal by skip rope from another leaf. I[n-1] should have a left child and skip to the sentinel.
+
+Perhaps it will be neough to shift the thread launching by 1, but also the sentinel evaluation by 1. Previously, I would only adjust the thread launch, not the sentinel condition as well!
+
+Making this modification causes multiple solutions to an index of -7, which would be an internal node of index 7, with only 7 leaves. This won't work, but how can it be modified?
+
+
+
+I thought I found a mistake, they use a setrope function to and they always +1 the value before application to the Leaf or INode .skip, but in my code it is already set to + 1 in the definition of r. However, I think I am closer, because for the first time, I successfully got a reference to Leaf n without examining all n optoins, except this was done by INode, not by a leaf. There is a plus 1 somewhere that I do not have. WEHRE
+
+I don't know. I have sorted through Proko and ArborX for many hours. I have no idea what the problem is supposed to be at this point. I just do not understand. My structure is stopping 1 unit short, but if I extend it to allow itself to resolve the last unit, it then breaks! Prok's algorithm, as presented in the publication and ArborX should not be capable of creating the tree observed in Figure 1 of their publication. Which perhaps is fair, as it is only an example stackless tree. But still!

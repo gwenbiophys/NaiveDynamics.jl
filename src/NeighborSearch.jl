@@ -9,7 +9,8 @@ export
     traverse_bvh
     #Atomic
 
-# how to build towards an API that makes it easy to extend a BVH procedure to different kinds of shapes and considering different distances, as in the Noneuclidean paper?
+# how to build towards an API that makes it easy to extend a BVH procedure to different kinds 
+# of shapes and considering different distances, as in the Noneuclidean paper?
 
 
 struct SpheresBVHSpecs{T, K} <: SimulationSpecification
@@ -689,16 +690,15 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, n, L,
     rangel = i # left
     ranger = i
     dell = del(rangel - 1, rangel, L, spec)
-    #dell = del(rangel - 1, rangel , L, spec)
     delr = del(ranger, ranger + 1, L, spec)
-    println(dell," ", delr)
+    #println(dell," ", delr)
     q = -1
     p = -1 #p is local only to the if statment and used no where else, i think
 
 
     #return will also termate an iteration and move on
-    if i == n - 1 
-        L[i].skip = 0 #this rope connection should become the sentinenl node, which in Apetrei is algorithmically I[n-1] but maybe I[1] in Prok?
+    if i == n - 1  
+        L[i].skip = typemin(K) #this rope connection should become the sentinenl node, which in Apetrei is algorithmically I[n-1] but maybe I[1] in Prok?
         # sentinel node is an artificial node
     else 
         if delr < del(i + 1, i + 2, L, spec)
@@ -723,14 +723,14 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, n, L,
 
         if delr < dell
             #println("dell <= delr")
-            p = ranger #+ 1 # added +1 to be more similar to ArborX
+            p = ranger 
 
             #println("ranger precas $ranger")
-            ranger = Threads.atomic_cas!(store[p], -1, rangel)#@atomicreplace parray[i].x -1 => rangel #ranger = atomic cas(storep, -1, rangel)
+            ranger = Threads.atomic_cas!(store[p], 0, rangel)#@atomicreplace parray[i].x -1 => rangel #ranger = atomic cas(storep, -1, rangel)
             #println("ranger poscas $ranger")
 
-            if ranger == -1 #ranger > n || ranger < 1 
-                println("a thread is a boundary")
+            if ranger == 0 #ranger > n || ranger < 1 
+                #println("a thread is a boundary")
 
                 return
             end
@@ -739,16 +739,16 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, n, L,
             #here is wehre boundary computation is performed.
             # memory has to sync here for data safety
         else
-            println()
-            println(dell," ", delr)
+            #println()
+            #println(dell," ", delr)
             p = rangel - 1
  
 
-            rangel = Threads.atomic_cas!(store[p], -1, ranger) #@atomicreplace parray[i].x -1 => ranger
+            rangel = Threads.atomic_cas!(store[p], 0, ranger) #@atomicreplace parray[i].x -1 => ranger
 
             #println("dell >= delr")
-            if rangel == -1#rangel > n || rangel < 1
-                println("a thread is a boundary")
+            if rangel == 0#rangel > n || rangel < 1
+                #println("a thread is a boundary")
 
                 return
             end
@@ -766,11 +766,11 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, n, L,
         if rangel == q
             I[q].left = i
         else
-            I[q].left = -1 * i
+            I[q].left = -1 * i 
         end
 
         if ranger == n - 1
-            I[q].skip = 0
+            I[q].skip = typemin(K)
         else
             r = ranger + 1
             if delr < del(r, r + 1, L, spec)
@@ -780,7 +780,7 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, n, L,
             end
         end
 
-        i = q
+        i = q 
         """
         if counter == 2
             println("a thread is exiting badly :()")
@@ -797,7 +797,7 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, n, L,
         end
         """
         if i == 1
-            println("A thread has escaped while")
+            #println("A thread has escaped while")
             #println()
             return
         end
@@ -808,9 +808,9 @@ end
 #by convention, if left or skip are negative, then they are referring to the index of the Inode, and positive is index of Leaf
 function stacklessbottom_bvh(L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
-    # smth is supposed to be initialized here, entries in a store, to -1
+ 
     n = length(L)
-    store = [Base.Threads.Atomic{Int64}(-1) for i in 1:n]
+    store = [Base.Threads.Atomic{Int64}(0) for i in 1:n]
     #Threads.@threads 
     Threads.@threads for i in 1:n-1 #in perfect parallel
         stackless_interior!(store, i, n, L, I, spec)
@@ -1021,7 +1021,7 @@ function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::Generi
     stacklessbottom_bvh(L, I, spec)
 
     for i in eachindex(L)
-        println(L[i])
+        #println(L[i])
     end
     
 

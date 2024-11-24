@@ -37,7 +37,7 @@ myCollection = collect_objects(myCollector)
 #mySpec = GenericSpec{Int64, Float32}(50, 1, 1, 10, 1)
 mySpec = GenericSpec(; inttype=Int64,
                     floattype=Float32,
-                    duration=1000,
+                    duration=10,
                     stepwidth=1,
                     currentstep=1,
                     logLength=10,
@@ -46,12 +46,12 @@ logpos = simulate!(myCollection, mySpec, myCollector)
 #@profview simulate!(myCollection, mySpec, myCollector)
 #@btime logpos2 = simulate!($myCollection, $mySpec, $myCollector)
 direc = "/home/gwenk/Coding/Julia/NaiveDynamics.jl/data/iWant.mp4"
-record_video(direc, logpos, myCollector; frameinterval = 1)
+#record_video(direc, logpos, myCollector; frameinterval = 1)
 
 
 
 myCollector1 = GenericRandomCollector(; floattype=Float32,
-                                    objectnumber=10,
+                                    objectnumber=8,
                                     minDim=tuple(-1.0, -1.0, -1.0),
                                     maxDim=tuple(1.0, 1.0, 1.0),
                                     temperature=0.01,
