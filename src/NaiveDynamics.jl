@@ -24,7 +24,8 @@ using Aqua #is this correct? should probably go in test files!
 include("MDInput.jl")
 include("Simulator.jl")
 include("BaseExtensions.jl")
-include("NeighborSearch.jl")
+#include("knn/NeighborSearch.jl")
+include("knn/ProkoLebrun.jl")
 include("PkgExtensions.jl")
 include("Forces.jl")
 

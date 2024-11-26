@@ -1,25 +1,25 @@
-export
-    SpheresBVHSpecs,
-    AxisAlignedBoundingBox,
-    AABB,
-    QuantizedAABB,
-    GridKey,
-    update_bvh!,
-    build_bvh,
-    traverse_bvh
-    #Atomic
+#export
+    # SpheresBVHSpecs,
+    # AxisAlignedBoundingBox,
+    # AABB,
+    # QuantizedAABB,
+    # GridKey,
+    # update_bvh!,
+    # build_bvh,
+    # traverse_bvh
+    # #Atomic
 
 # how to build towards an API that makes it easy to extend a BVH procedure to different kinds 
 # of shapes and considering different distances, as in the Noneuclidean paper?
 
 
-struct SpheresBVHSpecs{T, K} <: SimulationSpecification
-    critical_distance::T
-    atoms_count::Int64
-    bins_count::Int64
-    morton_length::K
+# struct SpheresBVHSpecs{T, K} <: SimulationSpecification
+#     critical_distance::T
+#     atoms_count::Int64
+#     bins_count::Int64
+#     morton_length::K
 
-end
+# end
 """
     function SpheresBVHSpecs(; floattype, interaction_distance, atoms_count, bins_count=atoms_count )
 
@@ -50,62 +50,62 @@ end
 ##### Phase 1: morton code construction and updating
 
 
-abstract type AxisAlignedBoundingBox end 
-struct AABB{T} <: AxisAlignedBoundingBox where T
-    index::Int64
-    centroid::MVector{3, T}
-    min::MVector{3, T}
-    max::MVector{3, T}
-end
+# abstract type AxisAlignedBoundingBox end 
+# struct AABB{T} <: AxisAlignedBoundingBox where T
+#     index::Int64
+#     centroid::MVector{3, T}
+#     min::MVector{3, T}
+#     max::MVector{3, T}
+# end
 
-abstract type AABBGridKey end
-struct QuantizedAABB{T} <: AxisAlignedBoundingBox
-    index::T
-    #this would be better, but it's easier to make something work with MVecs
-    #maybe if the rest of this magically turns out to be realllly easy, i'll work here some more
-    #min::Tuple{T, T, T}
-    #max::Tuple{T, T, T}
-    centroid::MVector{3, T}
+# abstract type AABBGridKey end
+# struct QuantizedAABB{T} <: AxisAlignedBoundingBox
+#     index::T
+#     #this would be better, but it's easier to make something work with MVecs
+#     #maybe if the rest of this magically turns out to be realllly easy, i'll work here some more
+#     #min::Tuple{T, T, T}
+#     #max::Tuple{T, T, T}
+#     centroid::MVector{3, T}
 
-    min::MVector{3, T}
-    max::MVector{3, T}
-end
+#     min::MVector{3, T}
+#     max::MVector{3, T}
+# end
 
-# does this need to be mutable?
-mutable struct GridKey{T, K} <: AABBGridKey
-    index::T
-    morton_code::T
-    min::MVector{3, K}
-    max::MVector{3, K}
-    parent_INode::T # this may be repurposed as the index of the skip connection
-    #left::Ref{Union{GridKey, NaiveNode}}
-    #right::Ref{Union{GridKey, NaiveNode}}
-    left::T
-    skip::T
-end
+# # does this need to be mutable?
+# mutable struct GridKey{T, K} <: AABBGridKey
+#     index::T
+#     morton_code::T
+#     min::MVector{3, K}
+#     max::MVector{3, K}
+#     parent_INode::T # this may be repurposed as the index of the skip connection
+#     #left::Ref{Union{GridKey, NaiveNode}}
+#     #right::Ref{Union{GridKey, NaiveNode}}
+#     left::T
+#     skip::T
+# end
 
-# struct internal node
-    #leaf indices::Vector(Tuple{T, T})
-    #left traversal pointer::Vector{Ref{?}}
-    #right traversal pointer::Vector{Ref{?}}
+# # struct internal node
+#     #leaf indices::Vector(Tuple{T, T})
+#     #left traversal pointer::Vector{Ref{?}}
+#     #right traversal pointer::Vector{Ref{?}}
 
-    #leaf indices::Tuple{T, T}
-    #left::Ref{Union{internalnode, gridkey}}
-    #left::Ref{Union{internalnode, gridkey}}
-    #but then this cannot be an array
-abstract type NaiveNode end
-mutable struct INode{T, K} <: NaiveNode
-    leaf_indices::Tuple{T, T}
-    #left::Ref{Union{GridKey, NaiveNode}}
-    #right::Ref{Union{GridKey, NaiveNode}}
-    left::T
-    skip::T
-    visits::T #to be marked as an @atomic, somehow
-    min::MVector{3, K}
-    max::MVector{3, K}
-    parent_INode::T
+#     #leaf indices::Tuple{T, T}
+#     #left::Ref{Union{internalnode, gridkey}}
+#     #left::Ref{Union{internalnode, gridkey}}
+#     #but then this cannot be an array
+# abstract type NaiveNode end
+# mutable struct INode{T, K} <: NaiveNode
+#     leaf_indices::Tuple{T, T}
+#     #left::Ref{Union{GridKey, NaiveNode}}
+#     #right::Ref{Union{GridKey, NaiveNode}}
+#     left::T
+#     skip::T
+#     visits::T #to be marked as an @atomic, somehow
+#     min::MVector{3, K}
+#     max::MVector{3, K}
+#     parent_INode::T
     
-end
+# end
 
 #mutable struct Atomic{T}; @atomic x::T; end
 
