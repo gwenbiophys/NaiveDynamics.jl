@@ -338,14 +338,15 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
 
 
     #return will also termate an iteration and move on
-    if ranger == nL 
+    if ranger == nI 
         L[i].skip = typemin(K) #this rope connection should become the sentinenl node, which in Apetrei is algorithmically I[n-1] but maybe I[1] in Prok?
         # sentinel node is an artificial node
     else 
         if delr < del(i + 1, i + 2, L, spec)
             L[i].skip = i + 1
-        else
+        else 
             L[i].skip = -1 * (i + 1)
+
         end
     end
     counter = 0 
@@ -357,13 +358,13 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
             p = ranger 
 
             #println("ranger precas $ranger")
-            ranger = Threads.atomic_cas!(store[p], 0, rangel)
+            ranger = Threads.atomic_cas!(store[p+1], 0, rangel)
             #println("ranger poscas $ranger")
 
             if ranger == 0 #ranger > n || ranger < 1 
                 #println("a thread is a boundary")
 
-                return
+                break
             end
             delr = del(ranger, ranger + 1, L, spec)
 
@@ -375,13 +376,13 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
             p = rangel - 1
  
 
-            rangel = Threads.atomic_cas!(store[p], 0, ranger) 
+            rangel = Threads.atomic_cas!(store[p+1], 0, ranger) 
 
             #println("dell >= delr")
             if rangel == 0#rangel > n || rangel < 1
                 #println("a thread is a boundary")
 
-                return
+                break
             end
             dell = del(rangel-1, rangel, L, spec)
         end
@@ -395,7 +396,7 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
             I[q].left = -1 * i 
         end
 
-        if ranger == nL
+        if ranger == nI
             I[q].skip = typemin(K)
         else
             r = ranger + 1
@@ -406,7 +407,7 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
             end
         end
 
-        i = q 
+        i = -q 
 
         if i == 1
 
@@ -416,6 +417,92 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
 
 
 end
+
+function internalIndex!(a, nI)
+    return a += nI + 1 
+end
+
+function setRope(node, ranger, delr, nI, L, spec)
+    if ranger != nI
+        skip = (delr < del(ranger + 1, ranger + 2, L, spec)) ? (ranger + 1) : internalIndex!(ranger + 1, nI)
+        node.skip = skip
+    else 
+        skip = 0 # sentinel node
+        node.skip = skip
+    end
+
+end
+
+
+# rewritten in attempt to more precisely follow Prokopenko and Lebrun-Grandie's operator function in their GenerateHierarchy class.
+
+function ProkoLebrun_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, nI, L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
+    rangel = i # left
+    ranger = i
+    dell = del(rangel - 1, rangel, L, spec)
+    delr = del(ranger, ranger + 1, L, spec)
+    #println(dell," ", delr)
+
+    #p = -1 #p is local only to the if statment and used no where else, i think
+
+
+    #return will also termate an iteration and move on
+
+    setRope(L[i], ranger, delr, nI, L, spec)
+
+    while 2 > 1 # accursed
+
+        isLeftChild = delr < dell
+        if isLeftChild
+            p = ranger
+            ranger = Threads.atomic_cas!(store[p+1], 0, rangel)
+
+            if ranger == 0
+                break
+            end
+
+            leftChild = i
+            rightChild = p + 1
+            rightChildIsLeaf = (rightChild == ranger)
+
+            delr = del(ranger, ranger+1, L, spec)
+
+        else
+            p = rangel - 1
+
+            rangel = Threads.atomic_cas!(store[p+1], 0, ranger)
+
+            if rangel == 0
+                break
+            end
+
+            leftChild = p
+            leftChildIsLeaf = (leftChild == rangel)
+
+            dell = del(rangel-1, rangel, L, spec)
+
+            if !(leftChildIsLeaf)
+                internalIndex!(leftChild, nI)
+            end
+
+        end
+
+        q = delr < dell ? ranger : rangel
+        parentNode = I[q] #i think this is right? L326
+        parentNode.left = leftChild #- nI - 1
+        setRope(parentNode, ranger, delr, nI, L, spec)
+        #bounding volume fxn
+        internalIndex!(i, nI) 
+
+        if i == 1
+
+            return
+        end
+    end
+
+
+end
+
 #by convention, if left or skip are negative, then they are referring to the index of the Inode, and positive is index of Leaf
 function stacklessbottom_bvh(L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
@@ -423,8 +510,9 @@ function stacklessbottom_bvh(L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
     nI = length(I)
     store = [Base.Threads.Atomic{Int64}(0) for i in 1:nI]
     #Threads.@threads 
-    Threads.@threads for i in 1:nL #in perfect parallel
-        stackless_interior!(store, i, nL, nI, L, I, spec)
+    for i in 1:nI #in perfect parallel
+        #stackless_interior!(store, i, nL, nI, L, I, spec)
+        ProkoLebrun_interior!(store, i, nL, nI, L, I, spec)
 
     end
 
