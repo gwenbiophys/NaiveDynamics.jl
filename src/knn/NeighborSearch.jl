@@ -662,8 +662,8 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, n, L,
     dell = del(rangel - 1, rangel, L, spec)
     delr = del(ranger, ranger + 1, L, spec)
     #println(dell," ", delr)
-    q = -1
-    p = -1 #p is local only to the if statment and used no where else, i think
+    #q = -1
+    #p = -1 #p is local only to the if statment and used no where else, i think
 
 
     #return will also termate an iteration and move on

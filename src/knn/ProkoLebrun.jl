@@ -312,7 +312,7 @@ end
 function del(i, j, L::Vector{GridKey{K, T}}, spec::SpheresBVHSpecs{T,K}) where {T, K}
 
     # maintain numinternal nodes as length(L)-1 for now bc i dont think itll make a difference
-    if  i >= length(L)-1 || i < 1 #|| j > length(L) || j < 1 # i dont know if the same operation should be done to i, but idk how else to fix
+    if  i > length(L)-1 || i < 1 #|| j > length(L) || j < 1 # i dont know if the same operation should be done to i, but idk how else to fix
         return typemax(K)
     end
 
@@ -328,63 +328,53 @@ end
 
 
 function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, nI, L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
-    rangel = i # left
+    
+    rangel = i 
     ranger = i
     dell = del(rangel - 1, rangel, L, spec)
     delr = del(ranger, ranger + 1, L, spec)
-    #println(dell," ", delr)
 
     #p = -1 #p is local only to the if statment and used no where else, i think
 
 
-    #return will also termate an iteration and move on
-    if ranger == nI 
-        L[i].skip = typemin(K) #this rope connection should become the sentinenl node, which in Apetrei is algorithmically I[n-1] but maybe I[1] in Prok?
-        # sentinel node is an artificial node
-    else 
-        if delr < del(i + 1, i + 2, L, spec)
-            L[i].skip = i + 1
-        else 
-            L[i].skip = -1 * (i + 1)
 
+
+    if i == nL
+        L[i].skip = 0
+    else
+        if delr <= del(i + 1, i + 2, L, spec)
+            L[i].skip = i + 1
+        else
+            L[i].skip = -(i + 1)
         end
     end
-    counter = 0 
-    while 2 > 1 # accursed
 
-
+    while true
         if delr < dell
-            #println("dell <= delr")
+
             p = ranger 
+            ranger = Threads.atomic_cas!(store[p], 0, rangel)
 
-            #println("ranger precas $ranger")
-            ranger = Threads.atomic_cas!(store[p+1], 0, rangel)
-            #println("ranger poscas $ranger")
-
-            if ranger == 0 #ranger > n || ranger < 1 
-                #println("a thread is a boundary")
-
+            if ranger == 0
                 break
             end
+
             delr = del(ranger, ranger + 1, L, spec)
 
             #here is wehre boundary computation is performed.
             # memory has to sync here for data safety
+
         else
-            #println()
-            #println(dell," ", delr)
+
             p = rangel - 1
- 
+            rangel = Threads.atomic_cas!(store[p], 0, ranger) 
 
-            rangel = Threads.atomic_cas!(store[p+1], 0, ranger) 
-
-            #println("dell >= delr")
             if rangel == 0#rangel > n || rangel < 1
-                #println("a thread is a boundary")
-
                 break
             end
+
             dell = del(rangel-1, rangel, L, spec)
+
         end
 
         q = delr < dell ? ranger : rangel
@@ -396,8 +386,9 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
             I[q].left = -1 * i 
         end
 
-        if ranger == nI
-            I[q].skip = typemin(K)
+        if ranger == nI #the difference between nI and nL here seems vanishingly small. either INode 1 is broken, or Inode7 is
+                        # meanwhile, we still have a lundry list of other borken iNOdes. namely, every single one.
+            I[q].skip = 0
         else
             r = ranger + 1
             if delr < del(r, r + 1, L, spec)
@@ -409,8 +400,7 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
 
         i = -q 
 
-        if i == 1
-
+        if i == -1
             return
         end
     end
@@ -419,7 +409,7 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
 end
 
 function internalIndex!(a, nI)
-    return a += nI + 1 
+    return a += nI 
 end
 
 function setRope(node, ranger, delr, nI, L, spec)
@@ -433,6 +423,13 @@ function setRope(node, ranger, delr, nI, L, spec)
 
 end
 
+function shiftIndex(q, nI)
+    if q > nI
+        a = q - nI 
+    else
+        return q
+    end
+end
 
 # rewritten in attempt to more precisely follow Prokopenko and Lebrun-Grandie's operator function in their GenerateHierarchy class.
 
@@ -448,14 +445,20 @@ function ProkoLebrun_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL,
 
     #return will also termate an iteration and move on
 
-    setRope(L[i], ranger, delr, nI, L, spec)
+    #setRope(L[i], ranger, delr, nI, L, spec)
+
+    if delr < del(i + 1, i + 2, L, spec)
+        L[i].skip = i + 1
+    else
+        L[i].skip = internalIndex!(i+1, nI)
+    end
 
     while 2 > 1 # accursed
 
         isLeftChild = delr < dell
         if isLeftChild
             p = ranger
-            ranger = Threads.atomic_cas!(store[p+1], 0, rangel)
+            ranger = Threads.atomic_cas!(store[p], 0, rangel) #TODO i doubt the frick out of this p+1 nonsense
 
             if ranger == 0
                 break
@@ -470,7 +473,7 @@ function ProkoLebrun_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL,
         else
             p = rangel - 1
 
-            rangel = Threads.atomic_cas!(store[p+1], 0, ranger)
+            rangel = Threads.atomic_cas!(store[p], 0, ranger)
 
             if rangel == 0
                 break
@@ -488,13 +491,15 @@ function ProkoLebrun_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL,
         end
 
         q = delr < dell ? ranger : rangel
-        parentNode = I[q] #i think this is right? L326
+        println(q)
+
+        parentNode = I[shiftIndex(q, nI)] #i think this is right? L326
         parentNode.left = leftChild #- nI - 1
         setRope(parentNode, ranger, delr, nI, L, spec)
         #bounding volume fxn
-        internalIndex!(i, nI) 
+        i = internalIndex!(q, nI) 
 
-        if i == 1
+        if i == internalIndex!(1, nI)
 
             return
         end
@@ -508,11 +513,11 @@ function stacklessbottom_bvh(L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
     nL = length(L)
     nI = length(I)
-    store = [Base.Threads.Atomic{Int64}(0) for i in 1:nI]
+    store = [Base.Threads.Atomic{Int64}(0) for i in 1:nI] #TODO this is not how they do it
     #Threads.@threads 
-    for i in 1:nI #in perfect parallel
-        #stackless_interior!(store, i, nL, nI, L, I, spec)
-        ProkoLebrun_interior!(store, i, nL, nI, L, I, spec)
+    for i in 1:nL #in perfect parallel
+        stackless_interior!(store, i, nL, nI, L, I, spec)
+        #ProkoLebrun_interior!(store, i, nL, nI, L, I, spec)
 
     end
 
@@ -544,12 +549,12 @@ function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::Generi
     stacklessbottom_bvh(L, I, spec)
 
 
-    for i in eachindex(position)
-        println(position[i])
-    end
-    for i in eachindex(L)
-        println(L[i].morton_code)
-    end
+    # for i in eachindex(position)
+    #     println(position[i])
+    # end
+    # for i in eachindex(L)
+    #     println(L[i].morton_code)
+    # end
     println()
     for i in eachindex(L)
         println(i, " ", L[i].left, " ", L[i].skip)

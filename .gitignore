@@ -26,5 +26,5 @@ Manifest.toml
 # specific to vscode repo clone environement
 .vscode
 
-# why store multiple mp4s on github
-data/newwhope.mp4
+# why store mp4s on github that don't sit in the docs?
+data/newhope.mp4

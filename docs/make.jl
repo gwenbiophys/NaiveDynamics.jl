@@ -1,4 +1,4 @@
-#push!(LOAD_PATH,"C:/Users/Trist/.julia/dev/NaiveMD/NaiveDynamics.jl/src/")
+
 using Documenter
 using NaiveDynamics
 
@@ -6,6 +6,7 @@ using NaiveDynamics
 makedocs(sitename="NaiveDynamics.jl",
          pages = [
             "Home" => "index.md",
+            "Let's Talk Bounding Volume Hierarchies" => "bvh.md",
             "Developer Diary" => "devdiary.md",
             "Development Directions" => "devdirections.md",
             "Help Gwen" => "helpGwen.md"
