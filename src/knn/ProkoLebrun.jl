@@ -379,14 +379,14 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
 
         q = delr < dell ? ranger : rangel
 
-
+        
         if rangel == q
-            I[q].left = i
+            I[q].left = p
         else
-            I[q].left = -1 * i 
+            I[q].left = -1 * p 
         end
 
-        if ranger == nI #the difference between nI and nL here seems vanishingly small. either INode 1 is broken, or Inode7 is
+        if ranger == nL #the difference between nI and nL here seems vanishingly small. either INode 1 is broken, or Inode7 is
                         # meanwhile, we still have a lundry list of other borken iNOdes. namely, every single one.
             I[q].skip = 0
         else
@@ -408,13 +408,13 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
 
 end
 
-function internalIndex!(a, nI)
-    return a += nI 
+function internalIndex!(a, nL)
+    return a += nL - 1
 end
 
-function setRope(node, ranger, delr, nI, L, spec)
-    if ranger != nI
-        skip = (delr < del(ranger + 1, ranger + 2, L, spec)) ? (ranger + 1) : internalIndex!(ranger + 1, nI)
+function setRope(node, ranger, delr, nL, L, spec)
+    if ranger != nL
+        skip = (delr < del(ranger + 1, ranger + 2, L, spec)) ? (ranger + 1) : internalIndex!(ranger + 1, nL)
         node.skip = skip
     else 
         skip = 0 # sentinel node
@@ -423,9 +423,13 @@ function setRope(node, ranger, delr, nI, L, spec)
 
 end
 
-function shiftIndex(q, nI)
-    if q > nI
-        a = q - nI 
+function shiftIndex(q, nL)
+
+    if q > nL
+        println("q pre ", q)
+        return q - nL
+        println("q aft ", q)
+        println()
     else
         return q
     end
@@ -446,11 +450,14 @@ function ProkoLebrun_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL,
     #return will also termate an iteration and move on
 
     #setRope(L[i], ranger, delr, nI, L, spec)
-
-    if delr < del(i + 1, i + 2, L, spec)
-        L[i].skip = i + 1
+    if i == nL
+        L[i].skip = 0
     else
-        L[i].skip = internalIndex!(i+1, nI)
+        if delr < del(i + 1, i + 2, L, spec)
+            L[i].skip = i + 1
+        else
+            L[i].skip = internalIndex!(i+1, nL)
+        end
     end
 
     while 2 > 1 # accursed
@@ -460,7 +467,8 @@ function ProkoLebrun_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL,
             p = ranger
             ranger = Threads.atomic_cas!(store[p], 0, rangel) #TODO i doubt the frick out of this p+1 nonsense
 
-            if ranger == 0
+            
+            if ranger == 0 
                 break
             end
 
@@ -485,21 +493,23 @@ function ProkoLebrun_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL,
             dell = del(rangel-1, rangel, L, spec)
 
             if !(leftChildIsLeaf)
-                internalIndex!(leftChild, nI)
+                internalIndex!(leftChild, nL)
             end
 
         end
 
         q = delr < dell ? ranger : rangel
-        println(q)
 
-        parentNode = I[shiftIndex(q, nI)] #i think this is right? L326
-        parentNode.left = leftChild #- nI - 1
-        setRope(parentNode, ranger, delr, nI, L, spec)
+
+        parentNode = I[q] #i think this is right? L326
+        parentNode.left = leftChild#shiftIndex(leftChild, nL) 
+
+        setRope(parentNode, shiftIndex(ranger, nL), delr, nL, L, spec)
+
         #bounding volume fxn
-        i = internalIndex!(q, nI) 
+        i = internalIndex!(q, nL) 
 
-        if i == internalIndex!(1, nI)
+        if i == internalIndex!(1, nL)
 
             return
         end

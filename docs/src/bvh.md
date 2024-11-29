@@ -17,6 +17,7 @@
 
 
 
+Testing was conducted on my machine using Base.@showtime and BenchmarkTools.@btime
 
 
 

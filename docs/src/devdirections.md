@@ -167,9 +167,6 @@ Version
 </details>
 
 ## Naive implementations
+1. NearestNeighbors  -- calculate distance of every unique and evaluate which are within a threshold distance.
 
 ## Fancy implementations
-
-## Optimization-type TODO
-
-## Miscellaneous TODO
