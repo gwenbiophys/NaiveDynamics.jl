@@ -39,7 +39,7 @@ function SpheresBVHSpecs(; floattype, interaction_distance, atoms_count, bins_co
         return SpheresBVHSpecs{floattype, morton_type}(interaction_distance, atoms_count, bins_count, morton_length)
     elseif floattype==Float64
         morton_type = Int64
-        mort_length = Int64(21)
+        morton_length = Int64(21)
 
         #morton_power = 21
         return SpheresBVHSpecs{floattype, morton_type}(interaction_distance, atoms_count, bins_count, morton_length)
@@ -84,15 +84,6 @@ mutable struct GridKey{T, K} <: AABBGridKey
     skip::T
 end
 
-# struct internal node
-    #leaf indices::Vector(Tuple{T, T})
-    #left traversal pointer::Vector{Ref{?}}
-    #right traversal pointer::Vector{Ref{?}}
-
-    #leaf indices::Tuple{T, T}
-    #left::Ref{Union{internalnode, gridkey}}
-    #left::Ref{Union{internalnode, gridkey}}
-    #but then this cannot be an array
 abstract type NaiveNode end
 mutable struct INode{T, K} <: NaiveNode
     leaf_indices::Tuple{T, T}
@@ -107,11 +98,6 @@ mutable struct INode{T, K} <: NaiveNode
     
 end
 
-#mutable struct Atomic{T}; @atomic x::T; end
-
-
-
-
 function generate_aabb(position::Vec3D{T}, spec::SpheresBVHSpecs{T}) where T
     aabb_array = [AABB{T}(i, position[i], position[i] .- spec.critical_distance, position[i] .+ spec.critical_distance) for i in eachindex(position)]
 
@@ -119,6 +105,7 @@ function generate_aabb(position::Vec3D{T}, spec::SpheresBVHSpecs{T}) where T
     return aabb_array
 
 end
+# this should be passed directly to the leaves.
 function update_aabb!(position::Vec3D{T}, spec::SpheresBVHSpecs{T}, aabb_array::Vector{AABB{T}}) where T
     for i in eachindex(aabb_array)
         aabb_array[i].centroid .= position[i]
@@ -130,9 +117,6 @@ function update_aabb!(position::Vec3D{T}, spec::SpheresBVHSpecs{T}, aabb_array::
 end
 
 
-
-
-# TODO fix this function to only evaluate for the center. forget the boundaries we already know their grid-space values once we know the center's values
 function update_gridkeys!(quantized_aabbarray, aabb_array, spec::SpheresBVHSpecs{T}, morton_type, clct) where T
 
     for dim in eachindex(clct.minDim)
@@ -157,7 +141,6 @@ function update_gridkeys!(quantized_aabbarray, aabb_array, spec::SpheresBVHSpecs
         end
     end
 
-    return quantized_aabbarray
 
 end
 
@@ -171,9 +154,6 @@ function update_mortoncodes!(L, quantized_aabbs, morton_length, morton_type)
     #n is the current nth bit of our morton code to change we wish to change, and it corresponds with every 3rd bit of our grid positions
 
     for each in eachindex(L)
-        #for a in eachindex(quantized_aabbs[each].centroid)
-            #println(bitstring(quantized_aabbs[each].centroid[a]))
-        #end
         for n in morton_length 
             for dim in eachindex(quantized_aabbs[1].centroid)
                 n_xyz = t3 * n + dim - t3 # we shift which position where on the morton code a bit should be written based on there being 3 spatial dimensions
@@ -222,7 +202,7 @@ function update_mortoncodes2!(L, quantized_aabbs, morton_length, morton_type)
         L[each].morton_code = morton_type(0)
 
         for m in morton_type(morton_length):-1:t1 #iterate backwards
-            for dim in t3:-1:t1 #iterate backwards
+            for dim in t3:-1:t1
 
                 # shift left to 'cancel' out the values of all bits before the m'th bit
                 # then shift all the way to the right, filling in zeros
@@ -270,12 +250,10 @@ function reverse_bit(n::Int32)
     return ret
 end
 function sort_mortoncodes!(L::Vector{GridKey{T, K}}) where {T, K}
-
-    sort!(L, by = x -> bitstring(x.morton_code)) # sorts lexicographically both the binary and the integer
+    #make a specialized radix sort to replace base sort // space for GPU backends to put forward their own float
+    sort!(L, by = x -> bitstring(x.morton_code), rev=false) # sorts lexicographically both the binary and the integer
     #sort!(L, by=x -> count(c -> c == '1', bitstring(x.morton_code)))
     #sort!(L, by = x -> x.morton_code), alg=RadixSort #wont run, RadixSort does not have iterate defined
-
-    return L
 end
 
 function create_mortoncodes(position, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
@@ -309,20 +287,53 @@ end
 
 # according to Apetrei 2014, just returning the XOR is sufficient, finding the particular index of the relvant bit is unnecessary!
 
-function del(i, j, L::Vector{GridKey{K, T}}, spec::SpheresBVHSpecs{T,K}) where {T, K}
+function delta_leaf(i, L::Vector{GridKey{K, T}}, spec::SpheresBVHSpecs{T,K}) where {T, K}
 
     # maintain numinternal nodes as length(L)-1 for now bc i dont think itll make a difference
-    if  i > length(L)-1 || i < 1 #|| j > length(L) || j < 1 # i dont know if the same operation should be done to i, but idk how else to fix
+    if  i >= length(L) || i < 1 #|| j > length(L) || j < 1 # i dont know if the same operation should be done to i, but idk how else to fix
         return typemax(K)
     end
 
     # XOR the two numbers to get a number with bits set where a and b differ
     # transcribed from ArborX directly, treeconstruction
-    x = L[i].morton_code ⊻ L[j].morton_code
+    x = xor(L[i].morton_code, L[i+1].morton_code)
 
 
     
-    return x + (x == K(0)) * (typemin(K) + (K(i) ⊻ K(j))) - K(1)
+    return x + (x == K(0)) * (typemin(K) + (K(i) ⊻ K(i+1))) - K(1)
+
+
+end
+function delta_branch(i, L::Vector{GridKey{K, T}}, spec::SpheresBVHSpecs{T,K}) where {T, K}
+
+    # maintain numinternal nodes as length(L)-1 for now bc i dont think itll make a difference
+    if  i >= length(L)-1 || i < 1 #|| j > length(L) || j < 1 # i dont know if the same operation should be done to i, but idk how else to fix
+        return typemax(K)
+    end
+
+    # XOR the two numbers to get a number with bits set where a and b differ
+    # transcribed from ArborX directly, treeconstruction
+    x = xor(L[i].morton_code, L[i+1].morton_code)
+
+
+    
+    return x + (x == K(0)) * (typemin(K) + (K(i) ⊻ K(i+1))) - K(1)
+
+
+end
+
+
+        # if i == 2
+        #     #println(L[rangel].morton_code, " icode")
+        #     #println(L[rangel].morton_code, " rangelcode")
+        #     #println(L[ranger].morton_code, " rangercode")
+        #     println(rangel," ", ranger," ", " range l, r ")
+        #     println(dell, " dell")
+        #     println(delr, " delr")
+        #     println()
+        # end
+
+function stackless_reinterior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, nI, L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
 end
 
@@ -331,70 +342,81 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
     
     rangel = i 
     ranger = i
-    dell = del(rangel - 1, rangel, L, spec)
-    delr = del(ranger, ranger + 1, L, spec)
-
-    #p = -1 #p is local only to the if statment and used no where else, i think
+    dell = delta_leaf(rangel - 1, L, spec)
+    delr = delta_leaf(ranger, L, spec)
 
 
 
 
-    if i == nL
+    # stackless lBVH requires that the 'right most' elements of the tree point to an artificial node
+    if i == nL # 1-based indexing requires this to be nL, but 0-based would be number of internal nodes
         L[i].skip = 0
     else
-        if delr <= del(i + 1, i + 2, L, spec)
-            L[i].skip = i + 1
+        # Does Leaf[i+1] have a more similar morton code to Leaf[i] or Leaf[i+2]?
+        # If Leaf[i+1] and Leaf[i] are more similar,
+        # Then Leaf[i+1] and Leaf[i] are the right and left children of the same internal node.
+        ir = i + 1
+        if delr <= delta_leaf(ir, L, spec)
+            L[i].skip = ir
         else
-            L[i].skip = -(i + 1)
+            L[i].skip = -(ir)
         end
     end
 
     while true
         if delr < dell
+            leftChild = i
+            
+            split = ranger # split position between the range of keys covered by any given INode
+            ranger = Threads.atomic_cas!(store[split], 0, rangel)
 
-            p = ranger 
-            ranger = Threads.atomic_cas!(store[p], 0, rangel)
 
-            if ranger == 0
-                break
+
+            if ranger == 0 
+                break # this is the first thread to have made it here, so it is culled
             end
 
-            delr = del(ranger, ranger + 1, L, spec)
+            delr = delta_branch(ranger, L, spec)
 
             #here is wehre boundary computation is performed.
             # memory has to sync here for data safety
 
         else
 
-            p = rangel - 1
-            rangel = Threads.atomic_cas!(store[p], 0, ranger) 
+            split = rangel - 1
+            rangel = Threads.atomic_cas!(store[split], 0, ranger) 
 
-            if rangel == 0#rangel > n || rangel < 1
+
+            if rangel == 0 
                 break
             end
 
-            dell = del(rangel-1, rangel, L, spec)
+            dell = delta_branch(rangel-1, L, spec)
+
+            leftChild = split
+            if leftChild == rangel
+                leftChild *= -1
+            end
 
         end
 
         q = delr < dell ? ranger : rangel
 
-        
+
         if rangel == q
-            I[q].left = p
+            I[q].left = leftChild
         else
-            I[q].left = -1 * p 
+            I[q].left = -1 * leftChild
         end
 
-        if ranger == nL #the difference between nI and nL here seems vanishingly small. either INode 1 is broken, or Inode7 is
-                        # meanwhile, we still have a lundry list of other borken iNOdes. namely, every single one.
+        if ranger == nL
             I[q].skip = 0
         else
             r = ranger + 1
-            if delr < del(r, r + 1, L, spec)
+            if delr < delta_branch(r, L, spec)
                 I[q].skip = r
             else
-                I[q].skip = -1 * r
+                I[q].skip = -1 * r 
             end
         end
 
@@ -404,8 +426,6 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
             return
         end
     end
-
-
 end
 
 function internalIndex!(a, nL)
@@ -414,7 +434,7 @@ end
 
 function setRope(node, ranger, delr, nL, L, spec)
     if ranger != nL
-        skip = (delr < del(ranger + 1, ranger + 2, L, spec)) ? (ranger + 1) : internalIndex!(ranger + 1, nL)
+        skip = (delr < del(ranger + 1, L, spec)) ? (ranger + 1) : internalIndex!(ranger + 1, nL)
         node.skip = skip
     else 
         skip = 0 # sentinel node
@@ -440,8 +460,8 @@ end
 function ProkoLebrun_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, nI, L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
     rangel = i # left
     ranger = i
-    dell = del(rangel - 1, rangel, L, spec)
-    delr = del(ranger, ranger + 1, L, spec)
+    dell = del(rangel - 1, L, spec)
+    delr = del(ranger, L, spec)
     #println(dell," ", delr)
 
     #p = -1 #p is local only to the if statment and used no where else, i think
@@ -453,7 +473,7 @@ function ProkoLebrun_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL,
     if i == nL
         L[i].skip = 0
     else
-        if delr < del(i + 1, i + 2, L, spec)
+        if delr < del(i + 1, L, spec)
             L[i].skip = i + 1
         else
             L[i].skip = internalIndex!(i+1, nL)
@@ -476,7 +496,7 @@ function ProkoLebrun_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL,
             rightChild = p + 1
             rightChildIsLeaf = (rightChild == ranger)
 
-            delr = del(ranger, ranger+1, L, spec)
+            delr = del(ranger, L, spec)
 
         else
             p = rangel - 1
@@ -490,7 +510,7 @@ function ProkoLebrun_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL,
             leftChild = p
             leftChildIsLeaf = (leftChild == rangel)
 
-            dell = del(rangel-1, rangel, L, spec)
+            dell = del(rangel-1, L, spec)
 
             if !(leftChildIsLeaf)
                 internalIndex!(leftChild, nL)
@@ -523,13 +543,17 @@ function stacklessbottom_bvh(L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
     nL = length(L)
     nI = length(I)
-    store = [Base.Threads.Atomic{Int64}(0) for i in 1:nI] #TODO this is not how they do it
+    store = [Base.Threads.Atomic{Int64}(0) for i in 1:nI] 
     #Threads.@threads 
-    for i in 1:nL #in perfect parallel
+    Threads.@threads for i in nL:-1:1 #in perfect parallel
         stackless_interior!(store, i, nL, nI, L, I, spec)
         #ProkoLebrun_interior!(store, i, nL, nI, L, I, spec)
+        # if i == 2
+        #     return
+        # end
 
     end
+    println(values(store))
 
 
 end
@@ -557,14 +581,16 @@ function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::Generi
 
 
     stacklessbottom_bvh(L, I, spec)
-
+    # for i in eachindex(L)
+    #     println(del(i, L, spec))
+    # end
 
     # for i in eachindex(position)
     #     println(position[i])
     # end
-    # for i in eachindex(L)
-    #     println(L[i].morton_code)
-    # end
+    for i in eachindex(L)
+        println(L[i].morton_code)
+    end
     println()
     for i in eachindex(L)
         println(i, " ", L[i].left, " ", L[i].skip)

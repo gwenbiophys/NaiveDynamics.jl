@@ -958,3 +958,41 @@ Making this modification causes multiple solutions to an index of -7, which woul
 I thought I found a mistake, they use a setrope function to and they always +1 the value before application to the Leaf or INode .skip, but in my code it is already set to + 1 in the definition of r. However, I think I am closer, because for the first time, I successfully got a reference to Leaf n without examining all n optoins, except this was done by INode, not by a leaf. There is a plus 1 somewhere that I do not have. WEHRE
 
 I don't know. I have sorted through Proko and ArborX for many hours. I have no idea what the problem is supposed to be at this point. I just do not understand. My structure is stopping 1 unit short, but if I extend it to allow itself to resolve the last unit, it then breaks! Prok's algorithm, as presented in the publication and ArborX should not be capable of creating the tree observed in Figure 1 of their publication. Which perhaps is fair, as it is only an example stackless tree. But still!
+
+## 28 Nov
+Okay so I just committed a version in which the as-close-as-possible to the GitHub implementation generates the same result as my version, which took from their publication. This means that my negative indexing to differentiate internal and leaf node does not have a subtle influence on the product, and that I must look elsewhere to explain my problem.
+
+Separately, I realized why nodes were self referencing, and this was a side effect of copying code (from the untested publication pseudo-code) without understanding it. My code experienced 3 bouts of self referencing out of a possible 8 because I incorrectly attatched the left child of the q'th INode as the index number i, instead of the apetrei parent, p. When the entire if else statemtent of ``` del < dell ``` was about evaluating the parentage of the object we are currently considering, i.
+
+So we are down to 3 flavors of issue that may be solved in any number of ways.
+1. Not enough INodes are being directed to the sentinel.
+2. In fixed position, 3 Inodes skip to the same leaf. In repeated random runs, there does not seem to be a fixed pattern for INode or Leaf repetition, but both infact appear.
+3. General correctness issues.
+
+- reversing morton code sort order does not fix (and does some other weird stuff)
+- in my equivalent to ```setRope```, evaluating for sentinel nodes, changing evaluation to number of internal nodes does not fix issue
+
+
+HEY WAIT we absolute did not fix self referencing, we just shifted the value of the self reference by +1. hah! So i have to keep looking in the area of this indexing.
+
+I am trying to solve it manually, but that's difficult because my method is not fully resolved, and the kokkos method is index shift (and slightly mysterious). I suppose I could solve it manually using Kokkos method as a guide and then search for the nuances there.
+Running the code by hand,
+
+How does the iterator run?
+
+## Kokkos openmp
+https://kokkos.org/kokkos-core-wiki/building.html
+https://github.com/arborx/ArborX/wiki/Build
+ArborX supports openMP but idk if they support / how they support other parallelization routines like Kokkos::threads or HPX or whatnot.
+
+## 29 Nov
+Okay so I tried running manually running the Kokkos approach with my data set, and the sequential nature of it seemed to be very damaging. I processed the first 6 leaves, and then the parent of leaf six,,, was the root. Which means at least the way my code works is exactly the same as my understanding of the Kokkos material itself. And there are no layers of obfuscation between the behavior of my functions and what I think them to be.  Arriving to process the root  as the last thread will just direct the root the last leaf. Now the question is, when I turn on Threads.@threads, do I get a traceable structure for every leaf? And is there a world in which you do not get a traceable structure for every leaf???????? Horrifying.
+
+The structure,, is different I suppose. . . . Except traversal proceeds from the root to -7. Maybe we lack sufficient morton complexity? Well, that was an optimistic thought, but no. Okay, what about a random data set, as this one was kind of crazy.
+
+Something is definitely broken, as it now always traces the root to the 7th dud node. Now what exactly is the matter?
+
+## specializing delta for leaves and internalsf
+I believe specializing a delta function for the leaves and the branches is necessary, because if i is greater than or equal to the number of internal nodes, then the function returns typemax, at least in ArborX. But, except depending on some breakthrough in understanding their sorting and index permuting thing, their number of internal nodes is the same number as the index of the right most leaf node. Thus, to a leaf node, it should receive maximum values at or above input values of L[max]. But internal nodes should receive this typemax return at the number of leaf nodes minus one, (also known as the value of max in L[max] in 0-based indexing.).
+
+Now, is this actually the case? Because in this scheme, an internal index would poll a delta between L[max-1] and L[max] as typemax, rather than whatever value it actually is. This feels to me like a loss of data.

@@ -88,8 +88,19 @@ bvhspec = SpheresBVHSpecs(; floattype=Float32,
                             atoms_count=length(position), 
                             bins_count=length(position) 
 )
-build_bvh(position, bvhspec, myCollector2 )
+build_bvh(myCollection1.position, bvhspec, myCollector2 )
+# function dist(pos1, pos2)
+#     d = 0.0
+#     for e in eachindex(pos2)
+#         d1 = (pos1[e] - pos2[e])^2
+#         d += d1
+#     end
+#     println(sqrt(d))
+# end
+# dist(position[1], position[2])
+# dist(position[2], position[3])
 
+#myCollection1.
 
 #myCollector = GenericRandomCollector(Float32, 40, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, -0.02, 0.02, 0.001)
 #myCollection = collect_objects(myCollector)
