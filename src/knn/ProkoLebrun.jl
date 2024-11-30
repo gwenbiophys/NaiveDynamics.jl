@@ -307,7 +307,7 @@ end
 function delta_branch(i, L::Vector{GridKey{K, T}}, spec::SpheresBVHSpecs{T,K}) where {T, K}
 
     # maintain numinternal nodes as length(L)-1 for now bc i dont think itll make a difference
-    if  i >= length(L)-1 || i < 1 #|| j > length(L) || j < 1 # i dont know if the same operation should be done to i, but idk how else to fix
+    if  i >= length(L) || i < 1 #|| j > length(L) || j < 1 # i dont know if the same operation should be done to i, but idk how else to fix
         return typemax(K)
     end
 
