@@ -29,7 +29,11 @@ in order convert particles from real space to grid space. By default, ```bins_co
 grid axis within a UInt8, instead of here where the integer that fits a grid space axis has the same number of bits as the ```floattype```. 
 
 """
+struct OneLeafError <: Exception end
 function SpheresBVHSpecs(; floattype, interaction_distance, atoms_count, bins_count=atoms_count )
+    if atoms_count < 2
+        error("OneLeafError: no pathway for handling single leaf trees")
+    end
 
     if floattype==Float32
         morton_type = Int32
@@ -434,7 +438,7 @@ end
 
 function setRope(node, ranger, delr, nL, L, spec)
     if ranger != nL
-        skip = (delr < del(ranger + 1, L, spec)) ? (ranger + 1) : internalIndex!(ranger + 1, nL)
+        skip = (delr < delta_leaf(ranger + 1, L, spec)) ? (ranger + 1) : internalIndex!(ranger + 1, nL)
         node.skip = skip
     else 
         skip = 0 # sentinel node
@@ -460,8 +464,8 @@ end
 function ProkoLebrun_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, nI, L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
     rangel = i # left
     ranger = i
-    dell = del(rangel - 1, L, spec)
-    delr = del(ranger, L, spec)
+    dell = delta_leaf(rangel - 1, L, spec)
+    delr = delta_leaf(ranger, L, spec)
     #println(dell," ", delr)
 
     #p = -1 #p is local only to the if statment and used no where else, i think
@@ -473,7 +477,7 @@ function ProkoLebrun_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL,
     if i == nL
         L[i].skip = 0
     else
-        if delr < del(i + 1, L, spec)
+        if delr < delta_leaf(i + 1, L, spec)
             L[i].skip = i + 1
         else
             L[i].skip = internalIndex!(i+1, nL)
@@ -496,7 +500,7 @@ function ProkoLebrun_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL,
             rightChild = p + 1
             rightChildIsLeaf = (rightChild == ranger)
 
-            delr = del(ranger, L, spec)
+            delr = delta_branch(ranger, L, spec)
 
         else
             p = rangel - 1
@@ -510,7 +514,7 @@ function ProkoLebrun_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL,
             leftChild = p
             leftChildIsLeaf = (leftChild == rangel)
 
-            dell = del(rangel-1, L, spec)
+            dell = delta_branch(rangel-1, L, spec)
 
             if !(leftChildIsLeaf)
                 internalIndex!(leftChild, nL)

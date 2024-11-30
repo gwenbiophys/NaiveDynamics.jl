@@ -68,7 +68,7 @@ import GLMakie
 #                                     maxcharge=1f-9
 # )
 myCollector2 = GenericRandomCollector(; floattype=Float32,
-                                    objectnumber=8,
+                                    objectnumber=3,
                                     minDim=tuple(0.0, 0.0, 0.0),
                                     maxDim=tuple(1.0, 1.0, 1.0),
                                     temperature=0.01,
@@ -85,8 +85,8 @@ position = [MVector{3, Float32}(0.1, 0.1, 0.1), MVector{3, Float32}(0.2, 0.2, 0.
 
 bvhspec = SpheresBVHSpecs(; floattype=Float32, 
                             interaction_distance=0.1, 
-                            atoms_count=length(position), 
-                            bins_count=length(position) 
+                            atoms_count=length(myCollection1.position), 
+                            bins_count=length(myCollection1.position) 
 )
 build_bvh(myCollection1.position, bvhspec, myCollector2 )
 # function dist(pos1, pos2)
