@@ -6,7 +6,7 @@ using Revise
 #using StaticArrays
 using NaiveDynamics
 using StaticArrays
-import GLMakie
+#import GLMakie
 
     # myCollector = GenericRandomCollector(; floattype=Float32,
     #                                     objectnumber=50,
