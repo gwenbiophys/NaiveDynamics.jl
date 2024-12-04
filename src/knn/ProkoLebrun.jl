@@ -4,6 +4,8 @@ export
     AABB,
     QuantizedAABB,
     GridKey,
+    update_mortoncodes!,
+    OneLeafError,
     update_bvh!,
     build_bvh,
     traverse_bvh,
@@ -28,12 +30,17 @@ Instantiate a specification towards a BVH of sphere primitives. The ```interacti
 pairwise interactions that a BVH+traversal algorithm finds the neighbors of. The ```bins_count``` is the number of chunks each axis will be divided by
 in order convert particles from real space to grid space. By default, ```bins_count = atoms count```. Morton_length. Though Howard et al., 2019 chose 1023 bins to fit each 
 grid axis within a UInt8, instead of here where the integer that fits a grid space axis has the same number of bits as the ```floattype```. 
-
 """
-struct OneLeafError <: Exception end
+"""
+        OneLeafError
+Tried to build a tree with only 1 leaf. Build with at least 2
+"""
+struct OneLeafError <: Exception 
+    message::String
+end
 function SpheresBVHSpecs(; floattype, interaction_distance, leaves_count )
     if leaves_count < 2
-        error("OneLeafError: no pathway for handling single leaf trees")
+        OneLeafError("Please use more than one leaf")
     end
     branches_count = leaves_count - 1
     # this is arbitrary and really just my personal demonstration of struct instantiation with same name functions
@@ -150,7 +157,7 @@ function update_gridkeys!(quantized_aabbarray, aabb_array, spec::SpheresBVHSpecs
 
 end
 
-function update_mortoncodes!(L, quantized_aabbs, morton_length, morton_type) 
+function old_update_mortoncodes!(L, quantized_aabbs, morton_length, morton_type) 
     #TODO clean up this function to use L, aabbs, and spec?
 
     t3 = morton_type(3)
@@ -188,14 +195,14 @@ end
 
 #some how this is 3x slower than the original version at half the operations and same allocation
 """
-    update_mortoncodes2!(L, quantized_aabbs, morton_length, morton_type)
+    function update_mortoncodes!(L, quantized_aabbs, morton_length, morton_type)
 
 Take an array of GridKeys, L, an array of 3D integer coordinates, quantized_aabbs, and specification information,
 to generate morton_codes for each GridKey.
 
 
 """
-function update_mortoncodes2!(L, quantized_aabbs, morton_length, morton_type) 
+function update_mortoncodes!(L, quantized_aabbs, morton_length, morton_type) 
 
     inbit = morton_type(0)
     t3 = morton_type(3)
