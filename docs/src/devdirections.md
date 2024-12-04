@@ -102,6 +102,9 @@
 information based on other things the user input, like if single precision, then morton encode to 32 bits.
 [x] currently, MakieExt redefines the record_video function stored in PkgExtensions. Will the extension continue to work if it exports record_video on its own?
 [] package extensions methods break upon trying to use them at all because something something Julia doesnt work. In my Dev environment, Iwant as little loaded as possible. Thus, the extensions, but I am tetsint in my dev environment, which means I don't get to use the extension functionality. I believe it would work better for a user situation, in which the Julia environment is not this package's source code. idk
+[] struct instantiate with function for neighborsearch items, so changes to the API are more clear to impelment (but also slightly more tedious)
+[] companion arrays of morton codes, indices to atoms, and grid aabbs and simplified structures for more purposeful datamanagement. These optimizations won't especially work until we have struct arrays and or the deep compression used in contemporary bvh papers.
+[] if we use the Julia built in environment instead of our own, could we finally have extensions working correctly, so that we are devved into naive dynamics and using the local dev version wiht a napkin test file, while also being abel to use only the dependencies and extensions we want?
 
 
 ### Version 0.00.4 - feature extensions

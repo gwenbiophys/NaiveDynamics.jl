@@ -6,7 +6,8 @@ export
     GridKey,
     update_bvh!,
     build_bvh,
-    traverse_bvh
+    traverse_bvh,
+    batch_build_traverse
     #Atomic
 
 # how to build towards an API that makes it easy to extend a BVH procedure to different kinds 
@@ -15,8 +16,8 @@ export
 
 struct SpheresBVHSpecs{T, K} <: SimulationSpecification
     critical_distance::T
-    atoms_count::Int64
-    bins_count::Int64
+    leaves_count::Int64
+    branches_count::Int64
     morton_length::K
 
 end
@@ -30,23 +31,22 @@ grid axis within a UInt8, instead of here where the integer that fits a grid spa
 
 """
 struct OneLeafError <: Exception end
-function SpheresBVHSpecs(; floattype, interaction_distance, atoms_count, bins_count=atoms_count )
-    if atoms_count < 2
+function SpheresBVHSpecs(; floattype, interaction_distance, leaves_count )
+    if leaves_count < 2
         error("OneLeafError: no pathway for handling single leaf trees")
     end
-
+    branches_count = leaves_count - 1
+    # this is arbitrary and really just my personal demonstration of struct instantiation with same name functions
     if floattype==Float32
         morton_type = Int32
         morton_length = Int32(10)
 
-        #morton_power = 10
-        return SpheresBVHSpecs{floattype, morton_type}(interaction_distance, atoms_count, bins_count, morton_length)
+        return SpheresBVHSpecs{floattype, morton_type}(interaction_distance, leaves_count, branches_count, morton_length)
     elseif floattype==Float64
         morton_type = Int64
         morton_length = Int64(21)
 
-        #morton_power = 21
-        return SpheresBVHSpecs{floattype, morton_type}(interaction_distance, atoms_count, bins_count, morton_length)
+        return SpheresBVHSpecs{floattype, morton_type}(interaction_distance, leaves_count, branches_count, morton_length)
     end
     
 end
@@ -75,32 +75,34 @@ struct QuantizedAABB{T} <: AxisAlignedBoundingBox
     max::MVector{3, T}
 end
 
-# does this need to be mutable?
+#TODO does this need to be mutable?
+# can index of the original atom be stored in a companion array? would this matter?
 mutable struct GridKey{T, K} <: AABBGridKey
     index::T
     morton_code::T
     min::MVector{3, K}
     max::MVector{3, K}
-    parent_INode::T # this may be repurposed as the index of the skip connection
+    #parent_INode::T # this may be repurposed as the index of the skip connection
     #left::Ref{Union{GridKey, NaiveNode}}
     #right::Ref{Union{GridKey, NaiveNode}}
     left::T
     skip::T
 end
 
-abstract type NaiveNode end
-mutable struct INode{T, K} <: NaiveNode
-    leaf_indices::Tuple{T, T}
-    #left::Ref{Union{GridKey, NaiveNode}}
-    #right::Ref{Union{GridKey, NaiveNode}}
-    left::T
-    skip::T
-    visits::T #to be marked as an @atomic, somehow
-    min::MVector{3, K}
-    max::MVector{3, K}
-    parent_INode::T
+##### Deprecated
+# abstract type NaiveNode end
+# mutable struct INode{T, K} <: NaiveNode
+#     leaf_indices::Tuple{T, T}
+#     #left::Ref{Union{GridKey, NaiveNode}}
+#     #right::Ref{Union{GridKey, NaiveNode}}
+#     left::T
+#     skip::T
+#     visits::T #to be marked as an @atomic, somehow
+#     min::MVector{3, K}
+#     max::MVector{3, K}
+#     parent_INode::T
     
-end
+# end
 
 function generate_aabb(position::Vec3D{T}, spec::SpheresBVHSpecs{T}) where T
     aabb_array = [AABB{T}(i, position[i], position[i] .- spec.critical_distance, position[i] .+ spec.critical_distance) for i in eachindex(position)]
@@ -229,11 +231,11 @@ function assign_mortoncodes(aabb_array, spec::SpheresBVHSpecs{T, K}, clct) where
     #idk how this should be better done to prevent runtime evaluation of a stupid if statement
 
 
-    quantized_aabbs = [QuantizedAABB{K}(i, MVector{3, K}(0, 0, 0),  MVector{3, K}(0, 0, 0), MVector{3, K}(0, 0, 0)) for i in 1:spec.bins_count]::Vector{QuantizedAABB{K}}
+    quantized_aabbs = [QuantizedAABB{K}(i, MVector{3, K}(0, 0, 0),  MVector{3, K}(0, 0, 0), MVector{3, K}(0, 0, 0)) for i in 1:spec.leaves_count]::Vector{QuantizedAABB{K}}
 
     update_gridkeys!(quantized_aabbs, aabb_array, spec, K, clct)
 
-    L = [GridKey{K, T}(quantized_aabbs[i].index, 0, aabb_array[i].min, aabb_array[i].max, 0, 0, 0) for i in 1:spec.atoms_count]
+    L = [GridKey{K, T}(quantized_aabbs[i].index, 0, aabb_array[i].min, aabb_array[i].max, 0, 0) for i in 1:spec.leaves_count]
 
     update_mortoncodes2!(L, quantized_aabbs, spec.morton_length, K)
 
@@ -294,7 +296,7 @@ end
 function delta_leaf(i, L::Vector{GridKey{K, T}}, spec::SpheresBVHSpecs{T,K}) where {T, K}
 
     # maintain numinternal nodes as length(L)-1 for now bc i dont think itll make a difference
-    if  i >= length(L) || i < 1 #|| j > length(L) || j < 1 # i dont know if the same operation should be done to i, but idk how else to fix
+    if  i >= spec.leaves_count || i < 1 #|| j > length(L) || j < 1 # i dont know if the same operation should be done to i, but idk how else to fix
         return typemax(K)
     end
 
@@ -311,7 +313,7 @@ end
 function delta_branch(i, L::Vector{GridKey{K, T}}, spec::SpheresBVHSpecs{T,K}) where {T, K}
 
     # maintain numinternal nodes as length(L)-1 for now bc i dont think itll make a difference
-    if  i >= length(L) || i < 1 #|| j > length(L) || j < 1 # i dont know if the same operation should be done to i, but idk how else to fix
+    if  i >= spec.leaves_count || i < 1 #|| j > length(L) || j < 1 # i dont know if the same operation should be done to i, but idk how else to fix
         return typemax(K)
     end
 
@@ -337,38 +339,40 @@ end
         #     println()
         # end
 
-function stackless_reinterior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, nI, L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
-
+function branch_index(a, spec::SpheresBVHSpecs{T, K}) where {T, K}
+    return c = a + spec.leaves_count # this could do without the c = but i am not ready with testing yet
 end
 
-
-function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, nI, L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
-    
+function stackless_reinterior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, nI, keys, spec::SpheresBVHSpecs{T, K}) where {T, K}
     rangel = i 
     ranger = i
-    dell = delta_leaf(rangel - 1, L, spec)
-    delr = delta_leaf(ranger, L, spec)
+    dell = delta_leaf(rangel - 1, keys, spec)
+    delr = delta_leaf(ranger, keys, spec)
 
 
 
 
     # stackless lBVH requires that the 'right most' elements of the tree point to an artificial node
     if i == nL # 1-based indexing requires this to be nL, but 0-based would be number of internal nodes
-        L[i].skip = 0
+        keys[i].skip = 0
     else
         # Does Leaf[i+1] have a more similar morton code to Leaf[i] or Leaf[i+2]?
         # If Leaf[i+1] and Leaf[i] are more similar,
         # Then Leaf[i+1] and Leaf[i] are the right and left children of the same internal node.
         ir = i + 1
-        if delr <= delta_leaf(ir, L, spec)
-            L[i].skip = ir
+        #TODO is the <= necessary, or is < good enough?
+        if delr < delta_leaf(ir, keys, spec) # are i and i+1 siblings, or are i+1 and i+2 siblings?
+            keys[i].skip = ir
         else
-            L[i].skip = -(ir)
+            
+            keys[i].skip = branch_index(ir, spec)
+            
         end
     end
 
     while true
-        if delr < dell
+        isLeftChild = delr < dell
+        if isLeftChild
             leftChild = i
             
             split = ranger # split position between the range of keys covered by any given INode
@@ -380,10 +384,25 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
                 break # this is the first thread to have made it here, so it is culled
             end
 
-            delr = delta_branch(ranger, L, spec)
+            delr = delta_branch(ranger, keys, spec)
 
             #here is wehre boundary computation is performed.
             # memory has to sync here for data safety
+
+            # if i == branch_index(1, spec)
+            #     println("leftchild in delr < dell $leftChild")
+            # end
+
+            # if leftChild == rangel
+            #     println("left child is a branch in delr < dell")
+            #     leftchild = branch_index(leftChild, spec)
+            # end
+
+            #leftChild = split
+            # if leftChild == rangel-1
+            #     println("yeah we made it here")
+            #     leftChild = branch_index(leftChild, spec)
+            # end
 
         else
 
@@ -395,184 +414,274 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
                 break
             end
 
-            dell = delta_branch(rangel-1, L, spec)
+            dell = delta_branch(rangel-1, keys, spec)
 
             leftChild = split
-            if leftChild == rangel
-                leftChild *= -1
-            end
+            # if leftChild == rangel
 
+            #     leftChild = branch_index(leftChild, spec)
+
+            # end
+
+            # if i == branch_index(1, spec)
+            #     println("leftchild in delr > dell $leftChild")
+            # end
         end
 
-        q = delr < dell ? ranger : rangel
 
+        q = delr < dell ? (ranger) : rangel # commented out because the expanded version is easier to debug
+         
+        parentNode = branch_index(q, spec)
+        # if parentNode == 8 && leftChild == 3
+        #     println(delr < dell)
+        #     # println(L[rangel].morton_code, " icode")
+        #     # println(L[rangel].morton_code, " rangelcode")
+        #     # println(L[ranger].morton_code, " rangercode")
+        #     println("leftChild $leftChild parentNode $parentNode")
+        #     println("$q q pos")
+        #     println("$split split")
+        #     println(rangel," ", ranger," ", " range l, r ")
+        #     println(dell, " dell")
+        #     println(delr, " delr")
+        #     println()
+        # end
+        # if parentNode == 8 && leftChild == 10
+        #     println(delr < dell)
+        #     # println(L[rangel].morton_code, " icode")
+        #     # println(L[rangel].morton_code, " rangelcode")
+        #     # println(L[ranger].morton_code, " rangercode")
+        #     println("leftChild $leftChild parentNode $parentNode")
+        #     println("$q q")
+        #     println("$split split")
+        #     println(rangel," ", ranger," ", " range l, r ")
+        #     println(dell, " dell")
+        #     println(delr, " delr")
+        #     println()
+        # end
 
         if rangel == q
-            I[q].left = leftChild
+            #println("no here")
+            keys[parentNode].left = leftChild
+            #i = branch_index(q, spec)
         else
-            I[q].left = -1 * leftChild
+            #println("yeah i got over to here")
+            i = branch_index(q, spec)
+
+            keys[parentNode].left = branch_index(leftChild, spec )#leftChild#
+
         end
+        
 
         if ranger == nL
-            I[q].skip = 0
+            keys[parentNode].skip = 0
         else
             r = ranger + 1
-            if delr < delta_branch(r, L, spec)
-                I[q].skip = r
+            if delr < delta_branch(r, keys, spec)
+                keys[parentNode].skip = r
             else
-                I[q].skip = -1 * r 
+                keys[parentNode].skip = branch_index(r, spec) 
             end
         end
+        #println(keys[1].skip, "testing overwite")
+        
+        
+        #i = branch_index(q, spec)
+        # println("q $q")
+        # println("i $i")
 
-        i = -q 
-
-        if i == -1
+        if i == branch_index(1, spec)
             return
         end
     end
-end
-
-function internalIndex!(a, nL)
-    return a += nL - 1
-end
-
-function setRope(node, ranger, delr, nL, L, spec)
-    if ranger != nL
-        skip = (delr < delta_leaf(ranger + 1, L, spec)) ? (ranger + 1) : internalIndex!(ranger + 1, nL)
-        node.skip = skip
-    else 
-        skip = 0 # sentinel node
-        node.skip = skip
-    end
-
-end
-
-function shiftIndex(q, nL)
-
-    if q > nL
-        println("q pre ", q)
-        return q - nL
-        println("q aft ", q)
-        println()
-    else
-        return q
-    end
-end
-
-# rewritten in attempt to more precisely follow Prokopenko and Lebrun-Grandie's operator function in their GenerateHierarchy class.
-
-function ProkoLebrun_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, nI, L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
-    rangel = i # left
-    ranger = i
-    dell = delta_leaf(rangel - 1, L, spec)
-    delr = delta_leaf(ranger, L, spec)
-    #println(dell," ", delr)
-
-    #p = -1 #p is local only to the if statment and used no where else, i think
-
-
-    #return will also termate an iteration and move on
-
-    #setRope(L[i], ranger, delr, nI, L, spec)
-    if i == nL
-        L[i].skip = 0
-    else
-        if delr < delta_leaf(i + 1, L, spec)
-            L[i].skip = i + 1
-        else
-            L[i].skip = internalIndex!(i+1, nL)
-        end
-    end
-
-    while 2 > 1 # accursed
-
-        isLeftChild = delr < dell
-        if isLeftChild
-            p = ranger
-            ranger = Threads.atomic_cas!(store[p], 0, rangel) #TODO i doubt the frick out of this p+1 nonsense
-
-            
-            if ranger == 0 
-                break
-            end
-
-            leftChild = i
-            rightChild = p + 1
-            rightChildIsLeaf = (rightChild == ranger)
-
-            delr = delta_branch(ranger, L, spec)
-
-        else
-            p = rangel - 1
-
-            rangel = Threads.atomic_cas!(store[p], 0, ranger)
-
-            if rangel == 0
-                break
-            end
-
-            leftChild = p
-            leftChildIsLeaf = (leftChild == rangel)
-
-            dell = delta_branch(rangel-1, L, spec)
-
-            if !(leftChildIsLeaf)
-                internalIndex!(leftChild, nL)
-            end
-
-        end
-
-        q = delr < dell ? ranger : rangel
-
-
-        parentNode = I[q] #i think this is right? L326
-        parentNode.left = leftChild#shiftIndex(leftChild, nL) 
-
-        setRope(parentNode, shiftIndex(ranger, nL), delr, nL, L, spec)
-
-        #bounding volume fxn
-        i = internalIndex!(q, nL) 
-
-        if i == internalIndex!(1, nL)
-
-            return
-        end
-    end
-
-
 end
 
 #by convention, if left or skip are negative, then they are referring to the index of the Inode, and positive is index of Leaf
-function stacklessbottom_bvh(L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
+function stacklessbottom_bvh(keys, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
-    nL = length(L)
-    nI = length(I)
-    store = [Base.Threads.Atomic{Int64}(0) for i in 1:nI] 
+    store = [Base.Threads.Atomic{Int64}(0) for i in 1:spec.branches_count] 
     #Threads.@threads 
-    Threads.@threads for i in nL:-1:1 #in perfect parallel
-        stackless_interior!(store, i, nL, nI, L, I, spec)
-        #ProkoLebrun_interior!(store, i, nL, nI, L, I, spec)
+    Threads.@threads for i in spec.leaves_count:-1:1#1:spec.leaves_count #in perfect parallel
+        stackless_reinterior!(store, i, spec.leaves_count, spec.branches_count, keys, spec)
+
         # if i == 2
         #     return
         # end
 
     end
-    println(values(store))
+    #println(values(store))
 
 
 end
 
-###### Phase 6: put it all together
+###### Phase 6: traversal
+# those times when you have to traverse down every path
+# total sum of stack overflows / runaway Julia before I fixed this function and all its variants
+# and caught recursion generating data conditions: 0
+# to adequately prevent recursion, we would need a companion array for both the leaves and each of their connections
+# as in, evaluate 'has this rope connection been used to update the traversal path already'
+# and that's maybe too much work, so let's just run the above counter anyway.
+function recursive_traversal(index, keys::Vector{GridKey{K, T}}, wasVisited::Vector{Bool}, spec::SpheresBVHSpecs{T, K}) where {T, K}
+    traversal_count = 0
+    left = keys[index].left
+    skip = keys[index].skip
+    wasVisited[index] = true
+    # key about this structure: traverse TO the sentinel, then update values, then exit evaluation
+    while true
+        traversal_count += 1
+        # no single traversal should run more times than contacting every branch and every leaf
+        # but this won't stop runaway recursion, it will only stop a single call from creating infinite copies
+        # however, there is currently the opportunity to make many recursion calls BEFORE exiting
+        # overall, we will probably have infinitely growing recursion--especially if the tree has a loop
+        if traversal_count > (spec.leaves_count + spec.branches_count)
+            return
+        end
+        
 
-# change this name?
+        if index == 0 #||  # is the sentinel
+            return
+        else
+            wasVisited[index] = true
+            if (skip == 0) && (left == 0) # is pre-sentinel node, probably last leaf node
+                index == skip
+
+            elseif (skip == 0) && (left != 0)# is a right most node
+                wasVisited[index] = true # TODO should be unnecessary now
+                index = left
+                skip = keys[left].skip
+                left = keys[left].left              
+                
+            elseif (left == 0) && (skip != 0) #is a leaf node
+                #do something
+                wasVisited[index] = true
+                index = skip
+                left = keys[skip].left
+                skip = keys[skip].skip
+                
+                
+            elseif (skip != 0) && (left != 0) # is non-right branch, need to spawn a new traversal
+                wasVisited[index] = true
+                index = left
+                recursive_traversal(skip, keys, wasVisited, spec)
+                skip = keys[left].skip
+                left = keys[left].left
+                
+                
+            else
+                println("unexpected traversal exit, datadump:")
+                println("index $index, left $left, skip $skip")
+                return 
+            end
+        end
+    end
+end
+
+
+
+"""
+    function is_traversable(keys::Vector{GridKey{K, T}}, spec::SpheresBVHSpecs{T, K}; ShowLonelyKeys=false) where {T, K})
+
+Return a tuple of (Bool, "ReasonForResult"). Will print index of all unvisited keys if ShowLonelyKeys=true. Calls recursive_traversal which
+calls itself at every internal branch that does not skip rope to the sentinel node.
+"""
+    
+function is_traversable(keys::Vector{GridKey{K, T}}, spec::SpheresBVHSpecs{T, K}; ShowLonelyKeys=false) where {T, K}
+    # should probably be an int to detect fro multiple visits
+
+    # catch key pointing to itself, but not structural loops
+    for each in eachindex(keys)
+        if keys[each].left == each || keys[each].skip == each
+            return false, "Self-referential"
+        end
+    end
+
+    wasVisited = [false for each in eachindex(keys)]
+    i = branch_index(1, spec)
+    recursive_traversal(i, keys, wasVisited, spec)
+
+    if ShowLonelyKeys
+        for each in eachindex(wasVisited)
+            if wasVisited[each] == false
+                print("$each, ")
+            end
+        end
+        println()
+    end
+
+    if sum(wasVisited) == length(keys)
+        return true, "Fully traversable"
+    else 
+        return false, "Nontraversable"
+    end
+
+end
+###### Phase 6.5: query traversal
+
+###### Phase 7: put it all together
+"""
+    batch_build_traverse(runs::Int, position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
+Run a ```runs``` number of iterations of tree construction and recursive traversal on the same position data. Currently just collects
+the number of good trees, self referential trees, or bad trees. My be expanded to show different tree variations if I get too bored.
+"""
+
+function batch_build_traverse(runs::Int, position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}; printARun=false) where {T, K}
+    goodTrees = 0
+    selfishTrees = 0
+    badTrees = 0
+
+    for each in 1:runs
+        keys = create_mortoncodes(position, spec, clct)::Vector{GridKey{K, T}} 
+        I = [GridKey{K, T}(0, 0, MVector{3, K}(0.0, 0.0, 0.0), MVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
+        append!(keys, I)
+        stacklessbottom_bvh(keys, spec)
+        result = is_traversable(keys, spec)
+        if result[1]
+            goodTrees += 1
+        elseif result[2] == "Self-referential"
+            selfishTrees += 1
+        elseif result[2] == "Nontraversable"
+            badTrees += 1
+        end
+    end
+    println("goodTrees $goodTrees")
+    println("selfishTrees $selfishTrees")
+    println("badTrees $badTrees")
+
+    if printARun 
+        keys = create_mortoncodes(position, spec, clct)::Vector{GridKey{K, T}} 
+        I = [GridKey{K, T}(0, 0, MVector{3, K}(0.0, 0.0, 0.0), MVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
+        append!(keys, I)
+        stacklessbottom_bvh(keys, spec)
+        printtree(keys, spec)
+    end
+end
+
+function printtree(keys::Vector{GridKey{K, T}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
+     println("Leaf connections")
+    for i in 1:spec.leaves_count
+        println(i, " ", keys[i].left, " ", keys[i].skip)
+    end
+    println()
+    println("Branch connections")
+    for i in branch_index(1, spec):1:branch_index(spec.branches_count, spec)
+        println(i, " ", keys[i].left, " ", keys[i].skip)
+    end
+    println()
+end
+    
+
+
+#TODO change this name?
 function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
     #L is an array of leaf nodes, 1 leaf per atom or 'primitive'
-    L = create_mortoncodes(position, spec, clct)::Vector{GridKey{K, T}} 
+    keys = create_mortoncodes(position, spec, clct)::Vector{GridKey{K, T}} 
     ##println(L)
     #change type of int here to spec.morton_int, probably with Tuple(spec.morton_int[i, length(L)])
 
     #I = [tuple(i, length(L), Ref(L, i)[], Ref(L, i)[]) for i in 1:length(L)-1] # -1 from L because we want to have nodes = # atoms - 1 in this construction. Howard et al. chose a fixed 1024-1, but eh
-    I= [INode{K, T}(tuple(i, length(L)), 0, 0, 0,  MVector{3, T}(0, 0, 0), MVector{3, T}(0, 0, 0), 0) for i in 1:length(L)-1]::Vector{INode{K, T}} 
+    #I= [INode{K, T}(tuple(i, length(L)), 0, 0, 0,  MVector{3, T}(0, 0, 0), MVector{3, T}(0, 0, 0), 0) for i in 1:length(L)-1]::Vector{INode{K, T}} 
+    I = [GridKey{K, T}(0, 0, MVector{3, K}(0.0, 0.0, 0.0), MVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
+    append!(keys, I)
+
     #i = 3
     #j = 4
     ##println(bitstring(L[i].morton_code))
@@ -584,7 +693,36 @@ function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::Generi
     #bvh_solver!(L, I, spec)
 
 
-    stacklessbottom_bvh(L, I, spec)
+    stacklessbottom_bvh(keys, spec)
+    #println(is_traversable(keys, spec, ShowLonelyKeys=true))
+
+
+    # counts1 = 0
+    # counts4 = 0
+    # counts5 = 0
+    # countsDiff = 0
+    # for i in 1:10000
+    #     keys = create_mortoncodes(position, spec, clct)::Vector{GridKey{K, T}} 
+    #     I = [GridKey{K, T}(0, 0, MVector{3, K}(0.0, 0.0, 0.0), MVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
+    #     append!(keys, I)
+    #     stacklessbottom_bvh(keys, spec)
+    #     if keys[4].left == 4
+    #         counts4 += 1
+    #     elseif keys[4].left == 5
+    #         counts5 += 1
+    #     elseif keys[4].left == 1
+    #         counts5 += 1
+    #     else
+    #         println("Weird keys[4]", keys[4].left)
+    #     end
+    # end
+    # println("counts4 $counts4")
+    # println("counts5 $counts5")
+    # println("counts1 $counts1")
+    # println("countsDiff $countsDiff")
+
+
+
     # for i in eachindex(L)
     #     println(del(i, L, spec))
     # end
@@ -592,17 +730,7 @@ function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::Generi
     # for i in eachindex(position)
     #     println(position[i])
     # end
-    for i in eachindex(L)
-        println(L[i].morton_code)
-    end
-    println()
-    for i in eachindex(L)
-        println(i, " ", L[i].left, " ", L[i].skip)
-    end
-    println()
-    for i in eachindex(I)
-        println(i, " ", I[i].left, " ", I[i].skip)
-    end
+    printtree(keys, spec)
 
     
     

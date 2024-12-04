@@ -4,8 +4,10 @@ using NaiveDynamics
 
 #push!(LOAD_PATH,"../src/")
 makedocs(sitename="NaiveDynamics.jl",
+         modules = [NaiveDynamics],
          pages = [
             "Home" => "index.md",
+            "API" => "api.md",
             "Let's Talk Bounding Volume Hierarchies" => "bvh.md",
             "Developer Diary" => "devdiary.md",
             "Development Directions" => "devdirections.md",

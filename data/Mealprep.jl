@@ -68,7 +68,7 @@ import GLMakie
 #                                     maxcharge=1f-9
 # )
 myCollector2 = GenericRandomCollector(; floattype=Float32,
-                                    objectnumber=3,
+                                    objectnumber=4,
                                     minDim=tuple(0.0, 0.0, 0.0),
                                     maxDim=tuple(1.0, 1.0, 1.0),
                                     temperature=0.01,
@@ -81,14 +81,34 @@ myCollector2 = GenericRandomCollector(; floattype=Float32,
 )
 myCollection1 = collect_objects(myCollector2)
 
-position = [MVector{3, Float32}(0.1, 0.1, 0.1), MVector{3, Float32}(0.2, 0.2, 0.2), MVector{3, Float32}(0.346, 0.98, 0.12), MVector{3, Float32}(0.01, 0.76, 0.99), MVector{3, Float32}(0.1111, 0.4, 0.31), MVector{3, Float32}(0.234, 0.29, 0.2), MVector{3, Float32}(0.11346, 0.918, 0.1276), MVector{3, Float32}(0.061, 0.76, 0.989) ]
+position8 = [MVector{3, Float32}(0.1, 0.1, 0.1), MVector{3, Float32}(0.2, 0.2, 0.2), MVector{3, Float32}(0.346, 0.98, 0.12), MVector{3, Float32}(0.01, 0.76, 0.99), MVector{3, Float32}(0.1111, 0.4, 0.31), MVector{3, Float32}(0.234, 0.29, 0.2), MVector{3, Float32}(0.11346, 0.918, 0.1276), MVector{3, Float32}(0.061, 0.76, 0.989) ]
+position7 = [MVector{3, Float32}(0.1, 0.1, 0.1), MVector{3, Float32}(0.2, 0.2, 0.2), MVector{3, Float32}(0.346, 0.98, 0.12), MVector{3, Float32}(0.01, 0.76, 0.99), MVector{3, Float32}(0.1111, 0.4, 0.31), MVector{3, Float32}(0.234, 0.29, 0.2), MVector{3, Float32}(0.11346, 0.918, 0.1276)]
+position6 = [MVector{3, Float32}(0.1, 0.1, 0.1), MVector{3, Float32}(0.2, 0.2, 0.2), MVector{3, Float32}(0.346, 0.98, 0.12), MVector{3, Float32}(0.01, 0.76, 0.99), MVector{3, Float32}(0.1111, 0.4, 0.31), MVector{3, Float32}(0.234, 0.29, 0.2)]
+position5 = [MVector{3, Float32}(0.1, 0.1, 0.1), MVector{3, Float32}(0.2, 0.2, 0.2), MVector{3, Float32}(0.346, 0.98, 0.12), MVector{3, Float32}(0.01, 0.76, 0.99), MVector{3, Float32}(0.1111, 0.4, 0.31)]
+position4 = [MVector{3, Float32}(0.1, 0.1, 0.1), MVector{3, Float32}(0.2, 0.2, 0.2), MVector{3, Float32}(0.346, 0.98, 0.12), MVector{3, Float32}(0.01, 0.76, 0.99)]
+position3 = [MVector{3, Float32}(0.1, 0.1, 0.1), MVector{3, Float32}(0.2, 0.2, 0.2), MVector{3, Float32}(0.346, 0.98, 0.12)]
 
 bvhspec = SpheresBVHSpecs(; floattype=Float32, 
                             interaction_distance=0.1, 
-                            atoms_count=length(myCollection1.position), 
-                            bins_count=length(myCollection1.position) 
+                            leaves_count=length(position4) 
 )
-build_bvh(myCollection1.position, bvhspec, myCollector2 )
+
+function wellwell(a, b)
+    countsa = 0
+    countsb = 0
+    for i in 1:100000
+        if a < b
+            countsa += 1
+        else
+            countsb += 1
+        end
+    end
+    println(countsa, "<-a ", countsb)
+end
+#@code_native wellwell(5, 5)
+#batch_build_traverse(100, position4, bvhspec, myCollector2, printARun=true)
+
+build_bvh(position4, bvhspec, myCollector2 )
 # function dist(pos1, pos2)
 #     d = 0.0
 #     for e in eachindex(pos2)

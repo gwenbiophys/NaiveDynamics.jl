@@ -775,6 +775,194 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, n, L,
 
 
 end
+function stackless_zinterior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, nI, L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
+    
+    rangel = i 
+    ranger = i
+    dell = delta_leaf(rangel - 1, L, spec)
+    delr = delta_leaf(ranger, L, spec)
+
+
+
+
+    # stackless lBVH requires that the 'right most' elements of the tree point to an artificial node
+    if i == nL # 1-based indexing requires this to be nL, but 0-based would be number of internal nodes
+        L[i].skip = 0
+    else
+        # Does Leaf[i+1] have a more similar morton code to Leaf[i] or Leaf[i+2]?
+        # If Leaf[i+1] and Leaf[i] are more similar,
+        # Then Leaf[i+1] and Leaf[i] are the right and left children of the same internal node.
+        ir = i + 1
+        if delr <= delta_leaf(ir, L, spec)
+            L[i].skip = ir
+        else
+            L[i].skip = -(ir)
+        end
+    end
+
+    while true
+        if delr < dell
+            leftChild = i
+            
+            split = ranger # split position between the range of keys covered by any given INode
+            ranger = Threads.atomic_cas!(store[split], 0, rangel)
+
+
+
+            if ranger == 0 
+                break # this is the first thread to have made it here, so it is culled
+            end
+
+            delr = delta_branch(ranger, L, spec)
+
+            #here is wehre boundary computation is performed.
+            # memory has to sync here for data safety
+
+        else
+
+            split = rangel - 1
+            rangel = Threads.atomic_cas!(store[split], 0, ranger) 
+
+
+            if rangel == 0 
+                break
+            end
+
+            dell = delta_branch(rangel-1, L, spec)
+
+            leftChild = split
+            if leftChild == rangel
+                leftChild *= -1
+            end
+
+        end
+
+        q = delr < dell ? ranger : rangel
+
+
+        if rangel == q
+            println("no here")
+            I[q].left = leftChild
+        else
+            println("yeah i got over to here")
+            I[q].left = -1 * (leftChild - 1 )
+        end
+
+        if ranger == nL
+            I[q].skip = 0
+        else
+            r = ranger + 1
+            if delr < delta_branch(r, L, spec)
+                I[q].skip = r
+            else
+                I[q].skip = -1 * r 
+            end
+        end
+
+        i = -q 
+
+        if i == -1
+            return
+        end
+    end
+end
+
+function internalIndex!(a, nL)
+    return a += nL - 1
+end
+function setzRope(node, ranger, delr, nL, L, spec)
+    if ranger != nL
+        skip = (delr < delta_leaf(ranger + 1, L, spec)) ? (ranger + 1) : internalIndex!(ranger + 1, nL)
+        node.skip = skip
+    else 
+        skip = 0 # sentinel node
+        node.skip = skip
+    end
+
+end
+
+# rewritten in attempt to more precisely follow Prokopenko and Lebrun-Grandie's operator function in their GenerateHierarchy class.
+
+function ProkoLebrun_zinterior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, nI, L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
+    rangel = i # left
+    ranger = i
+    dell = delta_leaf(rangel - 1, L, spec)
+    delr = delta_leaf(ranger, L, spec)
+    #println(dell," ", delr)
+
+    #p = -1 #p is local only to the if statment and used no where else, i think
+
+
+    #return will also termate an iteration and move on
+
+    #setRope(L[i], ranger, delr, nI, L, spec)
+    if i == nL
+        L[i].skip = 0
+    else
+        if delr < delta_leaf(i + 1, L, spec)
+            L[i].skip = i + 1
+        else
+            L[i].skip = internalIndex!(i+1, nL)
+        end
+    end
+
+    while 2 > 1 # accursed
+
+        isLeftChild = delr < dell
+        if isLeftChild
+            p = ranger
+            ranger = Threads.atomic_cas!(store[p], 0, rangel) #TODO i doubt the frick out of this p+1 nonsense
+
+            
+            if ranger == 0 
+                break
+            end
+
+            leftChild = i
+            rightChild = p + 1
+            rightChildIsLeaf = (rightChild == ranger)
+
+            delr = delta_branch(ranger, L, spec)
+
+        else
+            p = rangel - 1
+
+            rangel = Threads.atomic_cas!(store[p], 0, ranger)
+
+            if rangel == 0
+                break
+            end
+
+            leftChild = p
+            leftChildIsLeaf = (leftChild == rangel)
+
+            dell = delta_branch(rangel-1, L, spec)
+
+            if !(leftChildIsLeaf)
+                internalIndex!(leftChild, nL)
+            end
+
+        end
+
+        q = delr < dell ? ranger : rangel
+
+
+        parentNode = I[q] #i think this is right? L326
+        parentNode.left = leftChild#shiftIndex(leftChild, nL) 
+
+        setRope(parentNode, shiftIndex(ranger, nL), delr, nL, L, spec)
+
+        #bounding volume fxn
+        i = internalIndex!(q, nL) 
+
+        if i == internalIndex!(1, nL)
+
+            return
+        end
+    end
+
+
+end
 #by convention, if left or skip are negative, then they are referring to the index of the Inode, and positive is index of Leaf
 function stacklessbottom_bvh(L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
