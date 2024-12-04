@@ -6,5 +6,3 @@
 
 
 A very Naive Project to follow and study the design of molecular dynamics simulation and high octane algorithms.
-
-<video> src="/home/gwenk/Coding/Julia/NaiveDynamics.jl/data/iWant.mp4" </video>
