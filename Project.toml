@@ -36,6 +36,4 @@ NaiveMakie = ["GLMakie", "Colors"]
 NaiveOneAPI = "oneAPI"
 NaiveSIMD = "SIMD"
 
-[compat]
-
 
