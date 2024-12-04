@@ -37,7 +37,5 @@ NaiveOneAPI = "oneAPI"
 NaiveSIMD = "SIMD"
 
 [compat]
-Colors = "0.12.11"
-SIMD = "3.7.0"
-SortingAlgorithms = "1.2.1"
-oneAPI = "1.6.1"
+
+
