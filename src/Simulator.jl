@@ -241,7 +241,7 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
         #chunk_index = record_simulation(step_n, chunk_index, spec.logChunkLength, simChunk, simLog, sys)
     end
 
-    return poslog
+    #return poslog
 end
 
 

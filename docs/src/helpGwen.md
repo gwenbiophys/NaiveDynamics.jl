@@ -31,3 +31,6 @@ We are asking Julia to ignore the value of a (if it has already been defined), a
 activate C:/Users/kucer/Desktop/julia/NaiveDynamics.jl
 activate C:/Users/Trist/.julia/dev/NaiveMD/NaiveDynamics.jl
 using NaiveDynamics
+
+### for type analysis
+@code_warntype

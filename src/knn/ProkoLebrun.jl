@@ -5,11 +5,11 @@ export
     QuantizedAABB,
     GridKey,
     update_mortoncodes!,
-    OneLeafError,
     update_bvh!,
     build_bvh,
     traverse_bvh,
-    batch_build_traverse
+    batch_build_traverse,
+    batched_batch_build
     #Atomic
 
 # how to build towards an API that makes it easy to extend a BVH procedure to different kinds 
@@ -31,16 +31,11 @@ pairwise interactions that a BVH+traversal algorithm finds the neighbors of. The
 in order convert particles from real space to grid space. By default, ```bins_count = atoms count```. Morton_length. Though Howard et al., 2019 chose 1023 bins to fit each 
 grid axis within a UInt8, instead of here where the integer that fits a grid space axis has the same number of bits as the ```floattype```. 
 """
-"""
-        OneLeafError
-Tried to build a tree with only 1 leaf. Build with at least 2
-"""
-struct OneLeafError <: Exception 
-    message::String
-end
+
+
 function SpheresBVHSpecs(; floattype, interaction_distance, leaves_count )
     if leaves_count < 2
-        OneLeafError("Please use more than one leaf")
+        error("Please use more than one leaf")
     end
     branches_count = leaves_count - 1
     # this is arbitrary and really just my personal demonstration of struct instantiation with same name functions
@@ -244,7 +239,7 @@ function assign_mortoncodes(aabb_array, spec::SpheresBVHSpecs{T, K}, clct) where
 
     L = [GridKey{K, T}(quantized_aabbs[i].index, 0, aabb_array[i].min, aabb_array[i].max, 0, 0) for i in 1:spec.leaves_count]
 
-    update_mortoncodes2!(L, quantized_aabbs, spec.morton_length, K)
+    update_mortoncodes!(L, quantized_aabbs, spec.morton_length, K)
 
 
     return L
@@ -424,11 +419,11 @@ function stackless_reinterior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL,
             dell = delta_branch(rangel-1, keys, spec)
 
             leftChild = split
-            # if leftChild == rangel
+            if leftChild == rangel
+                #println("arrived here")
+                leftChild = branch_index(leftChild, spec)
 
-            #     leftChild = branch_index(leftChild, spec)
-
-            # end
+            end
 
             # if i == branch_index(1, spec)
             #     println("leftchild in delr > dell $leftChild")
@@ -439,42 +434,13 @@ function stackless_reinterior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL,
         q = delr < dell ? (ranger) : rangel # commented out because the expanded version is easier to debug
          
         parentNode = branch_index(q, spec)
-        # if parentNode == 8 && leftChild == 3
-        #     println(delr < dell)
-        #     # println(L[rangel].morton_code, " icode")
-        #     # println(L[rangel].morton_code, " rangelcode")
-        #     # println(L[ranger].morton_code, " rangercode")
-        #     println("leftChild $leftChild parentNode $parentNode")
-        #     println("$q q pos")
-        #     println("$split split")
-        #     println(rangel," ", ranger," ", " range l, r ")
-        #     println(dell, " dell")
-        #     println(delr, " delr")
-        #     println()
-        # end
-        # if parentNode == 8 && leftChild == 10
-        #     println(delr < dell)
-        #     # println(L[rangel].morton_code, " icode")
-        #     # println(L[rangel].morton_code, " rangelcode")
-        #     # println(L[ranger].morton_code, " rangercode")
-        #     println("leftChild $leftChild parentNode $parentNode")
-        #     println("$q q")
-        #     println("$split split")
-        #     println(rangel," ", ranger," ", " range l, r ")
-        #     println(dell, " dell")
-        #     println(delr, " delr")
-        #     println()
-        # end
+
 
         if rangel == q
-            #println("no here")
             keys[parentNode].left = leftChild
-            #i = branch_index(q, spec)
         else
-            #println("yeah i got over to here")
-            i = branch_index(q, spec)
 
-            keys[parentNode].left = branch_index(leftChild, spec )#leftChild#
+            keys[parentNode].left = leftChild#branch_index(leftChild, spec )#leftChild#
 
         end
         
@@ -489,12 +455,11 @@ function stackless_reinterior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL,
                 keys[parentNode].skip = branch_index(r, spec) 
             end
         end
-        #println(keys[1].skip, "testing overwite")
+
         
         
-        #i = branch_index(q, spec)
-        # println("q $q")
-        # println("i $i")
+        i = branch_index(q, spec)
+
 
         if i == branch_index(1, spec)
             return
@@ -505,20 +470,29 @@ end
 #by convention, if left or skip are negative, then they are referring to the index of the Inode, and positive is index of Leaf
 function stacklessbottom_bvh(keys, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
-    store = [Base.Threads.Atomic{Int64}(0) for i in 1:spec.branches_count] 
+    store = [Base.Threads.Atomic{Int64}(0) for i in 1:spec.branches_count]
+
+
+
     #Threads.@threads 
-    Threads.@threads for i in spec.leaves_count:-1:1#1:spec.leaves_count #in perfect parallel
+    Threads.@threads :dynamic for i in spec.leaves_count:-1:1 #spec.leaves_count:-1:1#1:spec.leaves_count #in perfect parallel
         stackless_reinterior!(store, i, spec.leaves_count, spec.branches_count, keys, spec)
 
-        # if i == 2
-        #     return
-        # end
 
     end
-    #println(values(store))
 
 
 end
+
+
+# function sum_multi_good(a)
+#     chunks = Iterators.partition(a, length(a) ÷ Threads.nthreads())
+#     tasks = map(chunks) do chunk
+#         Threads.@spawn sum_single(chunk)
+#     end
+#     chunk_sums = fetch.(tasks)
+#     return sum_single(chunk_sums)
+# end
 
 ###### Phase 6: traversal
 # those times when you have to traverse down every path
@@ -630,7 +604,7 @@ Run a ```runs``` number of iterations of tree construction and recursive travers
 the number of good trees, self referential trees, or bad trees. My be expanded to show different tree variations if I get too bored.
 """
 
-function batch_build_traverse(runs::Int, position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}; printARun=false) where {T, K}
+function batch_build_traverse(runs::Int, position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}; printValues=true, printARun=false) where {T, K}
     goodTrees = 0
     selfishTrees = 0
     badTrees = 0
@@ -649,9 +623,13 @@ function batch_build_traverse(runs::Int, position::Vec3D{T}, spec::SpheresBVHSpe
             badTrees += 1
         end
     end
-    println("goodTrees $goodTrees")
-    println("selfishTrees $selfishTrees")
-    println("badTrees $badTrees")
+    if printValues
+        println("goodTrees $goodTrees")
+        println("selfishTrees $selfishTrees")
+        println("badTrees $badTrees")
+    else
+        return goodTrees, selfishTrees, badTrees
+    end
 
     if printARun 
         keys = create_mortoncodes(position, spec, clct)::Vector{GridKey{K, T}} 
@@ -660,6 +638,22 @@ function batch_build_traverse(runs::Int, position::Vec3D{T}, spec::SpheresBVHSpe
         stacklessbottom_bvh(keys, spec)
         printtree(keys, spec)
     end
+end
+
+function batched_batch_build(setsOfRuns, runs::Int, position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
+    totalGood = 0
+    totalSelfish = 0
+    totalBad = 0
+    for i in 1:setsOfRuns
+        a = batch_build_traverse(runs, position, spec, clct; printValues=false, printARun=false)
+        totalGood += a[1]
+        totalSelfish += a[2]
+        totalBad += a[3]
+    end
+    sum = totalGood + totalSelfish + totalBad
+    println("% good ", totalGood / sum * 100)
+    println("% selfish ", totalSelfish / sum * 100)
+    println("% bad ", totalBad / sum * 100)
 end
 
 function printtree(keys::Vector{GridKey{K, T}}, spec::SpheresBVHSpecs{T, K}) where {T, K}

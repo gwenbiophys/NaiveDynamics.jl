@@ -7,7 +7,30 @@ export
     sum_forces!
 
 
+Base.@propagate_inbounds function pairslist_interior(each, a::Vec3D{T}, list) where T
 
+    i = list[each][1]
+    j = list[each][2]
+
+    xi = a[i][1]
+    xj = a[j][1]
+
+    yi = a[i][2]
+    yj = a[j][2]
+
+    zi = a[i][3]
+    zj = a[j][3]
+
+    dx = xi - xj
+    dy = yi - yj
+    dz = zi - zj
+    d2 = sqrt(dx^2 + dy^2 + dz^2)  
+    result = tuple(i, j, dx, dy, dz, d2)
+
+    list[i] = result
+
+
+end
 function update_pairslist!(a::Vec3D{T}, list) where T
 
     
@@ -23,30 +46,8 @@ function update_pairslist!(a::Vec3D{T}, list) where T
     else
 
 
-        for each in eachindex(list)
-
-            i = list[each][1]
-            j = list[each][2]
-
-            xi = a[i][1]
-            xj = a[j][1]
-
-            yi = a[i][2]
-            yj = a[j][2]
-
-            zi = a[i][3]
-            zj = a[j][3]
-
-            dx = xi - xj
-            dy = yi - yj
-            dz = zi - zj
-            d2 = sqrt(dx^2 + dy^2 + dz^2)  
-            result = tuple(i, j, dx, dy, dz, d2)
-
-            list[i] = result
-           
-
-
+        Threads.@threads for each in eachindex(list)
+            @inbounds pairslist_interior(each, a, list)
         end
     end
 
@@ -108,7 +109,32 @@ function generate_distance_i!(i, pairslist)
     end
 end
 
+Base.@propagate_inbounds function lennardjones_interior(each, eps, σ, force::Vec3D{T}, pairslist) where T
+    #d2 = pairslist[each][3]
+    i = pairslist[each][1]
+    j = pairslist[each][2]
+    dx = pairslist[each][3]
+    dy = pairslist[each][4]
+    dz = pairslist[each][5]
 
+    d = pairslist[each][6]
+
+    # i hate this, profoundly
+    force[i][1] += (24*eps / dx ) * ((2*σ / dx)^12 - (σ / dx)^6)
+    force[i][2] += (24*eps / dy ) * ((2*σ / dy)^12 - (σ / dy)^6)
+    force[i][3] += (24*eps / dz ) * ((2*σ / dz)^12 - (σ / dz)^6)
+
+    force[j][1] -= force[i][1]
+    force[j][2] -= force[i][2]
+    force[j][3] -= force[i][3]
+    
+
+
+
+    # incorrect, overall force is being applied to each component
+    #force[i] .+= (24*eps ./ d ) .* ((2*σ ./ d).^12 .- (σ ./ d).^6)
+    #force[j] .-= force[i]
+end
 function force_lennardjones!(force::Vec3D{T},  pairslist, position) where T
     #TODO make epsilon and sigma user configurable 
     eps = -1f10
@@ -132,37 +158,31 @@ function force_lennardjones!(force::Vec3D{T},  pairslist, position) where T
         return
     end
 
-    for each in eachindex(pairslist)
-        #d2 = pairslist[each][3]
-        i = pairslist[each][1]
-        j = pairslist[each][2]
-        dx = pairslist[each][3]
-        dy = pairslist[each][4]
-        dz = pairslist[each][5]
-
-        d = pairslist[each][6]
-
-        # i hate this, profoundly
-        force[i][1] += (24*eps / dx ) * ((2*σ / dx)^12 - (σ / dx)^6)
-        force[i][2] += (24*eps / dy ) * ((2*σ / dy)^12 - (σ / dy)^6)
-        force[i][3] += (24*eps / dz ) * ((2*σ / dz)^12 - (σ / dz)^6)
-
-        force[j][1] -= force[i][1]
-        force[j][2] -= force[i][2]
-        force[j][3] -= force[i][3]
-        
-
-
-
-        # incorrect, overall force is being applied to each component
-        #force[i] .+= (24*eps ./ d ) .* ((2*σ ./ d).^12 .- (σ ./ d).^6)
-        #force[j] .-= force[i]
+    Threads.@threads for each in eachindex(pairslist)
+        @inbounds lennardjones_interior(each, eps, σ, force, pairslist)
         
     end
 
 
     #return force
 end
+Base.@propagate_inbounds function coulomb_interior(each, k, force::Vec3D{T}, pairslist, charge) where T
+    i = pairslist[each][1]
+    j = pairslist[each][2]
+    dx = pairslist[each][3]
+    dy = pairslist[each][4]
+    dz = pairslist[each][5]
+
+    #d = pairslist[each][6]
+
+    force[i][1] += k * charge[i] * charge[j] / (dx^2)
+    force[i][2] += k * charge[i] * charge[j] / (dy^2)
+    force[i][3] += k * charge[i] * charge[j] / (dz^2)
+    force[j][1] -= force[i][1]
+    force[j][2] -= force[i][2]
+    force[j][3] -= force[i][3]
+end
+
 
 function force_coulomb!(force::Vec3D{T}, pairslist, charge) where T
     k = 1 # coulomb constant
@@ -170,21 +190,8 @@ function force_coulomb!(force::Vec3D{T}, pairslist, charge) where T
         map!(x->x, force[each], MVector{3, T}(0.0, 0.0, 0.0))
     end
 
-    for each in eachindex(pairslist)
-        i = pairslist[each][1]
-        j = pairslist[each][2]
-        dx = pairslist[each][3]
-        dy = pairslist[each][4]
-        dz = pairslist[each][5]
-
-        #d = pairslist[each][6]
-
-        force[i][1] += k * charge[i] * charge[j] / (dx^2)
-        force[i][2] += k * charge[i] * charge[j] / (dy^2)
-        force[i][3] += k * charge[i] * charge[j] / (dz^2)
-        force[j][1] -= force[i][1]
-        force[j][2] -= force[i][2]
-        force[j][3] -= force[i][3]
+    Threads.@threads for each in eachindex(pairslist)
+        @inbounds coulomb_interior(each, k, force, pairslist, charge)
 
     end
 end

@@ -1028,3 +1028,20 @@ Okay so, infuriatingly, my modification of leftChild if it was a leaf had a typo
 ## 1 Dec
 ### traversal batch testing
 The results from these batch tests are so strange. When we follow the ArborX implementation by evaluating if branch node inside of the isRightChild code only, we randomly achieve some successful runs. And I have seen the batch swing from 94 successes to 49 successes with the only difference being when I clicked the Run button. And then I decide to remove that logic and toss in a branch_index() call, and that seems to break things a different way by placing large index values in the tree. 
+
+## 6 Dec
+### thoughts on threading model
+I need to work on my comprehension ofwhat I want the algorithm to achieve before continuing. I also believe that we have to investigate the threading model at hand, as successful tree generation is seemingly enhanced by reverse execution. For certain, there is a runtime / scheduling component to why this does not work. Confoundingly, a batch of 10 000 ~7 leaf tree-generating runs will return dramatically different error and success rates from batch of runs to batch of runs. But it does appear to be the case that reverse order execution favors correct tree formation. It is important to note that either my personal understanding of the algorithm is incorrect, or serial execution will prevent a tree from correctly forming. Curiously, if I iterate for the batch execute, I get some different results that are not inherently clustered, I would say. Well, if this is done by a dirty for-loop at global scope, then yes each result is different. Running 1000 runs of from the position vector to tree traversal 100 total times produces seemingly consistent results: 
+If my approach follows arborX and only shifts the value of leftChild inside the isLeftChild=false block, and iterating from L[n] down towards L[1], then about 80% good trees and 20% bad trees.
+
+If I only reverse the thread exuection order, so now it is L[1] iterating to L[n], then about 96% selfish trees and 4% bad trees.
+
+Exchanging Threads.@threads with Threads.@spawn and using backward iteration to 99.5% bad and 0.5% good. Using forward iteration, we get 99.9% bad and 0.1% good. 
+
+Threads.@spawn is apparently nondeterministic in scheduling, so it would be curious to explore structure deformation here.
+
+
+Changing the scheduling options, in forward iteration, `:dynamic` and `:greedy` are normal, while `:static` changes to a 22.7% bad adn 77.3% selfish. While backwards iteration, `static` changes to 11.4% good and 88.6% bad tree generation. What insanity!
+
+### perf testing on force_coulomb!
+Julia's SIMD macro does not do much in any configuration, but I am able to cut execution time on 80 atoms from 4.1 to 3.1 milliseconds by removing bounds checking, and further down to 1.5 ms with the threads macro. Just macros everywhere! Applying these forward to lennardjones and update_pairlist! seemed to do some good.

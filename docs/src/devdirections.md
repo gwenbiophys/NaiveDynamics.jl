@@ -132,6 +132,7 @@ information based on other things the user input, like if single precision, then
 [] along with above, user specified interations with type Unions that expect either false, or a parameter. e.g. velocity dampening on a simple rescale is a false on vrescale, or a parameter in the selected Float
       use 'pruning' functions of the type informatino users fill out to make the types consistent, so no multiple Float32(input), figure that all out in the package
 
+
 ### Version 0.00.5
 
 [] Momentum calculations for particles of a selectable and variable radius radius so they bounce against each other for Newtonian-based simulation

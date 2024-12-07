@@ -1,7 +1,7 @@
 using Revise
 
 
-#using BenchmarkTools
+using BenchmarkTools
 #using CSV
 #using StaticArrays
 using NaiveDynamics
@@ -54,9 +54,9 @@ using StaticArrays
 #myCollector = GenericRandomCollector{Float32}(50, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 0.0001, false, 1.0, 5.0, 0.001, -5.0, 5.0)
 
 
-
+# ##### force testing
 # myCollector1 = GenericRandomCollector(; floattype=Float32,
-#                                     objectnumber=8,
+#                                     objectnumber=80,
 #                                     minDim=tuple(-1.0, -1.0, -1.0),
 #                                     maxDim=tuple(1.0, 1.0, 1.0),
 #                                     temperature=0.01,
@@ -67,8 +67,46 @@ using StaticArrays
 #                                     mincharge=-1f-9,
 #                                     maxcharge=1f-9
 # )
+# myCollection = collect_objects(myCollector1)
+
+# function force_testing(runs)
+#     myCollector1 = GenericRandomCollector(; floattype=Float32,
+#                                         objectnumber=800,
+#                                         minDim=tuple(-1.0, -1.0, -1.0),
+#                                         maxDim=tuple(1.0, 1.0, 1.0),
+#                                         temperature=0.01,
+#                                         randomvelocity=false,
+#                                         minmass=1.0,
+#                                         maxmass=5.0,
+#                                         minimumdistance=0.001,
+#                                         mincharge=-1f-9,
+#                                         maxcharge=1f-9
+#     )
+#     myCollection = collect_objects(myCollector1)
+#     force_C = deepcopy(myCollection.force)
+#     pairslist = unique_pairs(myCollection.position)
+#     for i in 1:runs
+#         @btime force_coulomb!($force_C, $pairslist, $myCollection.charge)
+#         force_C = deepcopy(myCollection.force)
+#     end
+# end
+# #force_testing(3)
+
+# mySpec = GenericSpec(; inttype=Int64,
+#                     floattype=Float32,
+#                     duration=3,
+#                     stepwidth=1,
+#                     currentstep=1,
+#                     logLength=10,
+#                     vDamp=1
+# )
+# @btime simulate!($myCollection, $mySpec, $myCollector1)
+# ##### end force testing
+
+
+###### For BVH
 myCollector2 = GenericRandomCollector(; floattype=Float32,
-                                    objectnumber=4,
+                                    objectnumber=5,
                                     minDim=tuple(0.0, 0.0, 0.0),
                                     maxDim=tuple(1.0, 1.0, 1.0),
                                     temperature=0.01,
@@ -90,37 +128,15 @@ position3 = [MVector{3, Float32}(0.1, 0.1, 0.1), MVector{3, Float32}(0.2, 0.2, 0
 
 bvhspec = SpheresBVHSpecs(; floattype=Float32, 
                             interaction_distance=0.1, 
-                            leaves_count=length(position4) 
+                            leaves_count=length(position7) 
 )
 
-function wellwell(a, b)
-    countsa = 0
-    countsb = 0
-    for i in 1:100000
-        if a < b
-            countsa += 1
-        else
-            countsb += 1
-        end
-    end
-    println(countsa, "<-a ", countsb)
-end
-#@code_native wellwell(5, 5)
-#batch_build_traverse(100, position4, bvhspec, myCollector2, printARun=true)
+#batch_build_traverse(100, position7, bvhspec, myCollector2, printARun=false)
+batched_batch_build(100, 1000, position7, bvhspec, myCollector2)
 
-build_bvh(position4, bvhspec, myCollector2 )
-# function dist(pos1, pos2)
-#     d = 0.0
-#     for e in eachindex(pos2)
-#         d1 = (pos1[e] - pos2[e])^2
-#         d += d1
-#     end
-#     println(sqrt(d))
-# end
-# dist(position[1], position[2])
-# dist(position[2], position[3])
+#build_bvh(position7, bvhspec, myCollector2 )
+##### end bvh
 
-#myCollection1.
 
 #myCollector = GenericRandomCollector(Float32, 40, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, -0.02, 0.02, 0.001)
 #myCollection = collect_objects(myCollector)
