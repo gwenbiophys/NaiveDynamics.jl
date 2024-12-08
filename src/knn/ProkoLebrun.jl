@@ -186,8 +186,8 @@ end
 """
     function update_mortoncodes!(L, quantized_aabbs, morton_length, morton_type)
 
-Take an array of GridKeys, L, an array of 3D integer coordinates, quantized_aabbs, and specification information,
-to generate morton_codes for each GridKey.
+Take an array of GridKeys, L, an array of 3D integer coordinates, quantized aabbs, and specification information,
+to generate morton codes for each GridKey.
 
 
 """
@@ -567,6 +567,8 @@ end
 
 Return a tuple of (Bool, "ReasonForResult"). Will print index of all unvisited keys if ShowLonelyKeys=true. Calls recursive_traversal which
 calls itself at every internal branch that does not skip rope to the sentinel node.
+
+
 """
     
 function is_traversable(keys::Vector{GridKey{K, T}}, spec::SpheresBVHSpecs{T, K}; ShowLonelyKeys=false) where {T, K}
@@ -693,5 +695,5 @@ function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::Generi
     update_stackless_bvh!(keys, spec)
     #return neighborlist = println(traverse_bvh1(position, L, I, spec))
     #return traverse_bvh1(position, L, I, spec)
-    
+
 end

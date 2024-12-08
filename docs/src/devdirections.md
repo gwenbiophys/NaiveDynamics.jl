@@ -3,7 +3,6 @@
 ## Absurd and Obscene Feature Requests
 [] BVH traversal animation as described in Dev Diary, '8 Dec'
 [] Modified `simulate()` run that auto selects algorithms based on user-selectable performance or precision. Algorithms ideally fitting data, but not in a machine learning kind of way. Maybe only applicable to neighbor list algorithms. . .
-[] Testing doc generation on a local host instead of letting GHActions test for me
 [] Multithreading with distributed data that does not have to be reallocated except for chaning data circumstances. Heck, this bullet point should instead be "Determine how redundant allocations are made in opening threads for a single function call and then closing them only to reopen them 1 or 2 function calls later, or if the compiler optimizes this seemingly silly behavior away".
 
 ## Roadmap

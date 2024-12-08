@@ -15,9 +15,7 @@ using Revise
 using NaiveDynamics
 ```
 ## TEST WITH LIVE LOCAL SERVER BEFORE DEPLOYING TO GITHUB AND HAVING TO CHAIN SMOKE COMMITS IN ORDER TO KNOW IF YOU
-FORMATTED YOUR DOCS CORRECTLY
-
-okay,,, but how?? I darn myself for not writing this down the first time
+Run the make.jl file locally, makesure git ignore includes the build directly entirely. and then `serve(dir="/docs/build")` from the REPL. Have NaiveDynamics activated but make sure the local Julia environment has LiveServer. If there is not yet a local Julia envionrment, fashion one by just typing `activate` without further specification.
 
 
 ## get a flame graph of allocations
