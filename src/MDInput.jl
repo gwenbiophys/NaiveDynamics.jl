@@ -33,7 +33,6 @@ abstract type Collector end
     
 An Collector-subtype meant to acquire additional information from the user about how to make their system.
 In the collection function, positions and velocities will be randomly seeded from this Collector's boundary values.
-    
 """
 
 const Vec3D{T} = Vector{MVector{3, T}}

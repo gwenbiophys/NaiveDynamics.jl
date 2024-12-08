@@ -184,12 +184,10 @@ end
 
 #3x slower while at half the operations and same allocation
 """
-    function update_mortoncodes!(L, quantized_aabbs, morton_length, morton_type)
+    update_mortoncodes!(L, quantized_aabbs, morton_length, morton_type)
 
 Take an array of GridKeys, L, an array of 3D integer coordinates, quantized aabbs, and specification information,
 to generate morton codes for each GridKey.
-
-
 """
 function update_mortoncodes!(L, quantized_aabbs, morton_length, morton_type) 
 

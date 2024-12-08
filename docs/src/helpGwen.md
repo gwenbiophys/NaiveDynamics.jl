@@ -17,6 +17,8 @@ using NaiveDynamics
 ## TEST WITH LIVE LOCAL SERVER BEFORE DEPLOYING TO GITHUB AND HAVING TO CHAIN SMOKE COMMITS IN ORDER TO KNOW IF YOU
 Run the make.jl file locally, makesure git ignore includes the build directly entirely. and then `serve(dir="/docs/build")` from the REPL. Have NaiveDynamics activated but make sure the local Julia environment has LiveServer. If there is not yet a local Julia envionrment, fashion one by just typing `activate` without further specification.
 
+Make sure deploydocs() is commented out, but also make sure you uncomment it out afterwards.
+
 
 ## get a flame graph of allocations
 by @profview_allocs

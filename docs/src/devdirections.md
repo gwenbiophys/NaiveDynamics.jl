@@ -109,6 +109,7 @@ information based on other things the user input, like if single precision, then
 [] if we use the Julia built in environment instead of our own, could we finally have extensions working correctly, so that we are devved into naive dynamics and using the local dev version wiht a napkin test file, while also being abel to use only the dependencies and extensions we want?
 [] functions don't necessarily have to be in order, a function can call a function that is defined physically below it. Use this concept to make the code prettier and better organized.
 [] investigate if other Julian threading routines produce better results. Polyester and OhMyThreads come to mind
+[] api only has 2 items on it. Why?
 
 
 ### Version 0.00.4 - feature extensions
