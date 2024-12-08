@@ -1045,3 +1045,35 @@ Changing the scheduling options, in forward iteration, `:dynamic` and `:greedy` 
 
 ### perf testing on force_coulomb!
 Julia's SIMD macro does not do much in any configuration, but I am able to cut execution time on 80 atoms from 4.1 to 3.1 milliseconds by removing bounds checking, and further down to 1.5 ms with the threads macro. Just macros everywhere! Applying these forward to lennardjones and update_pairlist! seemed to do some good.
+
+## 8 Dec
+### bounding volume expansion
+In ArborX, they generate a local-to-each-thread variable called bounding_volume, that acquires values from the leaf of the current iteration, i.e. from the original value of i. However, in deciding the bounding_volume of a parent, half of the leaves are culled consistent with the thread chopping. I suppose this points to a preprocessing of the bounding volumes or the madness of the skip rope method somehow makes sure it all works in the end. The only unfortunate detail is they have an entire C file devoted to the word and function `expand`. This may take some time, hah!. 
+
+Trying to implement it on my own, I can see a few issues. First struggle is trying to have a flow through structure in which we don't have to evaluate if the current volume in bounding_volume is already inclusive of the expander term. Secondly, I don't want to evaluate if whether the min, max, both, (or maybe neither) of the expander term would actually increase the volume of the bounding)volume variable. Thirdly, I believe it is possible for a parent to only be partially inclusive of all it's children, i.e. that one or more dimensions of any single child may be clipped off due to a boundary child being overall further away in the sum of its x y z dimensions than our single child is any single dimensions. In other words, the bounding volume of the root is not necessarily the entire scene fully encapsulating the centroids of the atoms. Overall, I want to avoid as many instruction and data conditional evaluations as possible and I just want it to flow through.
+
+For starters, the left child of a node is down to the min dimension and the right child is up to the max dimension.
+
+
+### oh that's smarts
+So I believe I finally fixed by broken tree generation. I was setting up for the bounding volume stuff above, and in one crucial place my code differed from ArborX in the labeling of variables, the last if-statement in the while block's ```isLeftChild==false``` block. I originally had:
+```julia
+if leftChild == rangel
+    leftChild = branch_index(leftChild, spec)
+end
+```
+
+
+which was then updated to:
+```julia
+leftChildIsLeaf = (leftChild == rangel)
+if !leftChildIsLeaf # HOLY COW THIS WAS WRONG
+    leftChild = branch_index(leftChild, spec)
+end
+```
+Further working it, we can remove the second evaluation altogether (though, I am optimistic the compiler would figure this out) by bundling it into the evaluation for bounding volumes.
+Fixing that issue has raised the success rate on my tree generation to 100%. So either it is now finally working OR my is_traversable function has logic deficiencies. Either or. Nonetheless, I feel much better. This has been an excruciating lesson in code comprehension
+
+### I want this as a feature drop
+
+An animated traversal for a given point, with appearing and disappearing rectangular prisms as we descend. That would be so cool!!! I have absolutely no idea how to do it haha! But if I get the code working and somehow import a SYCL/LevelZero/CM ET CETERA implementation that can pull data from there into Julia, then we will have a truly interesting reuse situation. Plus, I believe it would be truly important for uhm, verifying the success of my bounding volumes routine.

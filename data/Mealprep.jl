@@ -106,7 +106,7 @@ using StaticArrays
 
 ###### For BVH
 myCollector2 = GenericRandomCollector(; floattype=Float32,
-                                    objectnumber=5,
+                                    objectnumber=10000,
                                     minDim=tuple(0.0, 0.0, 0.0),
                                     maxDim=tuple(1.0, 1.0, 1.0),
                                     temperature=0.01,
@@ -128,13 +128,16 @@ position3 = [MVector{3, Float32}(0.1, 0.1, 0.1), MVector{3, Float32}(0.2, 0.2, 0
 
 bvhspec = SpheresBVHSpecs(; floattype=Float32, 
                             interaction_distance=0.1, 
-                            leaves_count=length(position7) 
+                            leaves_count=length(myCollection1.position) 
 )
+# for each in eachindex(position7)
+#     println(minimum(position7[each]))
+# end
 
-#batch_build_traverse(100, position7, bvhspec, myCollector2, printARun=false)
-batched_batch_build(100, 1000, position7, bvhspec, myCollector2)
+#batch_build_traverse(100, position8, bvhspec, myCollector2, printARun=true)
+#batched_batch_build(10, 100, myCollection1.position, bvhspec, myCollector2)
 
-#build_bvh(position7, bvhspec, myCollector2 )
+build_bvh(myCollection1.position, bvhspec, myCollector2 )
 ##### end bvh
 
 

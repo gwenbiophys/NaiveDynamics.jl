@@ -1,8 +1,11 @@
 # Development Directions
-
-<details>
-   <summary>Roadmap</summary>
    
+## Absurd and Obscene Feature Requests
+[] BVH traversal animation as described in Dev Diary, '8 Dec'
+[] Modified `simulate()` run that auto selects algorithms based on user-selectable performance or precision. Algorithms ideally fitting data, but not in a machine learning kind of way. Maybe only applicable to neighbor list algorithms. . .
+[] Testing doc generation on a local host instead of letting GHActions test for me
+[] Multithreading with distributed data that does not have to be reallocated except for chaning data circumstances. Heck, this bullet point should instead be "Determine how redundant allocations are made in opening threads for a single function call and then closing them only to reopen them 1 or 2 function calls later, or if the compiler optimizes this seemingly silly behavior away".
+
 ## Roadmap
 ### Version 0.00.1 - the very beginning
 
@@ -105,6 +108,8 @@ information based on other things the user input, like if single precision, then
 [] struct instantiate with function for neighborsearch items, so changes to the API are more clear to impelment (but also slightly more tedious)
 [] companion arrays of morton codes, indices to atoms, and grid aabbs and simplified structures for more purposeful datamanagement. These optimizations won't especially work until we have struct arrays and or the deep compression used in contemporary bvh papers.
 [] if we use the Julia built in environment instead of our own, could we finally have extensions working correctly, so that we are devved into naive dynamics and using the local dev version wiht a napkin test file, while also being abel to use only the dependencies and extensions we want?
+[] functions don't necessarily have to be in order, a function can call a function that is defined physically below it. Use this concept to make the code prettier and better organized.
+[] investigate if other Julian threading routines produce better results. Polyester and OhMyThreads come to mind
 
 
 ### Version 0.00.4 - feature extensions
@@ -168,7 +173,9 @@ Version
 [] Naive construction of required and assumed unit definitions or importation of unitful.jl for Atom and AtomCollection
 []
 
-</details>
+
+
+
 
 ## Naive implementations
 1. NearestNeighbors  -- calculate distance of every unique and evaluate which are within a threshold distance.

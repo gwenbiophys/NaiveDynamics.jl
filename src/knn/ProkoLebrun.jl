@@ -1,3 +1,19 @@
+###### Bottom-up/parallel construction of linear bounding volume hierarchies with stackless traversal
+# as described by Andrey Prokopenko and Damien Lebrun-Gradie
+# https://arxiv.org/abs/2402.00665
+# and as implemented by them in ArborX
+# https://github.com/arborx/ArborX
+
+
+# For tree generation, I tried to follow ArborX's implementation as closely as possible.
+
+
+# This implementation is focused on initialize once and update update update
+
+
+
+
+
 export
     SpheresBVHSpecs,
     AxisAlignedBoundingBox,
@@ -38,6 +54,7 @@ function SpheresBVHSpecs(; floattype, interaction_distance, leaves_count )
         error("Please use more than one leaf")
     end
     branches_count = leaves_count - 1
+
     # this is arbitrary and really just my personal demonstration of struct instantiation with same name functions
     if floattype==Float32
         morton_type = Int32
@@ -55,7 +72,7 @@ end
 
 ##### Phase 1: morton code construction and updating
 
-
+#TODO this variable type needs to become either T or K (or something else) to be consistent with MDInput
 abstract type AxisAlignedBoundingBox end 
 struct AABB{T} <: AxisAlignedBoundingBox where T
     index::Int64
@@ -67,12 +84,7 @@ end
 abstract type AABBGridKey end
 struct QuantizedAABB{T} <: AxisAlignedBoundingBox
     index::T
-    #this would be better, but it's easier to make something work with MVecs
-    #maybe if the rest of this magically turns out to be realllly easy, i'll work here some more
-    #min::Tuple{T, T, T}
-    #max::Tuple{T, T, T}
     centroid::MVector{3, T}
-
     min::MVector{3, T}
     max::MVector{3, T}
 end
@@ -84,27 +96,9 @@ mutable struct GridKey{T, K} <: AABBGridKey
     morton_code::T
     min::MVector{3, K}
     max::MVector{3, K}
-    #parent_INode::T # this may be repurposed as the index of the skip connection
-    #left::Ref{Union{GridKey, NaiveNode}}
-    #right::Ref{Union{GridKey, NaiveNode}}
     left::T
     skip::T
 end
-
-##### Deprecated
-# abstract type NaiveNode end
-# mutable struct INode{T, K} <: NaiveNode
-#     leaf_indices::Tuple{T, T}
-#     #left::Ref{Union{GridKey, NaiveNode}}
-#     #right::Ref{Union{GridKey, NaiveNode}}
-#     left::T
-#     skip::T
-#     visits::T #to be marked as an @atomic, somehow
-#     min::MVector{3, K}
-#     max::MVector{3, K}
-#     parent_INode::T
-    
-# end
 
 function generate_aabb(position::Vec3D{T}, spec::SpheresBVHSpecs{T}) where T
     aabb_array = [AABB{T}(i, position[i], position[i] .- spec.critical_distance, position[i] .+ spec.critical_distance) for i in eachindex(position)]
@@ -188,7 +182,7 @@ end
 # Curiously, it seems to be ~3x slower than the above version
 # but at least this version produces the correct result
 
-#some how this is 3x slower than the original version at half the operations and same allocation
+#3x slower while at half the operations and same allocation
 """
     function update_mortoncodes!(L, quantized_aabbs, morton_length, morton_type)
 
@@ -345,11 +339,18 @@ function branch_index(a, spec::SpheresBVHSpecs{T, K}) where {T, K}
     return c = a + spec.leaves_count # this could do without the c = but i am not ready with testing yet
 end
 
-function stackless_reinterior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, nI, keys, spec::SpheresBVHSpecs{T, K}) where {T, K}
+
+#TODO I have no idea if this is correct, hahah! I dont honestly think it should be!!
+function expand_volume!(bounding_volume, expander)
+    copyto!(bounding_volume, expander)
+end
+
+function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, nI, keys, spec::SpheresBVHSpecs{T, K}) where {T, K}
     rangel = i 
     ranger = i
     dell = delta_leaf(rangel - 1, keys, spec)
     delr = delta_leaf(ranger, keys, spec)
+    bounding_volume = [keys[i].min, keys[i].max]
 
 
 
@@ -389,22 +390,24 @@ function stackless_reinterior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL,
             delr = delta_branch(ranger, keys, spec)
 
             #here is wehre boundary computation is performed.
-            # memory has to sync here for data safety
+            # memory has to sync here for data safety, whatever that means
 
-            # if i == branch_index(1, spec)
-            #     println("leftchild in delr < dell $leftChild")
-            # end
+            rightChild = split + 1
+            rightChildIsLeaf = (rightChild == ranger)
+            Threads.atomic_fence() # uncertain what this does and if it is necessary
+            # oh this is going to be so damn gross
+            if rightChildIsLeaf
+                expand_volume!(bounding_volume[2], keys[rightChild].max)
+            else
+                expand_volume!(bounding_volume[2], keys[branch_index(rightChild, spec)].max)
+
+            end
 
             # if leftChild == rangel
             #     println("left child is a branch in delr < dell")
             #     leftchild = branch_index(leftChild, spec)
             # end
 
-            #leftChild = split
-            # if leftChild == rangel-1
-            #     println("yeah we made it here")
-            #     leftChild = branch_index(leftChild, spec)
-            # end
 
         else
 
@@ -419,15 +422,22 @@ function stackless_reinterior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL,
             dell = delta_branch(rangel-1, keys, spec)
 
             leftChild = split
-            if leftChild == rangel
-                #println("arrived here")
-                leftChild = branch_index(leftChild, spec)
 
+            leftChildIsLeaf = (leftChild == rangel)
+            Threads.atomic_fence()
+            if leftChildIsLeaf
+                expand_volume!(bounding_volume[1], keys[leftChild].min)
+            else
+                leftChild = branch_index(leftChild, spec)
+                expand_volume!(bounding_volume[1], keys[leftChild].min)
             end
 
-            # if i == branch_index(1, spec)
-            #     println("leftchild in delr > dell $leftChild")
+            # if !leftChildIsLeaf # HOLY COW THIS WAS WRONG
+            #     leftChild = branch_index(leftChild, spec)
+
             # end
+
+
         end
 
 
@@ -456,6 +466,10 @@ function stackless_reinterior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL,
             end
         end
 
+        # this is incomplete, as the root does not fully encapsulate all points
+        copyto!(keys[parentNode].min, bounding_volume[1])
+        copyto!(keys[parentNode].max, bounding_volume[2])
+
         
         
         i = branch_index(q, spec)
@@ -468,36 +482,29 @@ function stackless_reinterior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL,
 end
 
 #by convention, if left or skip are negative, then they are referring to the index of the Inode, and positive is index of Leaf
-function stacklessbottom_bvh(keys, spec::SpheresBVHSpecs{T, K}) where {T, K}
+function update_stackless_bvh!(keys, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
+    # TODO this should be generated in build_bvh and reset in update_bvh!
     store = [Base.Threads.Atomic{Int64}(0) for i in 1:spec.branches_count]
 
-
-
-    #Threads.@threads 
-    Threads.@threads :dynamic for i in spec.leaves_count:-1:1 #spec.leaves_count:-1:1#1:spec.leaves_count #in perfect parallel
-        stackless_reinterior!(store, i, spec.leaves_count, spec.branches_count, keys, spec)
-
-
+    # TODO What is the best perf method of handling inlining and bounds checking here?
+    # I don't want to macro my code to hell
+    Threads.@threads for i in 1:spec.leaves_count #in perfect parallel
+        stackless_interior!(store, i, spec.leaves_count, spec.branches_count, keys, spec)
     end
 
 
 end
 
 
-# function sum_multi_good(a)
-#     chunks = Iterators.partition(a, length(a) ÷ Threads.nthreads())
-#     tasks = map(chunks) do chunk
-#         Threads.@spawn sum_single(chunk)
-#     end
-#     chunk_sums = fetch.(tasks)
-#     return sum_single(chunk_sums)
-# end
-
 ###### Phase 6: traversal
+
+###### Phase 6.5: query traversability
+
+
 # those times when you have to traverse down every path
 # total sum of stack overflows / runaway Julia before I fixed this function and all its variants
-# and caught recursion generating data conditions: 0
+# and caught recursion generating data conditions: 1
 # to adequately prevent recursion, we would need a companion array for both the leaves and each of their connections
 # as in, evaluate 'has this rope connection been used to update the traversal path already'
 # and that's maybe too much work, so let's just run the above counter anyway.
@@ -522,16 +529,16 @@ function recursive_traversal(index, keys::Vector{GridKey{K, T}}, wasVisited::Vec
             return
         else
             wasVisited[index] = true
-            if (skip == 0) && (left == 0) # is pre-sentinel node, probably last leaf node
+            if (skip == 0) && (left == 0) # is a sentinel, prepare to exit
                 index == skip
 
-            elseif (skip == 0) && (left != 0)# is a right most node
-                wasVisited[index] = true # TODO should be unnecessary now
+            elseif (skip == 0) && (left != 0)# is a right most node, proceed through left
+                wasVisited[index] = true #should be unnecessary now
                 index = left
                 skip = keys[left].skip
                 left = keys[left].left              
                 
-            elseif (left == 0) && (skip != 0) #is a leaf node
+            elseif (left == 0) && (skip != 0) #is a leaf node, proceed through skip
                 #do something
                 wasVisited[index] = true
                 index = skip
@@ -539,7 +546,7 @@ function recursive_traversal(index, keys::Vector{GridKey{K, T}}, wasVisited::Vec
                 skip = keys[skip].skip
                 
                 
-            elseif (skip != 0) && (left != 0) # is non-right branch, need to spawn a new traversal
+            elseif (skip != 0) && (left != 0) # is non-right branch, new traversal on skip proceed through left
                 wasVisited[index] = true
                 index = left
                 recursive_traversal(skip, keys, wasVisited, spec)
@@ -548,15 +555,12 @@ function recursive_traversal(index, keys::Vector{GridKey{K, T}}, wasVisited::Vec
                 
                 
             else
-                println("unexpected traversal exit, datadump:")
-                println("index $index, left $left, skip $skip")
-                return 
+                error("Unexpected traversal exit, datadump:",
+                      "index $index, left $left, skip $skip") 
             end
         end
     end
 end
-
-
 
 """
     function is_traversable(keys::Vector{GridKey{K, T}}, spec::SpheresBVHSpecs{T, K}; ShowLonelyKeys=false) where {T, K})
@@ -595,7 +599,6 @@ function is_traversable(keys::Vector{GridKey{K, T}}, spec::SpheresBVHSpecs{T, K}
     end
 
 end
-###### Phase 6.5: query traversal
 
 ###### Phase 7: put it all together
 """
@@ -613,7 +616,7 @@ function batch_build_traverse(runs::Int, position::Vec3D{T}, spec::SpheresBVHSpe
         keys = create_mortoncodes(position, spec, clct)::Vector{GridKey{K, T}} 
         I = [GridKey{K, T}(0, 0, MVector{3, K}(0.0, 0.0, 0.0), MVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
         append!(keys, I)
-        stacklessbottom_bvh(keys, spec)
+        update_stackless_bvh!(keys, spec)
         result = is_traversable(keys, spec)
         if result[1]
             goodTrees += 1
@@ -635,7 +638,7 @@ function batch_build_traverse(runs::Int, position::Vec3D{T}, spec::SpheresBVHSpe
         keys = create_mortoncodes(position, spec, clct)::Vector{GridKey{K, T}} 
         I = [GridKey{K, T}(0, 0, MVector{3, K}(0.0, 0.0, 0.0), MVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
         append!(keys, I)
-        stacklessbottom_bvh(keys, spec)
+        update_stackless_bvh!(keys, spec)
         printtree(keys, spec)
     end
 end
@@ -651,27 +654,28 @@ function batched_batch_build(setsOfRuns, runs::Int, position::Vec3D{T}, spec::Sp
         totalBad += a[3]
     end
     sum = totalGood + totalSelfish + totalBad
+    println()
     println("% good ", totalGood / sum * 100)
     println("% selfish ", totalSelfish / sum * 100)
     println("% bad ", totalBad / sum * 100)
 end
 
 function printtree(keys::Vector{GridKey{K, T}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
-     println("Leaf connections")
+    println()
+    println("index, Left, Skip, Min, Max")
+    println("Leaf connections")
     for i in 1:spec.leaves_count
-        println(i, " ", keys[i].left, " ", keys[i].skip)
+        println(i, " ", keys[i].left, " ", keys[i].skip, " ", values(keys[i].min), " ", keys[i].max)
     end
     println()
     println("Branch connections")
     for i in branch_index(1, spec):1:branch_index(spec.branches_count, spec)
-        println(i, " ", keys[i].left, " ", keys[i].skip)
+        println(i, " ", keys[i].left, " ", keys[i].skip, " ", keys[i].min, " ", keys[i].max)
     end
     println()
 end
     
 
-
-#TODO change this name?
 function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
     #L is an array of leaf nodes, 1 leaf per atom or 'primitive'
     keys = create_mortoncodes(position, spec, clct)::Vector{GridKey{K, T}} 
@@ -683,67 +687,11 @@ function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::Generi
     I = [GridKey{K, T}(0, 0, MVector{3, K}(0.0, 0.0, 0.0), MVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
     append!(keys, I)
 
-    #i = 3
-    #j = 4
-    ##println(bitstring(L[i].morton_code))
-    ##println(bitstring(L[j].morton_code))
-    #δ(L, i, j, spec)
-    ##println(I)
-    ##println(I)
-
     #bvh_solver!(L, I, spec)
 
 
-    stacklessbottom_bvh(keys, spec)
-    #println(is_traversable(keys, spec, ShowLonelyKeys=true))
-
-
-    # counts1 = 0
-    # counts4 = 0
-    # counts5 = 0
-    # countsDiff = 0
-    # for i in 1:10000
-    #     keys = create_mortoncodes(position, spec, clct)::Vector{GridKey{K, T}} 
-    #     I = [GridKey{K, T}(0, 0, MVector{3, K}(0.0, 0.0, 0.0), MVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
-    #     append!(keys, I)
-    #     stacklessbottom_bvh(keys, spec)
-    #     if keys[4].left == 4
-    #         counts4 += 1
-    #     elseif keys[4].left == 5
-    #         counts5 += 1
-    #     elseif keys[4].left == 1
-    #         counts5 += 1
-    #     else
-    #         println("Weird keys[4]", keys[4].left)
-    #     end
-    # end
-    # println("counts4 $counts4")
-    # println("counts5 $counts5")
-    # println("counts1 $counts1")
-    # println("countsDiff $countsDiff")
-
-
-
-    # for i in eachindex(L)
-    #     println(del(i, L, spec))
-    # end
-
-    # for i in eachindex(position)
-    #     println(position[i])
-    # end
-    printtree(keys, spec)
-
-    
-    
-    #boundaries_wrapper(L, I, spec)
-    #for i in eachindex(I)
-        ##println("parentINode ",  I[i].parent_INode)#, ", ", I[i].max)
-       # #println(I[i].min)
-        ##println(I[i].max)
-    #end
-    ##println(I[1])
-    ##println()
-    #println(I[2].leaf_indices)
+    update_stackless_bvh!(keys, spec)
     #return neighborlist = println(traverse_bvh1(position, L, I, spec))
     #return traverse_bvh1(position, L, I, spec)
+    
 end
