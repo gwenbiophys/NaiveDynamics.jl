@@ -764,7 +764,7 @@ q = -1
 ```
 we get an error crash out for trying to access I[0]. Rangel was set by the atomiccas to zero. I understand it that this is the first 'thread' (the print statements show this), so the atomic value should be changed, causing the check value to become negative 1, and the thread should exit at the check. Final answer: another typo. When checking if less than 1, we have ranger and rangel, when it should only be the range value that was mutated (or not) in the previous line, (here as rangel). That error is now sorted, back to the looping.
 
-## Also dont forget that the computation of the bounding boxes is done during the cpmutation of relations!. They just leave that bit as an exercise to the reader
+#### Also dont forget that the computation of the bounding boxes is done during the cpmutation of relations!. They just leave that bit as an exercise to the reader
 
 
 We need to fix morton_coding, we shouldd NOT have redundant codes at 10 atoms. We have a mode of addressing this in del(i,j), but it's still ridiculous for this to not work already.
@@ -813,7 +813,7 @@ We ask a number  to left shift 1 pace, it does so by 2, by three, by -- why am I
 
 The future will hopefully directly generate ithout having to generate and then reverse, but currently, just trying to reverse the order in which bits are added to the result changes the result in an as-of-yet unknown way. A function call, reversebit(n::Int32) allegedly modifies a data structure, and it is seen the result that it does not. At first I was going to freak out, but *inspecting the function closer* it is not a mutating function, takes an argument and offers a new result. Ah Hah! Okay so I reversed the outside order, not the inside order also. The sides were good to 6 and 8 bits in, but that's only because those wwewwre symmetric until then.
 
-## It is very important to brainstorm on a better way to develop code, because writing it out of tree andthen transplanting it into context usually breaks context and requires a lot of annoying syntax adjustment. But the API is not extensible enough to allow me to test each and every function. I think all Big Functions need to be opened up to a public API for in context testing and development.
+#### It is very important to brainstorm on a better way to develop code, because writing it out of tree andthen transplanting it into context usually breaks context and requires a lot of annoying syntax adjustment. But the API is not extensible enough to allow me to test each and every function. I think all Big Functions need to be opened up to a public API for in context testing and development.
 
 
 I am still hunting for logic errors. For a moment I believed I caught one about the use of do - until. It is, I suppose, somewhat ambiguous. Do the authors mean that the entire indented block inside the for loop, includign the repeat block, is to be re-repeated until that block hits internal escape sequences or, at the scope of the entire block, a value is obtained of i = 0 (i=1 in our case)? Or does the 'until' line only bind repetition of the repeat block? Considering the fact that the 'until' line is at the same level of indentation as the repeat, as well as the lines of code preceding the until block, I believe my original coding was correct. How would we show this syntax, in this alternative form? And, as it stands, the code breaks because it becomes stuck inside the while loop. Adding yet another loop around that while loop should have no effect. So we have to look for some other detail, some other piece of evidence. For instance, are the morton codes being sorted lexicographically still? I see that they are being sorted in value order, but what about the bitstring? Changing out the sorting method returns me a sorted morton-coding of
@@ -901,7 +901,7 @@ Options at winning a functional and surviving method
 4. ?
 
 
-## No wait the complaints are starting up already, traversal starts at I[1], and in every case so far, I[1] is empty.
+#### No wait the complaints are starting up already, traversal starts at I[1], and in every case so far, I[1] is empty.
 1. trying morton codes
     sort(string(L)) does not fix t he problem and introduces many many redundant references.
     sort!(L, by = x -> x.morton_code) same as above

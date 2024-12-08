@@ -1,3 +1,2 @@
-../../README.md
-
+# NaiveDynamics.jl Dev Docs!
 
