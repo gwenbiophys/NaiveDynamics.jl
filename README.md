@@ -1,6 +1,6 @@
 # NaiveDynamics.jl
 [![Build status (Github Actions)](https://github.com/gwenbiophys/NaiveDynamics.jl/workflows/CI/badge.svg)](https://github.com/gwenbiophys/NaiveDynamics.jl/actions)
-[![codecov.io](http://codecov.io/github/gwenbiophys/NaiveDynamics.jl/coverage.svg?branch=main)](http://codecov.io/github/gwenbiophys/NaiveDynamics.jl?branch=main)
+[![codecov](https://codecov.io/github/gwenbiophys/NaiveDynamics.jl/graph/badge.svg?token=MMODZ51EE5)](https://codecov.io/github/gwenbiophys/NaiveDynamics.jl)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://gwenbiophys.github.io/NaiveDynamics.jl/dev)
 
