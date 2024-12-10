@@ -4,10 +4,10 @@ I am working towards a stackless BVH traversal algorithm for accelerating neighb
 
 
 ## Current Roadmap
-[] Reimplement in Julia
-[] Optimize performance and improve code readability/structure
-[] Benchmark and report my findings here [^3]
-[] Build a comparable testing situation between ArborX and NaiveDynamics 
+- [x] Reimplement in Julia
+- [] Optimize performance and improve code readability/structure
+- [] Benchmark and report my findings here [^3]
+- [] Build a comparable testing situation between ArborX and NaiveDynamics 
 
 ## Motive
 1. Because performance

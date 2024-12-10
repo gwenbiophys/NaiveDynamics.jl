@@ -55,12 +55,19 @@ keys = build_bvh(position8, bvhspec8, myCollector8)
 end
 
 @testset "root boundaries include all atoms" begin
-    for each in 1:7
+    for each in 1:8
         for i in eachindex(position8[1])
-            @test keys[8].min[i] < position8[each][i] < keys[8].max[i]
+            @test keys[9].min[i] < position8[each][i] < keys[9].max[i]
         end
     end
 end
+# @testset "parent boundaries include all atoms" begin
+#     for each in 1:7
+#         for i in eachindex(position8[1])
+#             @test keys[8].min[i] < position8[each][i] < keys[8].max[i]
+#         end
+#     end
+# end
 
 # @testset "morton sorting" begin
 

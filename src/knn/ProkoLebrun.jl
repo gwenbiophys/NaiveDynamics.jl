@@ -304,9 +304,18 @@ function branch_index(a, spec::SpheresBVHSpecs{T, K}) where {T, K}
 end
 
 
-#TODO I have no idea if this is correct, hahah! I dont honestly think it should be!!
-function expand_volume!(bounding_volume, expander)
-    copyto!(bounding_volume, expander)
+#TODO what is the best way to do this? This is too naive.
+
+#     expand_volume!(dst, operator, operand_a, operand_b) -> dst
+# Conditionally expand the volume of x, y, z components of 'dst', where dst is expected to be either operand_a or b.
+
+function expand_volume!(dst, operator, operand_a, operand_b)
+    #copyto!(bounding_volume, expander)
+    for dim in eachindex(bounding_volume)
+        dst[dim] = operator(operand_a[dim], operand_b[dim]) * expander[dim]
+    end
+
+
 end
 
 function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, nI, keys, spec::SpheresBVHSpecs{T, K}) where {T, K}
@@ -344,7 +353,7 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
             
             split = ranger # split position between the range of keys covered by any given INode
             ranger = Threads.atomic_cas!(store[split], 0, rangel)
-
+            copy!
 
 
             if ranger == 0 
@@ -361,16 +370,16 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
             #Threads.atomic_fence() # uncertain what this does and if it is necessary
             # oh this is going to be so damn gross
             if rightChildIsLeaf
-                expand_volume!(bounding_volume[2], keys[rightChild].max)
+                #expand_volume!(bounding_volume[2], keys[rightChild].max, >)
             else
-                expand_volume!(bounding_volume[2], keys[branch_index(rightChild, spec)].max)
+                #expand_volume!(bounding_volume[2], keys[branch_index(rightChild, spec)].max, >)
+                rightChild = branch_index(rightChild, spec)
 
             end
 
-            # if leftChild == rangel
-            #     println("left child is a branch in delr < dell")
-            #     leftchild = branch_index(leftChild, spec)
-            # end
+            for dim in eachindex(bounding_volume[1])
+                bounding_volume[2][dim] = (bounding_volume[2][dim] < keys[rightChild].max[dim]) * keys[rightChild].max[dim]
+            end
 
 
         else
@@ -392,10 +401,16 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
             #unclear if this is necessary
             #Threads.atomic_fence()
             if leftChildIsLeaf
-                expand_volume!(bounding_volume[1], keys[leftChild].min)
+                #expand_volume!(bounding_volume[1], keys[leftChild].min, <)
             else
                 leftChild = branch_index(leftChild, spec)
-                expand_volume!(bounding_volume[1], keys[leftChild].min)
+                #expand_volume!(bounding_volume[1], keys[leftChild].min, <)
+            end
+
+
+            for dim in eachindex(bounding_volume[1])
+                bounding_volume[1][dim] = (bounding_volume[1][dim] > keys[leftChild].min[dim]) * keys[leftChild].min[dim]
+                #operator(operand_a[dim], operand_b[dim]) * expander[dim]
             end
 
         end
@@ -446,6 +461,11 @@ function update_stackless_bvh!(keys, spec::SpheresBVHSpecs{T, K}) where {T, K}
         stackless_interior!(store, i, spec.leaves_count, spec.branches_count, keys, spec)
     end
 
+    #Naive method of resetting the route
+    for dim in eachindex(keys[branch_index(1, spec)].min)
+        keys[branch_index(1, spec)].min[dim] = T(0.0)
+        keys[branch_index(1, spec)].max[dim] = T(1.0)
+    end
 
 end
 
