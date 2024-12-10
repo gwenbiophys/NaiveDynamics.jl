@@ -81,7 +81,7 @@
 [x] These wrapper functions may also contain side logic for checking inputs are correct as well as the actual logic to be done on the particular system, as shown in Molly.setup
 [] Output logfile with modification of the set up routine to allow the user to add in a place and a type of output, but defaulting to a generic
 [x] Random generation for each component. Check that this works
-[] Aqua.jl integration that only tests the local package and not every dependency
+[x] Aqua.jl integration that only tests the local package and not every dependency
 [] Consider putting in architecture to read/write data so we can test coverage with fixed values and compare changes with feature development.
 [] make it so push! log only runs at every selected interval, and also make this match the frame interval for makie by having makie take the simSpec as default framerate
 [] change structure definitions in MDINput to be Vec3D instead of Vector{MVector} etc etc
@@ -108,8 +108,9 @@ information based on other things the user input, like if single precision, then
 [] companion arrays of morton codes, indices to atoms, and grid aabbs and simplified structures for more purposeful datamanagement. These optimizations won't especially work until we have struct arrays and or the deep compression used in contemporary bvh papers.
 [] if we use the Julia built in environment instead of our own, could we finally have extensions working correctly, so that we are devved into naive dynamics and using the local dev version wiht a napkin test file, while also being abel to use only the dependencies and extensions we want?
 [] functions don't necessarily have to be in order, a function can call a function that is defined physically below it. Use this concept to make the code prettier and better organized.
-[] investigate if other Julian threading routines produce better results. Polyester and OhMyThreads come to mind
+[] investigate if other Julian threading routines produce better results. Polyester and OhMyThreads and Dagger come to mind
 [] api only has 2 items on it. Why?
+[] fix upper functions of Proko to only iterate over  specific indices of the grid keys array
 
 
 ### Version 0.00.4 - feature extensions

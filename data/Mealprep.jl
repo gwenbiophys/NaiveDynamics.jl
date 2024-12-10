@@ -106,7 +106,7 @@ using StaticArrays
 
 ###### For BVH
 myCollector2 = GenericRandomCollector(; floattype=Float32,
-                                    objectnumber=10000,
+                                    objectnumber=8,
                                     minDim=tuple(0.0, 0.0, 0.0),
                                     maxDim=tuple(1.0, 1.0, 1.0),
                                     temperature=0.01,
@@ -137,7 +137,7 @@ bvhspec = SpheresBVHSpecs(; floattype=Float32,
 #batch_build_traverse(100, position8, bvhspec, myCollector2, printARun=true)
 #batched_batch_build(10, 100, myCollection1.position, bvhspec, myCollector2)
 
-build_bvh(myCollection1.position, bvhspec, myCollector2 )
+@showtime build_bvh(position8, bvhspec, myCollector2 )
 ##### end bvh
 
 

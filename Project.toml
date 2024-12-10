@@ -1,7 +1,7 @@
 name = "NaiveDynamics"
 uuid = "ef6c0610-87db-4406-b8dc-01afecc28d92"
 authors = ["Trist "]
-version = "0.0.1"
+version = "0.0.2"
 
 [deps]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"

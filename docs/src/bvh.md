@@ -1,12 +1,13 @@
 # Implementing Bounding Volume Hierarchies in NaiveDynamics.jl
-I am working towards a stackless BVH traversal algorithm for accelerating neighbor search in molecular dynamics simulations. This effort is attempting to implement A. Prokopenko and Lebrun's Grandie's method [^1].
+I am working towards a stackless BVH traversal algorithm for accelerating neighbor search in molecular dynamics simulations. This effort is attempting to implement A. Prokopenko and Lebrun-Grandie's method [^1].
 
 
 
 ## Current Roadmap
-1. Reimplement in Julia
-2. Optimize performance and improve code readability/structure
-3. Benchmark and report my findings here
+[] Reimplement in Julia
+[] Optimize performance and improve code readability/structure
+[] Benchmark and report my findings here [^3]
+[] Build a comparable testing situation between ArborX and NaiveDynamics 
 
 ## Motive
 1. Because performance
@@ -20,7 +21,9 @@ I am working towards a stackless BVH traversal algorithm for accelerating neighb
 
 
 
-Testing was conducted on my machine using Base.@showtime and BenchmarkTools.@btime
+## Journey towards testing
+
+
 
 
 
@@ -32,3 +35,4 @@ Testing was conducted on my machine using Base.@showtime and BenchmarkTools.@bti
 
 [^1]: [Revising Apetrei’s bounding volume hierarchy construction algorithm to allow stackless traversal] (https://info.ornl.gov/sites/publications/Files/Pub208673.pdf)
 [^2]: [Chips and Cheese: Lunar Lake iGPU] (https://chipsandcheese.com/p/lunar-lakes-igpu-debut-of-intels)
+[^3]: Testing was conducted on my machine( i5-9300H) using Base.@showtime and BenchmarkTools.@btime

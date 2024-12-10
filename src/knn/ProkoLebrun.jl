@@ -146,50 +146,16 @@ function update_gridkeys!(quantized_aabbarray, aabb_array, spec::SpheresBVHSpecs
 
 end
 
-function old_update_mortoncodes!(L, quantized_aabbs, morton_length, morton_type) 
-    #TODO clean up this function to use L, aabbs, and spec?
-
-    t3 = morton_type(3)
-    t1 = morton_type(1)
-    #L is an array of grid keys with an 'index' field which points to the 'nth index of a vector in the objectCollection struct' 
-        # or a particular atom
-    #n is the current nth bit of our morton code to change we wish to change, and it corresponds with every 3rd bit of our grid positions
-
-    for each in eachindex(L)
-        for n in morton_length 
-            for dim in eachindex(quantized_aabbs[1].centroid)
-                n_xyz = t3 * n + dim - t3 # we shift which position where on the morton code a bit should be written based on there being 3 spatial dimensions
-
-                if (quantized_aabbs[each].centroid[dim]>>(n_xyz-t1)) & t1 != 0 #if a bit at index=n_xyz of a grid position is 1, then set the n_xyz'th bit of L[each] to one
-
-
-                    L[each].morton_code ⊻= t1<<(n_xyz-t1)
-                    
-
-                else   
-                    L[each].morton_code &= ~(t1<<(n_xyz-t1)) #set the n_xyz'th bit of L[each] to zero
-                end
-
-            end
-
-        end
-
-
-    end
-end
-
-##### this is the best version of the function.
-# Curiously, it seems to be ~3x slower than the above version
-# but at least this version produces the correct result
-
-#3x slower while at half the operations and same allocation
 """
     update_mortoncodes!(L, quantized_aabbs, morton_length, morton_type)
 
 Take an array of GridKeys, L, an array of 3D integer coordinates, quantized aabbs, and specification information,
 to generate morton codes for each GridKey.
 """
+# TODO how can we dump all of the correct digits from a source number into the product number
+# without having to sequentially shift the bits back and forth
 function update_mortoncodes!(L, quantized_aabbs, morton_length, morton_type) 
+    # TODO should these be folded into the spec?
 
     inbit = morton_type(0)
     t3 = morton_type(3)
@@ -197,8 +163,8 @@ function update_mortoncodes!(L, quantized_aabbs, morton_length, morton_type)
     #L is an array of grid keys with an 'index' field which points to the 'nth index of a vector in the objectCollection struct' 
         # or a particular atom
     #n is the current nth bit of our morton code to change we wish to change, and it corresponds with every 3rd bit of our grid positions
-    for each in eachindex(L)
-        # set morton code to zero or else it will not work on second update call
+    Threads.@threads for each in eachindex(quantized_aabbs)
+        # set morton code to zero allows for data reuse
         L[each].morton_code = morton_type(0)
 
         for m in morton_type(morton_length):-1:t1 #iterate backwards
@@ -392,7 +358,7 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
 
             rightChild = split + 1
             rightChildIsLeaf = (rightChild == ranger)
-            Threads.atomic_fence() # uncertain what this does and if it is necessary
+            #Threads.atomic_fence() # uncertain what this does and if it is necessary
             # oh this is going to be so damn gross
             if rightChildIsLeaf
                 expand_volume!(bounding_volume[2], keys[rightChild].max)
@@ -422,7 +388,9 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
             leftChild = split
 
             leftChildIsLeaf = (leftChild == rangel)
-            Threads.atomic_fence()
+            
+            #unclear if this is necessary
+            #Threads.atomic_fence()
             if leftChildIsLeaf
                 expand_volume!(bounding_volume[1], keys[leftChild].min)
             else
@@ -430,27 +398,14 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
                 expand_volume!(bounding_volume[1], keys[leftChild].min)
             end
 
-            # if !leftChildIsLeaf # HOLY COW THIS WAS WRONG
-            #     leftChild = branch_index(leftChild, spec)
-
-            # end
-
-
         end
 
 
         q = delr < dell ? (ranger) : rangel # commented out because the expanded version is easier to debug
          
         parentNode = branch_index(q, spec)
+        keys[parentNode].left = leftChild
 
-
-        if rangel == q
-            keys[parentNode].left = leftChild
-        else
-
-            keys[parentNode].left = leftChild#branch_index(leftChild, spec )#leftChild#
-
-        end
         
 
         if ranger == nL
@@ -464,7 +419,7 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
             end
         end
 
-        # this is incomplete, as the root does not fully encapsulate all points
+        # this is incomplete, as a parent node is not guaranteed to encapsulate the volumes of all children
         copyto!(keys[parentNode].min, bounding_volume[1])
         copyto!(keys[parentNode].max, bounding_volume[2])
 
@@ -479,7 +434,7 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
     end
 end
 
-#by convention, if left or skip are negative, then they are referring to the index of the Inode, and positive is index of Leaf
+
 function update_stackless_bvh!(keys, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
     # TODO this should be generated in build_bvh and reset in update_bvh!
@@ -496,6 +451,17 @@ end
 
 
 ###### Phase 6: traversal
+
+function neighbor_traverse(keys, neighbors, position, spec::SpheresBVHSpecs{T, K}) where {T, K}
+    currentKey = branch_index(1, spec)
+    neighbors = [] #TODO best method for improving this?
+    while true
+
+        if currentKey == 0
+            break
+        end
+    end
+end
 
 ###### Phase 6.5: query traversability
 
@@ -677,21 +643,23 @@ end
     
 
 function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
-    #L is an array of leaf nodes, 1 leaf per atom or 'primitive'
-    keys = create_mortoncodes(position, spec, clct)::Vector{GridKey{K, T}} 
-    ##println(L)
-    #change type of int here to spec.morton_int, probably with Tuple(spec.morton_int[i, length(L)])
 
-    #I = [tuple(i, length(L), Ref(L, i)[], Ref(L, i)[]) for i in 1:length(L)-1] # -1 from L because we want to have nodes = # atoms - 1 in this construction. Howard et al. chose a fixed 1024-1, but eh
-    #I= [INode{K, T}(tuple(i, length(L)), 0, 0, 0,  MVector{3, T}(0, 0, 0), MVector{3, T}(0, 0, 0), 0) for i in 1:length(L)-1]::Vector{INode{K, T}} 
+    keys = create_mortoncodes(position, spec, clct)::Vector{GridKey{K, T}} 
     I = [GridKey{K, T}(0, 0, MVector{3, K}(0.0, 0.0, 0.0), MVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
     append!(keys, I)
 
     #bvh_solver!(L, I, spec)
-
-
     update_stackless_bvh!(keys, spec)
+
+    return keys
     #return neighborlist = println(traverse_bvh1(position, L, I, spec))
     #return traverse_bvh1(position, L, I, spec)
 
+end
+
+
+function build_traverse_bvh(position, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
+    tree = build_bvh(position, spec, clct)
+    neighbors = [] #TODO what's the best way to handle this initialization?
+    neighbor_traverse(tree, neighbors, position, spec )
 end
