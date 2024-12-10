@@ -76,7 +76,7 @@
 - [] Improve design of the Logger to be compatible with makie
 - [x] Github work flow for a private uhh workspace
 - [x] Github based integrations of the code at start and endpoints
-- [] Figure out how to start getting test coverage and using formal unit testing procedures
+- [x] Figure out how to start getting test coverage and using formal unit testing procedures
 - [x] Wrap custome types in functions so that a user can call a function and assign labeled arguments (eg "duration=10"), rather than having nameless and ordered fields
 - [x] These wrapper functions may also contain side logic for checking inputs are correct as well as the actual logic to be done on the particular system, as shown in Molly.setup
 - [] Output logfile with modification of the set up routine to allow the user to add in a place and a type of output, but defaulting to a generic
@@ -92,7 +92,6 @@
 
 - [] check the naive unique pairs function for correctness. I was kinda just throwing stuff at a wall to see if it worked
 - [] fix precision selection so the precision can be selected by user exactly one time and is persistent throughout.
-- [] Get test coverage working and automated with each commit. Make the testing run locally without waiting for the cloud and fighting around with the cloud not having a GPU OR make a local GPU test? No idea how it works!
 - [] Fix position recording so that the simulation can be logged for a user specified number of runs
 - [] add ```simulate!()``` resolution so that the system can log the last few steps, if the last step does not trigger a logging of the chunk
 - [x] fix bug in simulation recorder where the chunk_index has to be updated inside the for each step loop. when placed inside the record_simulation if statement, then the value will be reset by simulate!() to it's initial definition value each step, even if the place where the value was defined as '2' sits outside of the stepper loop. this could be automagically fixed when we move to more direct function arguments rather than the equivalency pile up top.
@@ -106,13 +105,14 @@ information based on other things the user input, like if single precision, then
 - [] package extensions methods break upon trying to use them at all because something something Julia doesnt work. In my Dev environment, Iwant as little loaded as possible. Thus, the extensions, but I am tetsint in my dev environment, which means I don't get to use the extension functionality. I believe it would work better for a user situation, in which the Julia environment is not this package's source code. idk
 - [] struct instantiate with function for neighborsearch items, so changes to the API are more clear to impelment (but also slightly more tedious)
 - [] companion arrays of morton codes, indices to atoms, and grid aabbs and simplified structures for more purposeful datamanagement. These optimizations won't especially work until we have struct arrays and or the deep compression used in contemporary bvh papers.
-- [] if we use the Julia built in environment instead of our own, could we finally have extensions working correctly, so that we are devved into naive dynamics and using the local dev version wiht a napkin test file, while also being abel to use only the dependencies and extensions we want?
+- [x] if we use the Julia built in environment instead of our own, could we finally have extensions working correctly, so that we are devved into naive dynamics and using the local dev version wiht a napkin test file, while also being abel to use only the dependencies and extensions we want?
 - [] functions don't necessarily have to be in order, a function can call a function that is defined physically below it. Use this concept to make the code prettier and better organized.
 - [] investigate if other Julian threading routines produce better results. Polyester and OhMyThreads and Dagger come to mind
-- [] api only has 2 items on it. Why?
+- [] api.md only has 2 items on it. Why?
 - [] fix upper functions of Proko to only iterate over  specific indices of the grid keys array
 - [] for boundary expansion, is the for loop flowthrough evaluation effective, or is copyto! effective enough
 - [] is it a problem that the root doesnt get updated to cover the whole entire range? may or may not just be a side effect of the algo. ArborX predefines the root.
+- [] update ci.yml for a different OS test and to resolve warnings related to chagnes to GHActions
 
 
 ### Version 0.00.4 - feature extensions
@@ -139,6 +139,7 @@ information based on other things the user input, like if single precision, then
 - [] abstract away force computations to include user defined force weights but also user defined forces.
 - [] along with above, user specified interations with type Unions that expect either false, or a parameter. e.g. velocity dampening on a simple rescale is a false on vrescale, or a parameter in the selected Float
       use 'pruning' functions of the type informatino users fill out to make the types consistent, so no multiple Float32(input), figure that all out in the package
+- [] test by ony specified tests, rather than the whole package each and every time ichagne a letter or two
 
 
 ### Version 0.00.5

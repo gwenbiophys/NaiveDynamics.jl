@@ -233,7 +233,7 @@ function generate_onePosition(Collector::GenericStaticRandomCollector)
 end
 
 """
-    function generate_pruned_positions(Collector::GenericRandomCollector, Collection)
+    function generate_pruned_positions!(Collector::GenericRandomCollector, Collection)
 
 After collect_objects() has generated a vector of vectors of positions, 
 this function will naively prune the positions and replace them with other positions. 
@@ -255,6 +255,7 @@ function unique_pairs_prune(a::AbstractArray, threshold::AbstractFloat)
 
 
     #does not even theoretically work until this line is deleted. just needs 1 more gloss over with the brain
+    #TODO and maybe a standardized testing suite
     for i in 1:length(a)-1
             for j in i+1:length(a)-1 
                 dx = a[i][1] - a[j][1]
@@ -271,46 +272,32 @@ function unique_pairs_prune(a::AbstractArray, threshold::AbstractFloat)
     end
     return tooClose
 end
-
-function generate_pruned_positions(Collector::GenericRandomCollector, Collection)
+struct CannotInitializePositions <: Exception
+    message::String
+end
+function generate_pruned_positions!(Collector::GenericRandomCollector, Collection)
     #1. generate a set of radialPositions, in each each ooooh no wait i'd have to make radii spheres
     #2. ask if the distance between any of the spheres is negative with a neighborlist cutoff =o (if that works)
     minDist = Collector.minimumdistance
-    
-    #try
-        #presumably this implementation will proceed indefinitely until it crashes into an error.
-        #Hopefully the computer doesn't spend too long on whether this is an error
-        
-        tooClose = unique_pairs_prune(Collection.position, minDist;)
-        while tooClose < 0
-            # to be deleted once i see it's working
-            #for each in eachindex(tooClose)
-                #we want to create a function that will zero-out/Inf-out any position set 
-                #which has an index sitting in the neighborlist
-                #we want to replace the position values labeled by index
-                #for and in eachindex(Collection.position)
-                    #if tooClose[and][1] == Collection.position[and]
-                        #for every in eachindex(Collection.position[and])
-                            #every = Inf64 # TODO change to match the precision selected by user
-                        #end
-                    #end
-                #end
-            #end
-            for object in eachindex(Collection.position)
-                if Collection.position[object] == Inf64 # TODO change to NaN ?
-                    
-                    fill!(Collection.position[object], generate_onePosition(Collector))
-                end
-            end
-            tooClose = unique_pairs_prune(Collection.position, minDist;)
+    tooClose = unique_pairs_prune(Collection.position, minDist;)
+    recursion_limit = 10 * Collector.objectnumber
+    recursions = 0
+    while tooClose < 0
+        recursions += 1
+        if recursions == recursion_limit
+            #error("You either have too small a box, too many atoms, or too large a minimum initial distance between them")
+            CannotInitializePositions("Objects could not be placed, increase box size, reduce object count, or decrease minimum spawning distance")
         end
-        return # i dont think this is necessary, as this is a mutating function with no output, but just in case
-            
-    #catch
-        #return
-    #end
 
-    
+        for object in eachindex(Collection.position)
+            if Collection.position[object] == Inf64 
+                
+                fill!(Collection.position[object], generate_onePosition(Collector))
+            end
+        end
+        tooClose = unique_pairs_prune(Collection.position, minDist;)
+    end
+
 end
 
 struct SimDomainLacksDensity <: Exception
@@ -381,7 +368,7 @@ function collect_objects(Collector::GenericRandomCollector{T}) where T
         )
     #density_check(simCollection, Collector)
 
-    generate_pruned_positions(Collector, simCollection)
+    generate_pruned_positions!(Collector, simCollection)
     return simCollection
 end
 
