@@ -6,3 +6,6 @@
 
 
 A very Naive Project to follow and study the design of molecular dynamics simulation and high octane algorithms.
+
+
+<video width="600" height="400" controls> <source src="<video controls src="https://github.com/gwenbiophys/NaiveDynamics.jl/blob/main/data/newhope.mp4" title="iWant.mp4"></video>" type=video.mp4> </video>

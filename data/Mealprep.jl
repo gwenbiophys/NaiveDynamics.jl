@@ -106,14 +106,14 @@ using StaticArrays
 
 ###### For BVH
 myCollector2 = GenericRandomCollector(; floattype=Float32,
-                                    objectnumber=8,
+                                    objectnumber=10000,
                                     minDim=tuple(0.0, 0.0, 0.0),
                                     maxDim=tuple(1.0, 1.0, 1.0),
                                     temperature=0.01,
                                     randomvelocity=false,
                                     minmass=1.0,
                                     maxmass=5.0,
-                                    minimumdistance=0.001,
+                                    minimumdistance=0.0001,
                                     mincharge=-1f-9,
                                     maxcharge=1f-9
 )
@@ -137,7 +137,7 @@ bvhspec = SpheresBVHSpecs(; floattype=Float32,
 #batch_build_traverse(100, position8, bvhspec, myCollector2, printARun=true)
 #batched_batch_build(10, 100, myCollection1.position, bvhspec, myCollector2)
 
-@showtime build_bvh(position8, bvhspec, myCollector2 )
+@profview build_bvh(myCollection1.position, bvhspec, myCollector2 )
 ##### end bvh
 
 

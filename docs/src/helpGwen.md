@@ -14,10 +14,18 @@ pgk() dev ./NaiveDynamics.jl
 using Revise
 using NaiveDynamics
 ```
-## TEST WITH LIVE LOCAL SERVER BEFORE DEPLOYING TO GITHUB AND HAVING TO CHAIN SMOKE COMMITS IN ORDER TO KNOW IF YOU
-Run the make.jl file locally, makesure git ignore includes the build directly entirely. and then `serve(dir="/docs/build")` from the REPL. Have NaiveDynamics activated but make sure the local Julia environment has LiveServer. If there is not yet a local Julia envionrment, fashion one by just typing `activate` without further specification.
+## Deploy docs locally
+- Get a local only make.jl with `deploydocs()` disabled. 
+- Makesure git ignore includes the build directly entirely. 
+- `serve(dir="/docs/build")` from the REPL. Have NaiveDynamics activated but make sure the local Julia environment has LiveServer. 
+- If there is not yet a local Julia envionrment, type `activate` in pkg mode.
 
-Make sure deploydocs() is commented out, but also make sure you uncomment it out afterwards.
+### After using 'markdown syntax' you have to press run on the markdown file
+E.g. footnotes or links will not work until the .md itself is ran.
+### ffmpeg for gif conversion, mayber tinker more for better qualty
+
+`ffmpeg -t 4 -i /home/gwenk/Videos/iWant.mp4 -vf "fps=25,scale" -loop 1 /home/gwenk/Videos/iWant.gif`
+
 
 
 ## get a flame graph of allocations
@@ -29,8 +37,10 @@ if b is already defined, we are not asking julia to overwrite each value in a wi
 
 We are asking Julia to ignore the value of a (if it has already been defined), and to point to b.
 
-## on rowan's copmuter, get running with: 
+## To develop and use a package,
+### either activate the REPL in the place you git cloned the repo
 activate C:/Users/kucer/Desktop/julia/NaiveDynamics.jl
+### or in the julia install itself where you may have to `dev` into the package.
 activate C:/Users/Trist/.julia/dev/NaiveMD/NaiveDynamics.jl
 using NaiveDynamics
 

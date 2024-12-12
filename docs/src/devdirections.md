@@ -141,6 +141,10 @@ information based on other things the user input, like if single precision, then
       use 'pruning' functions of the type informatino users fill out to make the types consistent, so no multiple Float32(input), figure that all out in the package
 - [] test by ony specified tests, rather than the whole package each and every time ichagne a letter or two
 
+#### Style guide things
+- [] are all mutation functions inidcated properly?
+- [] in mutation functions, is the first operand always the one being mutated?
+
 
 ### Version 0.00.5
 

@@ -24,10 +24,12 @@ export
     create_mortoncodes,
     branch_index,
     update_stackless_bvh!,
+    neighbor_traverse,
     build_bvh,
-    traverse_bvh,
-    batch_build_traverse,
-    batched_batch_build
+    rebuild_bvh!,
+    build_traverse_bvh
+
+
 
 # how to build towards an API that makes it easy to extend a BVH procedure to different kinds 
 # of shapes and considering different distances, as in the Noneuclidean paper?
@@ -328,10 +330,11 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
                 rightChild = branch_index(rightChild, spec)
 
             end
-
-            for dim in eachindex(bounding_volume[1])
-                bounding_volume[2][dim] = (bounding_volume[2][dim] < keys[rightChild].max[dim]) * keys[rightChild].max[dim]
-            end
+            #TODO who's better? any diff
+            bounding_volume[2] = (keys[rightChild].max .< bounding_volume[2]) .* keys[rightChild].max + (bounding_volume[2] .< keys[rightChild].max) .* bounding_volume[2]
+            # for dim in eachindex(bounding_volume[1])
+            #     bounding_volume[2][dim] = (bounding_volume[2][dim] < keys[rightChild].max[dim]) * keys[rightChild].max[dim]
+            # end
 
 
         else
@@ -359,11 +362,12 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
                 #expand_volume!(bounding_volume[1], keys[leftChild].min, <)
             end
 
-
-            for dim in eachindex(bounding_volume[1])
-                bounding_volume[1][dim] = (bounding_volume[1][dim] > keys[leftChild].min[dim]) * keys[leftChild].min[dim]
-                #operator(operand_a[dim], operand_b[dim]) * expander[dim]
-            end
+            bounding_volume[1] = (keys[leftChild].min .< bounding_volume[1]) .* keys[leftChild].min + (bounding_volume[1] .< keys[leftChild].min) .* bounding_volume[1]
+            
+            # for dim in eachindex(bounding_volume[1])
+            #     bounding_volume[1][dim] = (bounding_volume[1][dim] > keys[leftChild].min[dim]) * keys[leftChild].min[dim]
+            #     #operator(operand_a[dim], operand_b[dim]) * expander[dim]
+            # end
 
         end
 
@@ -413,7 +417,7 @@ function update_stackless_bvh!(keys, spec::SpheresBVHSpecs{T, K}) where {T, K}
         stackless_interior!(store, i, spec.leaves_count, spec.branches_count, keys, spec)
     end
 
-    #Naive method of resetting the route
+    #Naive method of resetting the root
     for dim in eachindex(keys[branch_index(1, spec)].min)
         keys[branch_index(1, spec)].min[dim] = T(0.0)
         keys[branch_index(1, spec)].max[dim] = T(1.0)
@@ -423,13 +427,34 @@ end
 
 
 ###### Phase 3: traversal
+# okayu this is a little confused right now#
+function proximity_test!(neighbors, currentKey::GridKey{K},  query::MVector{3, T}, position::MVector{3, T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
+    d = sqrt( sum((position .- query) .^ 2)) 
+    if d <= spec.critical_distance
+    end
 
-function neighbor_traverse(keys, neighbors, position, spec::SpheresBVHSpecs{T, K}) where {T, K}
+end
+
+# TODO would 'branchless' programming make a difference here? CPU vs GPU comparison
+function neighbor_traverse(keys, neighbors, query, positions, spec::SpheresBVHSpecs{T, K}) where {T, K}
     currentKey = branch_index(1, spec)
-    neighbors = [] #TODO best method for improving this?
-    while true
 
-        if currentKey == 0
+    while true
+        # does query at all overlap with the volume of currentKey
+        overlap = sum(keys[currentKey].min .< query .< keys[currentKey].max)
+        #TODO type analysis of overlap, most utterly ideal candidate for static vector, but idk how to implement here
+        if overlap > 0 
+            if keys[currentKey] == 0 # currentKey is a leaf node
+                proximity_test!(keys, neighbors, query, position[currentKey.index], spec)
+                currentKey = currentKey = keys[currentKey].skip
+            else #currentKey is a branch node, traverse to the left
+                currentKey = keys[currentKey].left
+            end
+        else #query is not contained, can cut off traversal on this path
+            currentKey = keys[currentKey].skip
+        end
+
+        if currentKey == 0 #currentKey is the sentinel, end traversal
             break
         end
     end
@@ -478,5 +503,8 @@ end
 function build_traverse_bvh(position, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
     tree = build_bvh(position, spec, clct)
     neighbors = [] #TODO what's the best way to handle this initialization?
-    neighbor_traverse(tree, neighbors, position, spec )
+    #TODO is this another atomic on the neighbors vector?
+    for i in eachindex(position)
+        #neighbor_traverse(tree, neighbors, position[i], spec )
+    end
 end
