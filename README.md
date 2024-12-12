@@ -8,4 +8,4 @@
 A very Naive Project to follow and study the design of molecular dynamics simulation and high octane algorithms.
 
 
-<video width="600" height="400" controls> <source src="https://github.com/gwenbiophys/NaiveDynamics.jl/blob/main/data/newhope.mp4" type=video.mp4> </video>
+<video controls src="https://github.com/gwenbiophys/NaiveDynamics.jl/blob/main/data/newhope.mp4" title="SampleSim"></video>
