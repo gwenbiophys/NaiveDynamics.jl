@@ -33,6 +33,7 @@ using GLMakie
                         logLength=10,
                         vDamp=1)
     logpos = simulate!(myCollection, mySpec, myCollector)
+
     #@profview simulate!(myCollection, mySpec, myCollector)
     #@btime logpos2 = simulate!($myCollection, $mySpec, $myCollector)
     direc = "/home/gwenk/Coding/Julia/NaiveDynamics.jl/data/newhope.mp4"

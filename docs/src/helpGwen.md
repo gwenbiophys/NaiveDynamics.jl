@@ -27,13 +27,14 @@ E.g. footnotes or links will not work until the .md itself is ran.
 `ffmpeg -t 4 -i /home/gwenk/Videos/iWant.mp4 -vf "fps=25,scale" -loop 1 /home/gwenk/Videos/iWant.gif`
 
 ## Using a dev'ed package like a user
+
+### if using Julia's dev function ality
+1. add /link/to/git/hub in the desired or default julia enviornment
+2. develop PackageName each time the github receives commits and new code
+2. using PackageName
+
 ### If the dev'ed package was installed with command lie gitcloning and NOT Julia dev utilities
-1. activate the enviornment that has the dev package 
-2. `using PackageName`
-3. activate to a 'user facing' environment, e.g. with no arguments
-4. Remove `using Packagname` from the script file
-5. Run the script file
-is exactly what i would say if it worked, but precompilation takes an annoyingly long time and then fails anyways
+could probably work if you toss in the directory tro the package in the add function *instead* of the directory to the github, but i have no idea
 
 ## get a flame graph of allocations
 by @profview_allocs
