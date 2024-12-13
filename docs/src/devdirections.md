@@ -61,16 +61,13 @@
 
 
 
-### Version 0.00.3 - towards a half formal repository
+### Version 0.00.3 - repo fixing + bvh-neighbor lists
 - [] make all Big functions part of a a public API so that they can be tested and developed easier. Especially assembly functions with host functional functions.
 - [] fix parametric types in neighborsearch, because the T and K switch positions, replace with I and F? or at least make them consistent
 - [] update code naming to reflect the fact that AABB's are only first generated right immediately before bvh traversal, and squash down redundant data structures if at all possible
 - [x] fix broken performance by tuple allocation hell, consider switching pairslist to an MVector for values overwrite or trying named tuple shenanigans?
 - [] fix velocity rescaling / substitute with alternative method. fix behavior of interactions and parameterization in order to prevent crazy molecular behavior
-- [] force LJ may not work correctly. I might have just broken it, but i am uncertain that it correctly calculates the component forces, isntead of just assigning the overall force to each dimension, or something else entirely! ----- TENTATIVELY FIXED, pairslist was messed up generating NaNs and also not doing anything
 
-
-- [x] fix broken update_pairslist
 
 
 - [] Improve design of the Logger to be compatible with makie
@@ -114,6 +111,14 @@ information based on other things the user input, like if single precision, then
 - [] is it a problem that the root doesnt get updated to cover the whole entire range? may or may not just be a side effect of the algo. ArborX predefines the root.
 - [] update ci.yml for a different OS test and to resolve warnings related to chagnes to GHActions
 
+#### Perf considerations
+- [] could we work up directly to morton code from position without intermediates? that way we don't have to carry around the structure
+
+#### bugfixes from prior versions
+- [x] `update_pairlists!` incorrectly mutated over the index values of the default initialized pairlist. Fixed by changing `list[i] = result` to `list[each] = result` in the pairslist_interior function
+
+
+
 
 ### Version 0.00.4 - feature extensions
 - [] Refine functions , ex: sigma6th and sigma12 should be calculated prior to simulation for each unique radius of objects in our objectcollection --- lord willing the compiler will do this at compile time, but i trust nothing and no one.
@@ -140,10 +145,16 @@ information based on other things the user input, like if single precision, then
 - [] along with above, user specified interations with type Unions that expect either false, or a parameter. e.g. velocity dampening on a simple rescale is a false on vrescale, or a parameter in the selected Float
       use 'pruning' functions of the type informatino users fill out to make the types consistent, so no multiple Float32(input), figure that all out in the package
 - [] test by ony specified tests, rather than the whole package each and every time ichagne a letter or two
+- [] toggle-able force clamp based on user input or opt-in default value
 
 #### Style guide things
 - [] are all mutation functions inidcated properly?
 - [] in mutation functions, is the first operand always the one being mutated?
+
+#### bugfixes from prior versions
+
+### perf consideration
+- [] are inbounds valid in the force vector calculations? I have not researched this thoroughly to know
 
 
 ### Version 0.00.5
@@ -180,6 +191,12 @@ Version
 
 - [] Naive construction of required and assumed unit definitions or importation of unitful.jl for Atom and AtomCollection
 - []
+
+
+### Known Bugs / Questions
+- [] is it numerically appropriate to calculate the x dimension force of lennard jones based on the literaly subtraction of two particles? It feels like combining both the direction AND the magnitude of the force in a single value and this may contribute to some of the *irregularities* in force calculations
+- [] bvh solver introduces a neighbor list that should be two times longer than it should be. How should this double counting be addressed? a sorting of redundant bodies? subselection by asking a unique_pairs list if it has a value of(i, j)? im not sure how it is addressed in literature.
+
 
 
 

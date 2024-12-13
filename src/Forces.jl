@@ -6,8 +6,8 @@ export
     force_coulomb!,
     sum_forces!
 
-
-Base.@propagate_inbounds function pairslist_interior(each, a::Vec3D{T}, list) where T
+# TODO these belong in the neighbor search file directories
+function pairslist_interior(each, a::Vec3D{T}, list) where T
 
     i = list[each][1]
     j = list[each][2]
@@ -27,7 +27,7 @@ Base.@propagate_inbounds function pairslist_interior(each, a::Vec3D{T}, list) wh
     d2 = sqrt(dx^2 + dy^2 + dz^2)  
     result = tuple(i, j, dx, dy, dz, d2)
 
-    list[i] = result
+    list[each] = result
 
 
 end
@@ -46,8 +46,8 @@ function update_pairslist!(a::Vec3D{T}, list) where T
     else
 
 
-        Threads.@threads for each in eachindex(list)
-            @inbounds pairslist_interior(each, a, list)
+        for each in eachindex(list) #multithreading disabled until race condition is resolve
+            pairslist_interior(each, a, list)
         end
     end
 
@@ -59,7 +59,9 @@ function unique_pairs(a::Vec3D{T}) where T
 
 
     list = [tuple(i, j, a[1][1], a[1][1], a[1][1], a[1][1]) for i in 1:length(a)-1 for j in i+1:length(a)]
+
     update_pairslist!(a, list)
+
 
     return list
 end
@@ -111,6 +113,7 @@ end
 
 Base.@propagate_inbounds function lennardjones_interior(each, eps, σ, force::Vec3D{T}, pairslist) where T
     #d2 = pairslist[each][3]
+    # TODO
     i = pairslist[each][1]
     j = pairslist[each][2]
     dx = pairslist[each][3]
@@ -131,7 +134,7 @@ Base.@propagate_inbounds function lennardjones_interior(each, eps, σ, force::Ve
 
 
 
-    # incorrect, overall force is being applied to each component
+    # incorrect, overall force is being misapplied to each component
     #force[i] .+= (24*eps ./ d ) .* ((2*σ ./ d).^12 .- (σ ./ d).^6)
     #force[j] .-= force[i]
 end

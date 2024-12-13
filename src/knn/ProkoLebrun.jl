@@ -52,7 +52,7 @@ grid axis within a UInt8, instead of here where the integer that fits a grid spa
 """
 
 
-function SpheresBVHSpecs(; floattype, interaction_distance, leaves_count )
+function SpheresBVHSpecs(; floattype, critical_distance, leaves_count )
     if leaves_count < 2
         error("Please use more than one leaf")
     end
@@ -63,12 +63,12 @@ function SpheresBVHSpecs(; floattype, interaction_distance, leaves_count )
         morton_type = Int32
         morton_length = Int32(10)
 
-        return SpheresBVHSpecs{floattype, morton_type}(interaction_distance, leaves_count, branches_count, morton_length)
+        return SpheresBVHSpecs{floattype, morton_type}(critical_distance, leaves_count, branches_count, morton_length)
     elseif floattype==Float64
         morton_type = Int64
         morton_length = Int64(21)
 
-        return SpheresBVHSpecs{floattype, morton_type}(interaction_distance, leaves_count, branches_count, morton_length)
+        return SpheresBVHSpecs{floattype, morton_type}(critical_distance, leaves_count, branches_count, morton_length)
     end
     
 end
@@ -427,30 +427,41 @@ end
 
 
 ###### Phase 3: traversal
-# okayu this is a little confused right now#
-function proximity_test!(neighbors, currentKey::GridKey{K},  query::MVector{3, T}, position::MVector{3, T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
-    d = sqrt( sum((position .- query) .^ 2)) 
-    if d <= spec.critical_distance
+# TODO make this function argument consistent with the series of functions and the rest of the package
+function proximity_test!(neighbors,  query_index::Int64, currentKey::K, positions::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
+    query_reindex = K(query_index)
+    
+    d2 = sqrt( sum((positions[currentKey] .- positions[query_reindex]) .^ 2)) 
+    if query_reindex == currentKey #TODO best place to put this function?
+        return
+    else
+        if d2 <= spec.critical_distance
+            push!(neighbors, tuple(query_reindex, currentKey, d2))
+
+        end
     end
 
 end
 
 # TODO would 'branchless' programming make a difference here? CPU vs GPU comparison
-function neighbor_traverse(keys, neighbors, query, positions, spec::SpheresBVHSpecs{T, K}) where {T, K}
+# separate TODO this can be made parallel by giving a neighbor chunk to each thread and mending these threads together at the end
+function neighbor_traverse(keys, neighbors, query_index, positions, spec::SpheresBVHSpecs{T, K}) where {T, K}
     currentKey = branch_index(1, spec)
 
     while true
         # does query at all overlap with the volume of currentKey
-        overlap = sum(keys[currentKey].min .< query .< keys[currentKey].max)
-        #TODO type analysis of overlap, most utterly ideal candidate for static vector, but idk how to implement here
+        overlap = sum(keys[currentKey].min .< positions[query_index] .< keys[currentKey].max)
+
+
         if overlap > 0 
-            if keys[currentKey] == 0 # currentKey is a leaf node
-                proximity_test!(keys, neighbors, query, position[currentKey.index], spec)
+            if keys[currentKey].left == 0 # currentKey is a leaf node
+                println(typeof(keys))
+                proximity_test!(neighbors, query_index, currentKey, positions, spec)
                 currentKey = currentKey = keys[currentKey].skip
             else #currentKey is a branch node, traverse to the left
                 currentKey = keys[currentKey].left
             end
-        else #query is not contained, can cut off traversal on this path
+        else #query is not contained, can cut off traversal on the 'lefts' sequence
             currentKey = keys[currentKey].skip
         end
 
@@ -470,13 +481,9 @@ function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::Generi
     I = [GridKey{K, T}(0, 0, MVector{3, K}(0.0, 0.0, 0.0), MVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
     append!(keys, I)
 
-    #bvh_solver!(L, I, spec)
     update_stackless_bvh!(keys, spec)
 
     return keys
-    #return neighborlist = println(traverse_bvh1(position, L, I, spec))
-    #return traverse_bvh1(position, L, I, spec)
-
 end
 
 #TODO this is just demonstrative for howw we have to fix this file's structure moving forward
@@ -501,10 +508,13 @@ function rebuild_bvh!(keys, position, spec::SpheresBVHSpecs{T, K}, clct::Generic
 end
 
 function build_traverse_bvh(position, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
-    tree = build_bvh(position, spec, clct)
+    keys = build_bvh(position, spec, clct)
     neighbors = [] #TODO what's the best way to handle this initialization?
-    #TODO is this another atomic on the neighbors vector?
-    for i in eachindex(position)
+    #TODO how to parallelize? more atomics?
+
+    for query_index in eachindex(position)
+        neighbor_traverse(keys, neighbors, query_index, position, spec)
         #neighbor_traverse(tree, neighbors, position[i], spec )
     end
+    return neighbors
 end

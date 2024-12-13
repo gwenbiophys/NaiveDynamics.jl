@@ -26,7 +26,14 @@ E.g. footnotes or links will not work until the .md itself is ran.
 
 `ffmpeg -t 4 -i /home/gwenk/Videos/iWant.mp4 -vf "fps=25,scale" -loop 1 /home/gwenk/Videos/iWant.gif`
 
-
+## Using a dev'ed package like a user
+### If the dev'ed package was installed with command lie gitcloning and NOT Julia dev utilities
+1. activate the enviornment that has the dev package 
+2. `using PackageName`
+3. activate to a 'user facing' environment, e.g. with no arguments
+4. Remove `using Packagname` from the script file
+5. Run the script file
+is exactly what i would say if it worked, but precompilation takes an annoyingly long time and then fails anyways
 
 ## get a flame graph of allocations
 by @profview_allocs

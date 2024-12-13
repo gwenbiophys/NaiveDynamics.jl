@@ -1077,3 +1077,17 @@ Fixing that issue has raised the success rate on my tree generation to 100%. So 
 ### I want this as a feature drop
 
 An animated traversal for a given point, with appearing and disappearing rectangular prisms as we descend. That would be so cool!!! I have absolutely no idea how to do it haha! But if I get the code working and somehow import a SYCL/LevelZero/CM ET CETERA implementation that can pull data from there into Julia, then we will have a truly interesting reuse situation. Plus, I believe it would be truly important for uhm, verifying the success of my bounding volumes routine.
+
+
+## PLG BVH Optimization
+Collecting here are efforts towards perf optimization of our implemented algorithm. When we move to GPU, things will get far more complicated as we manage memory access patterns. But in CPU Julia land, there are still many optimization directions to look towards
+
+### towards a Julian implementation
+- are there Unwise Allocations around function calls?
+- is GC being ran during function execution and reexecution?
+- are wwe spending a lot of time on type inference due to unclear data types within function // renaming of variables?
+- can we do better by having an implicit pairlist, where if a pair of points pass proximity_test, then their related forces and computations run immediately?
+    i think this makes the most sense in a limited thread scenario but will likely only extend the issue of random memory access from key accesses and position accesses all the way to force accesses. by that measure
+- would it be better for traversal to only identify pairlists, and have a calculate_distance function run separately?
+
+### towards the best CPU multi-threaded method
