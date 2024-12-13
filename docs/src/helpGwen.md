@@ -33,6 +33,7 @@ E.g. footnotes or links will not work until the .md itself is ran.
 2. develop PackageName each time the github receives commits and new code
 2. using PackageName
 
+it worked when i removed and readded from local directory, but did NOT restart the repl. Utterly insane. I have to dev within the julia dev directory for this to work well
 ### If the dev'ed package was installed with command lie gitcloning and NOT Julia dev utilities
 could probably work if you toss in the directory tro the package in the add function *instead* of the directory to the github, but i have no idea
 

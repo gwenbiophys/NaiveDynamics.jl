@@ -11,7 +11,7 @@ using StaticArrays
 using GLMakie
 
     myCollector = GenericRandomCollector(; floattype=Float32,
-                                        objectnumber=30,
+                                        objectnumber=6,
                                         minDim=tuple(-1.0, -1.0, -1.0),
                                         maxDim=tuple(1.0, 1.0, 1.0),
                                         temperature=0.01,

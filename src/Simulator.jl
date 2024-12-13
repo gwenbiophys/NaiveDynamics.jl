@@ -240,7 +240,7 @@ function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::Generi
         #println(poslog[step_n])
         #chunk_index = record_simulation(step_n, chunk_index, spec.logChunkLength, simChunk, simLog, sys)
     end
-
+    println("it is okay")
     return poslog
 end
 
