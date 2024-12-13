@@ -156,7 +156,7 @@ position8 =[MVector{3, Float32}(0.1, 0.1, 0.1), MVector{3, Float32}(0.2, 0.2, 0.
             MVector{3, Float32}(0.11346, 0.918, 0.1276), MVector{3, Float32}(0.061, 0.76, 0.989)
 ]
 bvhspec8 = SpheresBVHSpecs(; floattype=Float32, 
-                            interaction_distance=0.1, 
+                            critical_distance=0.1, 
                             leaves_count=length(position8) 
 )
 keys = build_bvh(position8, bvhspec8, myCollector8)

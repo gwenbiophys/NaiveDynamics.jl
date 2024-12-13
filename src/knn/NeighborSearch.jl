@@ -20,15 +20,7 @@
 #     morton_length::K
 
 # end
-"""
-    function SpheresBVHSpecs(; floattype, interaction_distance, atoms_count, bins_count=atoms_count )
 
-Instantiate a specification towards a BVH of sphere primitives. The ```interaction_distance``` is the maximum interaction distance for the set of 
-pairwise interactions that a BVH+traversal algorithm finds the neighbors of. The ```bins_count``` is the number of chunks each axis will be divided by
-in order convert particles from real space to grid space. By default, ```bins_count = atoms count```. Morton_length. Though Howard et al., 2019 chose 1023 bins to fit each 
-grid axis within a UInt8, instead of here where the integer that fits a grid space axis has the same number of bits as the ```floattype```. 
-
-"""
 function SpheresBVHSpecs(; floattype, interaction_distance, atoms_count, bins_count=atoms_count )
 
     if floattype==Float32
@@ -161,54 +153,6 @@ function update_gridkeys!(quantized_aabbarray, aabb_array, spec::SpheresBVHSpecs
 
 end
 
-function update_mortoncodes!(L, quantized_aabbs, morton_length, morton_type) 
-    #TODO clean up this function to use L, aabbs, and spec?
-
-    t3 = morton_type(3)
-    t1 = morton_type(1)
-    #L is an array of grid keys with an 'index' field which points to the 'nth index of a vector in the objectCollection struct' 
-        # or a particular atom
-    #n is the current nth bit of our morton code to change we wish to change, and it corresponds with every 3rd bit of our grid positions
-
-    for each in eachindex(L)
-        #for a in eachindex(quantized_aabbs[each].centroid)
-            #println(bitstring(quantized_aabbs[each].centroid[a]))
-        #end
-        for n in morton_length 
-            for dim in eachindex(quantized_aabbs[1].centroid)
-                n_xyz = t3 * n + dim - t3 # we shift which position where on the morton code a bit should be written based on there being 3 spatial dimensions
-
-                if (quantized_aabbs[each].centroid[dim]>>(n_xyz-t1)) & t1 != 0 #if a bit at index=n_xyz of a grid position is 1, then set the n_xyz'th bit of L[each] to one
-
-
-                    L[each].morton_code ⊻= t1<<(n_xyz-t1)
-                    
-
-                else   
-                    L[each].morton_code &= ~(t1<<(n_xyz-t1)) #set the n_xyz'th bit of L[each] to zero
-                end
-
-            end
-
-        end
-
-
-    end
-end
-
-##### this is the best version of the function.
-# Curiously, it seems to be ~3x slower than the above version
-# but at least this version produces the correct result
-
-#some how this is 3x slower than the original version at half the operations and same allocation
-"""
-    update_mortoncodes2!(L, quantized_aabbs, morton_length, morton_type)
-
-Take an array of GridKeys, L, an array of 3D integer coordinates, quantized_aabbs, and specification information,
-to generate morton_codes for each GridKey.
-
-
-"""
 function update_mortoncodes2!(L, quantized_aabbs, morton_length, morton_type) 
 
     inbit = morton_type(0)
@@ -613,68 +557,6 @@ function update_bvh!(L, I, position, spec::SpheresBVHSpecs{T}, clct::Collector, 
     update_aabb!(position, spec, aabb_array)
 end
 
-
-
-
-
-
-
-
-
-
-###### PHase 4: moving on to Prokopenko
-# From Apetrei 2014 / Prokopenko and Lebrun-Grandie 2024, instead of countering common bits, were find the highest differing bit instead. 
-## Though I am unconvinced this is the highest and not the lowest differing bit. Should be fine!
-
-
-# according to Apetrei 2014, just returning the XOR is sufficient, finding the particular index of the relvant bit is unnecessary!
-
-function del(i, j, L::Vector{GridKey{K, T}}, spec::SpheresBVHSpecs{T,K}) where {T, K}
-
-    if  i >= length(L)-1 || i < 1 #|| j > length(L) || j < 1 # i dont know if the same operation should be done to i, but idk how else to fix
-        return typemax(K)
-    end
-
-    # XOR the two numbers to get a number with bits set where a and b differ
-    # transcribed from ArborX directly, treeconstruction
-    x = L[i].morton_code ⊻ L[j].morton_code
-
-
-    
-    return x + (x == K(0)) * (typemin(K) + (K(i) ⊻ K(j))) - K(1)
-    
-    
-    # Find the highest set bit in the difference
-    #index = 0
-    #while diff > 0
-    #    diff >>= 1
-    #    index += 1
-    #end
-    
-    #return index
-
-end
-
-
-
-#by convention, if left or skip are negative, then they are referring to the index of the Inode, and positive is index of Leaf
-function stacklessbottom_bvh(L, I, spec::SpheresBVHSpecs{T, K}) where {T, K}
-
- 
-    n = length(L)
-    store = [Base.Threads.Atomic{Int64}(0) for i in 1:n]
-    #Threads.@threads 
-    Threads.@threads for i in 1:n-1 #in perfect parallel
-        stackless_interior!(store, i, n, L, I, spec)
-        #println("thread $i is exiting")
-        #println()
-        
-    end
-
-
-end
-
-
 ###### Phase 5: Tree traversal
 
 function query_points()
@@ -852,49 +734,9 @@ end
 
 # change this name?
 function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
-    #L is an array of leaf nodes, 1 leaf per atom or 'primitive'
+
     L = create_mortoncodes(position, spec, clct)::Vector{GridKey{K, T}} 
-    ##println(L)
-    #change type of int here to spec.morton_int, probably with Tuple(spec.morton_int[i, length(L)])
 
-    #I = [tuple(i, length(L), Ref(L, i)[], Ref(L, i)[]) for i in 1:length(L)-1] # -1 from L because we want to have nodes = # atoms - 1 in this construction. Howard et al. chose a fixed 1024-1, but eh
     I= [INode{K, T}(tuple(i, length(L)), 0, 0, 0,  MVector{3, T}(0, 0, 0), MVector{3, T}(0, 0, 0), 0) for i in 1:length(L)-1]::Vector{INode{K, T}} 
-    #i = 3
-    #j = 4
-    ##println(bitstring(L[i].morton_code))
-    ##println(bitstring(L[j].morton_code))
-    #δ(L, i, j, spec)
-    ##println(I)
-    ##println(I)
 
-    #bvh_solver!(L, I, spec)
-
-
-    stacklessbottom_bvh(L, I, spec)
-
-
-    for i in eachindex(L)
-        println(L[i].morton_code)
-    end
-    println()
-    for i in eachindex(L)
-        println(i, " ", L[i].left, " ", L[i].skip)
-    end
-    println()
-    for i in eachindex(I)
-        println(i, " ", I[i].left, " ", I[i].skip)
-    end
-    
-    
-    #boundaries_wrapper(L, I, spec)
-    #for i in eachindex(I)
-        ##println("parentINode ",  I[i].parent_INode)#, ", ", I[i].max)
-       # #println(I[i].min)
-        ##println(I[i].max)
-    #end
-    ##println(I[1])
-    ##println()
-    #println(I[2].leaf_indices)
-    #return neighborlist = println(traverse_bvh1(position, L, I, spec))
-    #return traverse_bvh1(position, L, I, spec)
 end

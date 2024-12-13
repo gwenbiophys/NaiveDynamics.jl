@@ -146,6 +146,7 @@ information based on other things the user input, like if single precision, then
       use 'pruning' functions of the type informatino users fill out to make the types consistent, so no multiple Float32(input), figure that all out in the package
 - [] test by ony specified tests, rather than the whole package each and every time ichagne a letter or two
 - [] toggle-able force clamp based on user input or opt-in default value
+- [] allow for random generation of positions within a grid, where each particle will spawn in a random area in its grid cube
 
 #### Style guide things
 - [] are all mutation functions inidcated properly?
