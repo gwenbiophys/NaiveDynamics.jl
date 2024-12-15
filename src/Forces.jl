@@ -11,23 +11,24 @@ function pairslist_interior(each, a::Vec3D{T}, list) where T
 
     i = list[each][1]
     j = list[each][2]
+    d2 = sqrt( sum((a[i] .- a[j]) .^ 2))
+    # xi = a[i][1]
+    # xj = a[j][1]
 
-    xi = a[i][1]
-    xj = a[j][1]
+    # yi = a[i][2]
+    # yj = a[j][2]
 
-    yi = a[i][2]
-    yj = a[j][2]
+    # zi = a[i][3]
+    # zj = a[j][3]
 
-    zi = a[i][3]
-    zj = a[j][3]
+    # dx = xi - xj
+    # dy = yi - yj
+    # dz = zi - zj
+    # d2 = sqrt(dx^2 + dy^2 + dz^2)  
+    #result = tuple(i, j, dx, dy, dz, d2)
+    list[each] = tuple(i, j, d2)
 
-    dx = xi - xj
-    dy = yi - yj
-    dz = zi - zj
-    d2 = sqrt(dx^2 + dy^2 + dz^2)  
-    result = tuple(i, j, dx, dy, dz, d2)
-
-    list[each] = result
+    #list[each] = result
 
 
 end
@@ -55,10 +56,11 @@ function update_pairslist!(a::Vec3D{T}, list) where T
 end
 
 function unique_pairs(a::Vec3D{T}) where T
-    list_length = convert(Int64, (length(a)-1) * length(a) / 2)
+    #list_length = convert(Int64, (length(a)-1) * length(a) / 2)
 
 
-    list = [tuple(i, j, a[1][1], a[1][1], a[1][1], a[1][1]) for i in 1:length(a)-1 for j in i+1:length(a)]
+    #list = [tuple(i, j, a[1][1], a[1][1], a[1][1], a[1][1]) for i in 1:length(a)-1 for j in i+1:length(a)]
+    list = [tuple(i, j, a[1][1]) for i in 1:length(a)-1 for j in i+1:length(a)]
 
     update_pairslist!(a, list)
 
@@ -69,7 +71,7 @@ end
 
 function threshold_pairs(list, threshold::T) where T
     
-    return [list[i] for i in eachindex(list) if list[i][6] ≤ threshold]
+    return [list[i] for i in eachindex(list) if list[i][3] ≤ threshold] #TODO this is here hrmm
 
 end
 

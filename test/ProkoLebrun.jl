@@ -30,7 +30,7 @@ end
 # to adequately prevent recursion, we would need a companion array for both the leaves and each of their connections
 # as in, evaluate 'has this rope connection been used to update the traversal path already'
 # and that's maybe too much work, so let's just run the above counter anyway.
-function recursive_traversal(index, keys::Vector{GridKey{K, T}}, wasVisited::Vector{Bool}, spec::SpheresBVHSpecs{T, K}) where {T, K}
+function recursive_traversal(index, keys::Vector{GridKey{T, K}}, wasVisited::Vector{Bool}, spec::SpheresBVHSpecs{T, K}) where {T, K}
     traversal_count = 0
     left = keys[index].left
     skip = keys[index].skip
@@ -84,7 +84,7 @@ function recursive_traversal(index, keys::Vector{GridKey{K, T}}, wasVisited::Vec
     end
 end
     
-function is_traversable(keys::Vector{GridKey{K, T}}, spec::SpheresBVHSpecs{T, K}; ShowLonelyKeys=false) where {T, K}
+function is_traversable(keys::Vector{GridKey{T, K}}, spec::SpheresBVHSpecs{T, K}; ShowLonelyKeys=false) where {T, K}
     # should probably be an int to detect fro multiple visits
 
     # catch key pointing to itself, but not structural loops
@@ -121,8 +121,9 @@ function batch_build_traverse(runs::Int, position::Vec3D{T}, spec::SpheresBVHSpe
     badTrees = 0
 
     for each in 1:runs
-        keys = create_mortoncodes(position, spec, clct)::Vector{GridKey{K, T}} 
-        I = [GridKey{K, T}(0, 0, MVector{3, K}(0.0, 0.0, 0.0), MVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
+        treeData = create_mortoncodes(position, spec, clct)
+        keys = treeData[1][] 
+        I = [GridKey{T, K}(0, 0, MVector{3, K}(0.0, 0.0, 0.0), MVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
         append!(keys, I)
         update_stackless_bvh!(keys, spec)
         result = is_traversable(keys, spec)
@@ -159,7 +160,8 @@ bvhspec8 = SpheresBVHSpecs(; floattype=Float32,
                             critical_distance=0.1, 
                             leaves_count=length(position8) 
 )
-keys = build_bvh(position8, bvhspec8, myCollector8)
+treeData = build_bvh_perm(position8, bvhspec8, myCollector8)
+keys = treeData[1][]
 
 
 ##### functionality tests

@@ -1090,4 +1090,62 @@ Collecting here are efforts towards perf optimization of our implemented algorit
     i think this makes the most sense in a limited thread scenario but will likely only extend the issue of random memory access from key accesses and position accesses all the way to force accesses. by that measure
 - would it be better for traversal to only identify pairlists, and have a calculate_distance function run separately?
 
+
+1. update_mortoncodes! runs very slowly, with millions of allocations to process only 30 000 morton codes. Removing multithreading improves performance  by about 50x and removes all allocations. This is fair, as spawning a thread for each and every leaf to run a very brief calculation is extremely expensive. Breaking the workload into chunks equal to the number of threads should see proper performance
+2. Where infinite morton code update threading generated about 59% of the allocations, morton code sorting generates about 40%. Sorting an integer by its value or by its bitstring produces the same result, so getting rid of this will also help nicely. 
+    (fixing these two allowed us to scale to 300 000 leaves with better execution time and we are down to 394 root allocs for 300 000 leaves)
+3. 15.4 `@btime` seconds for 1million primitive points, and 82% of execution time spent in `create_mortoncodes`. 2% spent in tree generation. create_mortoncodes is being spent in sorting whole arrays by the value of one of their dimensions in the erroneously named update_gridkeys function. Need to remake these as separate arrays to improve sorting efficiency. Also a runtime dispatch at create_mortconcodes, possibly due to the type assertion returned by create_mortoncodes
+    Reproducibility:
+    @btime: 13.7s
+    create_mortoncodes: 96%
+    build_bvh runtime dispatch: not present
+    fresh reple, try 3:
+        @btime: 14.6
+    create_mortoncodes: 77%
+    build_bvh runtime dispatch: 19%
+
+    removing type assertion at L480:
+            @btime: 13.07
+    create_mortoncodes: 96%
+    build_bvh runtime dispatch: 24%
+
+    No apparent difference, but also test time is not long enough for appropriate sampling. I am not confident I have the main system memory to extend this testing to more atoms. 
+4. Restructure interior of `create_mortoncodes`
+    a. 3 sort calls that must iterate over each dimension of the min, max, and centroid of an expensive data type. This is folded into 3 total sort calls only on the centroid, where min and max will be calculated directly in the instantiation of the gridkey vector.
+    b. Currently I have 6 total vectors of data to represent the component directions of position in float and in integer space. I think the best performance direction will be 3 total vectors, one index vector that gets appropriately cosorted with the others, and two vectors of mvectors of floats or ints. These changes would clean up the notation a lot, allong me to use forloops and dot notation instead of a new line for each x y z or operation upon them. But I am less certain of the perf implications of sorting a larger / more complicated vector structure. Surely, sorting a vec of mvecs based on a single value in the mvecs would not be much worse than sorting a vector of structs of index and value based on value.
+    c. in trying to run the current implementation, I am running into a wall of setfield! errors. The type of the data i am trying to implant is Int32, and the implantation target is also Int32. So I have no idea! I reckon this comes from not wrapping an Int in a mutable vector. Ah. Well.
+                    also. it was literally true that we were setting the field, just not using the `setfield!()` syntax and using `=` syntax instead.
+    d. First set of results
+            @btime: 4.1 s
+            create_mortoncodes: 74%
+            build_bvh runtime dispatch: 19%
+        re:
+            @btime: 3.9s
+            create_mortoncodes: 83%
+            build_bvh runtime dispatch: not red, but still there 21%
+        fresh repl:
+            @btime: 5.0 s
+5. I initialization takes too long, I suspect type nonsense bc MVector{float32} that we fill with the float64? I couldn't get a strong test in using @showtime or @time because the different versions would invoke gc randomly.
+6. Direct array sorting is sooooo much faster than sorting a struct by one of its fields. At 100 000 elements, it is about 544 vs 176 microseoncds. At 1 million elements, it is much stronger at 26 vs 2 ms. Sorting the gridKeys may very well be insanium to the extent that sorting an independent data structure that then gets fed into the grid keys could be much faster
+    a. with code as structured above, running 10000000 primitives into build_bvh takes a @btime of: 76.748 s (160000235 allocations: 5.29 GiB)
+    b. Down to 56 s at least partially by splitting up 1 for loop eval over 3 separate data sets into 3 for loops
+    c. We have to maintain the index values, so we need a cosorting routine.
+        well, 24 s but also 10 GiB. My attempt at cosorting has not gone well
+        something deeply problematic is going. If i @btime the sort call, then it shows as zero allocations and takes less time tahn morton sorting the entire GridKey struct, but then goes crazy when I use @time
+
+    d. So if we sort a vector{float} directly, it takes less than a second and 6 allocs at 38 MiB. My attempts at co sorting have not gone well. The best implementation is about 6 seconds on a similar data chunk with 100 million allocations and 2 GiB and a large garbage collection time.
+    e. We could create a sort permutation and then just apply that permutation when accessing the data. However, what I am experiencing is clearly a bug. I get different perf data based on @btime vs @time and I cannot attribute these to their differeing mechanisms. 100 million allocs vs zero is utterly severe a difference! 
+        - the solution is not type signature
+        - a partial solution is to remove the type mutability of the `IndexSafeValue`. This will slightly complicate filling the new values in and possibly reduce that performance somehwat. But this cosorting routine is still about 10 times slower than straight sort
+        
+        okay soooooooooo sortperm is profoudnly slower than straight up sorting, in fact, it is slower than my broken cosort implementation. In the end, it ends up being about 2 times slower than the Cosort, while also being even more data intensive. I guess it is kind of fair, as they both require extracting out the sorting data, it's just one requires allocating a fresh vector while the other requires accessing and reordering another vector similarly. In both cases, we are having to extract something out of the pure sorting process.
+    f. Looking up the issue more, the size of my vectors may be defeating me here. The difficulty is I require these large data structures to get effective sampling, But moving forward, our sampling approach should focus on n'th repeated runs of the same function on a realistic data size. Let's start testing 1000 runs of the standard 1024 set in HOOMD-Blue. And I would need to develop my update! tree routine. In fact,,, it may be best to test this in the sim engine context. That gives us a lot more variables, but how shall we deliver changing values for position without muddying up the results with unrealistic garbage collection, and the re-random generation of the data. Well, I can start just with a loop of update_yadayada! calls, then expand out as necessary.
+        - so i am already loving the permuter more because resetting for an additional run requires only updating the positions and then updating the permuter
+        - other scheme would require updating of the cosorted array structure.
+        - overall, this are most likely work equivalent or work similar, but permute is simpler to implement around
+        - sortperm! of a zeros allocated array seems less memory intense than sortperm new array while being possibly slower.
+
+7. Restructure GridKeys to be a struct of arrays, and pass sorted morton codes and atom indices back to the struct without sorting the entire struct?
+
+
 ### towards the best CPU multi-threaded method

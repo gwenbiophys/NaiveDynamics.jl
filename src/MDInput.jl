@@ -1,15 +1,5 @@
-#module MDInput
-# File for generating inputs to the "simulation!" functions
-# and eventually input-file reading from custom and/or community-based tooling
-
-
-# 1. Generic input-generation, last updated 4/08/2024
-
-
-
-
 export 
-# would also have to include definitions of types and functions
+
     Vec3D,
     StatVec3D,
     ObjectCollection,
@@ -23,7 +13,8 @@ export
     GenericUserValueCollector,
     collect_objects,
     testCollector,
-    myTestCollection
+    myTestCollection,
+    generate_positions
 
 
 
@@ -438,5 +429,3 @@ function collect_objects(Collector::GenericUserValueCollector )
 
     return myObjectCollection
 end
-
-#end #module

@@ -35,4 +35,4 @@ I am working towards a stackless BVH traversal algorithm for accelerating neighb
 
 [^1]: [Revising Apetrei’s bounding volume hierarchy construction algorithm to allow stackless traversal] (https://info.ornl.gov/sites/publications/Files/Pub208673.pdf)
 [^2]: [Chips and Cheese: Lunar Lake iGPU] (https://chipsandcheese.com/p/lunar-lakes-igpu-debut-of-intels)
-[^3]: Testing was conducted on my machine( i5-9300H) using Base.@showtime and BenchmarkTools.@btime
+[^3]: Testing was conducted on my machine( i5-9300H, stock CachyOS installed in November, 4 Threads enabled) using Base.@showtime and BenchmarkTools.@btime

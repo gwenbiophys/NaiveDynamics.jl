@@ -47,10 +47,7 @@
 - [x] NaiveLennardJones based on MVec
 - [x] NaiveCoulomb based on MVec
 - [x] Naive Logging and storage of data as a text file by snapshotting the whole struct~~
-- [x] change structuring, so that the object collection is not nested within misc structs
-      get rid of the name pile at the start of simulate!()
-      simulate takes 3 arguments, a collector, a collection, and the simSpecs, where type dispatch is based around the type of the SimSpecs, if it is a VerletVel or otherwise integrator
-      add documentation to describe the arguments for simulate!(), as objectcollection will be shortened to sys, collector to clct and simulationspecification will just be spec
+- [x] change structuring, so that the object collection is not nested within misc structs get rid of the name pile at the start of simulate!() simulate takes 3 arguments, a collector, a collection, and the simSpecs, where type dispatch is based around the type of the SimSpecs, if it is a VerletVel or otherwise integrator add documentation to describe the arguments for simulate!(), as objectcollection will be shortened to sys, collector to clct and simulationspecification will just be spec
 - [x] update simulate!() and object collection so that the force is the force of the current step, so that for a logg of position and force, the listed force sum is the force that (along with velocity and other methods) that caused the particles to change positions between the previous step and the current step
 - [x] get rid of dumloop_product!() as it is just an unnecessary composite of larger pieces
 - [x] GLMakie integration and MP4 deliverable for data analysis
@@ -63,7 +60,7 @@
 
 ### Version 0.00.3 - repo fixing + bvh-neighbor lists
 - [] make all Big functions part of a a public API so that they can be tested and developed easier. Especially assembly functions with host functional functions.
-- [] fix parametric types in neighborsearch, because the T and K switch positions, replace with I and F? or at least make them consistent
+- [x] fix parametric types in neighborsearch, because the T and K switch positions, replace with I and F? or at least make them consistent
 - [] update code naming to reflect the fact that AABB's are only first generated right immediately before bvh traversal, and squash down redundant data structures if at all possible
 - [x] fix broken performance by tuple allocation hell, consider switching pairslist to an MVector for values overwrite or trying named tuple shenanigans?
 - [] fix velocity rescaling / substitute with alternative method. fix behavior of interactions and parameterization in order to prevent crazy molecular behavior
@@ -83,11 +80,11 @@
 - [] make it so push! log only runs at every selected interval, and also make this match the frame interval for makie by having makie take the simSpec as default framerate
 - [] change structure definitions in MDINput to be Vec3D instead of Vector{MVector} etc etc
 - [x] add kernel abstractions and AMDGPU and oneAPI and CUDA as formal extensions so that they are only precompiled when the script file to use this package includes 'use cuda'.
-- [] change all 2 factor ranges to a 2 length tuple
 - [] change vectors of structs to be structs of vectors, and add in relevant infrastructure to enable a resort of say the minboundary to change the order in the exact same way of the other elements of the simulation.
 
 
-- [] check the naive unique pairs function for correctness. I was kinda just throwing stuff at a wall to see if it worked
+- [x] check the naive unique pairs function for correctness. I was kinda just throwing stuff at a wall to see if it worked
+- [] add tests to unique pairs function
 - [] fix precision selection so the precision can be selected by user exactly one time and is persistent throughout.
 - [] Fix position recording so that the simulation can be logged for a user specified number of runs
 - [] add ```simulate!()``` resolution so that the system can log the last few steps, if the last step does not trigger a logging of the chunk
@@ -99,17 +96,17 @@
       by having a function of the same name fxn(; param, param, param, defaultparam=1)
 information based on other things the user input, like if single precision, then morton encode to 32 bits.
 - [x] currently, MakieExt redefines the record_video function stored in PkgExtensions. Will the extension continue to work if it exports record_video on its own?
-- [] package extensions methods break upon trying to use them at all because something something Julia doesnt work. In my Dev environment, Iwant as little loaded as possible. Thus, the extensions, but I am tetsint in my dev environment, which means I don't get to use the extension functionality. I believe it would work better for a user situation, in which the Julia environment is not this package's source code. idk
-- [] struct instantiate with function for neighborsearch items, so changes to the API are more clear to impelment (but also slightly more tedious)
+- [x] package extensions methods break upon trying to use them at all because something something Julia doesnt work. In my Dev environment, Iwant as little loaded as possible. Thus, the extensions, but I am tetsint in my dev environment, which means I don't get to use the extension functionality. I believe it would work better for a user situation, in which the Julia environment is not this package's source code. idk
+- [x] struct instantiate with function for neighborsearch items, so changes to the API are more clear to impelment (but also slightly more tedious)
 - [] companion arrays of morton codes, indices to atoms, and grid aabbs and simplified structures for more purposeful datamanagement. These optimizations won't especially work until we have struct arrays and or the deep compression used in contemporary bvh papers.
 - [x] if we use the Julia built in environment instead of our own, could we finally have extensions working correctly, so that we are devved into naive dynamics and using the local dev version wiht a napkin test file, while also being abel to use only the dependencies and extensions we want?
-- [] functions don't necessarily have to be in order, a function can call a function that is defined physically below it. Use this concept to make the code prettier and better organized.
 - [] investigate if other Julian threading routines produce better results. Polyester and OhMyThreads and Dagger come to mind
-- [] api.md only has 2 items on it. Why?
-- [] fix upper functions of Proko to only iterate over  specific indices of the grid keys array
+- [] api.md only has 1 items on it that is no longer present in the package. Why?
+- [x] fix upper functions of Proko to only iterate over  specific indices of the grid keys array
 - [] for boundary expansion, is the for loop flowthrough evaluation effective, or is copyto! effective enough
 - [] is it a problem that the root doesnt get updated to cover the whole entire range? may or may not just be a side effect of the algo. ArborX predefines the root.
 - [] update ci.yml for a different OS test and to resolve warnings related to chagnes to GHActions
+
 
 #### Perf considerations
 - [] could we work up directly to morton code from position without intermediates? that way we don't have to carry around the structure
@@ -149,7 +146,7 @@ information based on other things the user input, like if single precision, then
 - [] allow for random generation of positions within a grid, where each particle will spawn in a random area in its grid cube
 
 #### Style guide things
-- [] are all mutation functions inidcated properly?
+- [] are all mutation functions inidcated properly? Are mutation functions redundantly labeled? i.e. with `update` and `!`, how could they be better named to improve clarity?
 - [] in mutation functions, is the first operand always the one being mutated?
 
 #### bugfixes from prior versions
@@ -197,6 +194,7 @@ Version
 ### Known Bugs / Questions
 - [] is it numerically appropriate to calculate the x dimension force of lennard jones based on the literaly subtraction of two particles? It feels like combining both the direction AND the magnitude of the force in a single value and this may contribute to some of the *irregularities* in force calculations
 - [] bvh solver introduces a neighbor list that should be two times longer than it should be. How should this double counting be addressed? a sorting of redundant bodies? subselection by asking a unique_pairs list if it has a value of(i, j)? im not sure how it is addressed in literature.
+- [] Public API is not documenting almost any doc strings.
 
 
 
