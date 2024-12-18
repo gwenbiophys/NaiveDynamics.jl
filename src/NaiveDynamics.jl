@@ -9,8 +9,8 @@ using StaticArrays
 using Distributions
 using Revise
 using StructArrays
-using CellListMap
-using NearestNeighbors
+#using CellListMap
+#using NearestNeighbors
 using SortingAlgorithms
 
 using Aqua #is this correct? should probably go in test files!
@@ -19,15 +19,17 @@ using Aqua #is this correct? should probably go in test files!
 #using AMDGPU
 #using CUDA
 #using GLMakie
+using InteractiveUtils
 
 
 include("MDInput.jl")
-include("Simulator.jl")
+
 include("BaseExtensions.jl")
 #include("knn/NeighborSearch.jl")
 include("knn/ProkoLebrun.jl")
 include("PkgExtensions.jl")
 include("Forces.jl")
+include("Simulator.jl")
 
 
 end # module NaiveDynamics

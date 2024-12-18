@@ -148,11 +148,13 @@ information based on other things the user input, like if single precision, then
 #### Style guide things
 - [] are all mutation functions inidcated properly? Are mutation functions redundantly labeled? i.e. with `update` and `!`, how could they be better named to improve clarity?
 - [] in mutation functions, is the first operand always the one being mutated?
+- [] do mutation functions return a value? HOw does Base do it?
 
 #### bugfixes from prior versions
 
-### perf consideration
+### perf considerations
 - [] are inbounds valid in the force vector calculations? I have not researched this thoroughly to know
+- [] can we improve neighbor list performance by calling all neighbor -related functions at the place where we currently `push!` a pair to the pair list? Uneven memory access vs. severely many small allocations. Result may differ between a data vectors stored as SVecs vs MVecs as well
 
 
 ### Version 0.00.5

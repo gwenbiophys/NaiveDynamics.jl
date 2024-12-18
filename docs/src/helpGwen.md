@@ -54,4 +54,5 @@ activate C:/Users/Trist/.julia/dev/NaiveMD/NaiveDynamics.jl
 using NaiveDynamics
 
 ## for type analysis
-@code_warntype
+@code_warntype will evaluate the function's types it is associated with
+

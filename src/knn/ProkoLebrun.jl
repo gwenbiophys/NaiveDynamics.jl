@@ -40,7 +40,7 @@ export
 # of shapes and considering different distances, as in the Noneuclidean paper?
 
 
-struct SpheresBVHSpecs{T, K} <: SimulationSpecification
+struct SpheresBVHSpecs{T, K} #<: SimulationSpecification #broken due to load order in the main NaiveDynamics module
     critical_distance::T
     leaves_count::Int64
     branches_count::Int64
@@ -305,7 +305,8 @@ function update_mortoncodes_perm!(L, quantized, perm, morton_length, morton_type
         L[each].morton_code = morton_type(0)
 
         for m in morton_type(morton_length):-1:t1 #iterate backwards
-
+            #TODO this is deccelerated due to having to access 3 different arrays and having to address every bit of th morton codes individualy rather than as ensembles
+            # in this case, quantized being an mvec or even svec of xyz dimensions would be helpful
             inbit = (quantized.x[each] << (32 - m)) >>> 31
             L[each].morton_code = (L[each].morton_code << 1) | inbit
 
@@ -332,7 +333,7 @@ function reverse_bit(n::Int32)
 
     return ret
 end
-function sort_mortoncodes!(L::Vector{GridKey{T, K}}) where {T, K}
+function sort_mortoncodes!(L::Vector{GridKey{T, K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
     #make a specialized radix sort to replace base sort // space for GPU backends to put forward their own float
     sort!(L, by = x -> x.morton_code, rev=false) # sorts lexicographically both the binary and the integer
     #sort!(L, by=x -> count(c -> c == '1', bitstring(x.morton_code)))
@@ -354,10 +355,6 @@ function create_mortoncodes(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clc
     #index_y = [IndexSafeValue{T, K}(position[i][1], i) for i in 1:spec.leaves_count]
     index_y = IndexSafeArray{T, K, Vector{T}, Vector{K}}([position[i][2] for i in 1:spec.leaves_count], [i for i in 1:spec.leaves_count])
     index_z = IndexSafeArray{T, K, Vector{T}, Vector{K}}([position[i][3] for i in 1:spec.leaves_count], [i for i in 1:spec.leaves_count])
-
-
-
-
 
     #idk how this should be better done to prevent runtime evaluation of a stupid if statement
     #TODO what is in fact the best way to initalize this integer, K(0)
@@ -383,8 +380,8 @@ function create_mortoncodes(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clc
     #update_mortoncodes!(L, quantized_aabbs, spec.morton_length, K)
     update_mortoncodes_cosort!(L, quantized_x, quantized_y, quantized_z, spec.morton_length, K)
 
-    sort_mortoncodes!(L)#@time "mortons" sort_mortoncodes!(L)
-    return tuple(Ref(L), Ref(index_x), Ref(index_y), Ref(index_z), Ref(quantized_x), Ref(quantized_y), Ref(quantized_z))
+    sort_mortoncodes!(L, spec)#@time "mortons" sort_mortoncodes!(L)
+    return (keys=Ref(L), index_x=Ref(index_x), index_y=Ref(index_y), index_z=Ref(index_z), quantized_x=Ref(quantized_x), quantized_y=Ref(quantized_y), quantized_z=Ref(quantized_z))
     #return L
 
 end
@@ -417,7 +414,7 @@ function create_mortoncodes_perm(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}
     ]
 
     update_mortoncodes_perm!(L, quantized_xyz, perm_xyz, spec.morton_length, K)
-    sort_mortoncodes!(L)#@time "mortons" sort_mortoncodes!(L)
+    sort_mortoncodes!(L, spec)#@time "mortons" sort_mortoncodes!(L)
     
     return tuple(Ref(L), Ref(position_xyz), Ref(index_xyz), Ref(perm_xyz), Ref(quantized_xyz))
 end
@@ -449,20 +446,6 @@ function branch_index(a, spec::SpheresBVHSpecs{T, K}) where {T, K}
     return c = a + spec.leaves_count # this could do without the c = but i am not ready with testing yet
 end
 
-
-#TODO what is the best way to do this? This is too naive.
-
-#     expand_volume!(dst, operator, operand_a, operand_b) -> dst
-# Conditionally expand the volume of x, y, z components of 'dst', where dst is expected to be either operand_a or b.
-
-function expand_volume!(dst, operator, operand_a, operand_b)
-    #copyto!(bounding_volume, expander)
-    for dim in eachindex(bounding_volume)
-        dst[dim] = operator(operand_a[dim], operand_b[dim]) * expander[dim]
-    end
-
-
-end
 
 function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, nI, keys, spec::SpheresBVHSpecs{T, K}) where {T, K}
     rangel = i 
@@ -634,33 +617,43 @@ function proximity_test!(neighbors,  query_index::Int64, currentKey::K, position
     end
 
 end
-
+function overlap_test(keys, currentKey, query_index, positions, spec::SpheresBVHSpecs{T, K}) where {T, K}
+    return sum(keys[currentKey].min .< positions[query_index] .< keys[currentKey].max)
+end
 # TODO would 'branchless' programming make a difference here? CPU vs GPU comparison
 # separate TODO this can be made parallel by giving a neighbor chunk to each thread and mending these threads together at the end
-function neighbor_traverse(keys, neighbors, query_index, positions, spec::SpheresBVHSpecs{T, K}) where {T, K}
+    #TODO how to parallelize? more atomics?
+function neighbor_traverse(keys, positions, spec::SpheresBVHSpecs{T, K}) where {T, K}
     currentKey = branch_index(1, spec)
+    neighbors = []
+    for query_index in eachindex(positions)
+        while currentKey != 0 # currentKey is the sentinel, end traversal of the given query
+            # does query at all overlap with the volume of currentKey
+            overlap = overlap_test(keys, currentKey, query_index, positions, spec)
 
-    while true
-        # does query at all overlap with the volume of currentKey
-        overlap = sum(keys[currentKey].min .< positions[query_index] .< keys[currentKey].max)
 
 
-        if overlap > 0 
-            if keys[currentKey].left == 0 # currentKey is a leaf node
-                #println(typeof(keys))
-                proximity_test!(neighbors, query_index, currentKey, positions, spec)
-                currentKey = currentKey = keys[currentKey].skip
-            else #currentKey is a branch node, traverse to the left
-                currentKey = keys[currentKey].left
+
+            if overlap > 0 
+                if keys[currentKey].left == 0 # currentKey is a leaf node
+                    #println(typeof(keys))
+                    proximity_test!(neighbors, query_index, currentKey, positions, spec)
+                    currentKey = currentKey = keys[currentKey].skip
+                else #currentKey is a branch node, traverse to the left
+                    currentKey = keys[currentKey].left
+                end
+            else #query is not contained, can cut off traversal on the 'lefts' sequencef
+                currentKey = keys[currentKey].skip
             end
-        else #query is not contained, can cut off traversal on the 'lefts' sequence
-            currentKey = keys[currentKey].skip
-        end
 
-        if currentKey == 0 #currentKey is the sentinel, end traversal
-            break
+            # if currentKey == 0 
+            #     continue
+            # end
+
         end
     end
+
+    return neighbors
 end
 
 
@@ -679,11 +672,11 @@ function build_bvh_cosort(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct:
     #TODO is this helpful? sometimes the initialization of I takes a very long time and 'z' should help
     I = [GridKey{T, K}(0, 0, MVector{3, T}(0.0, 0.0, 0.0), MVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
 
-    append!(bvhData[1][], I)
+    append!(bvhData.keys[], I)
 
-    update_stackless_bvh!(bvhData[1][], spec)
+    update_stackless_bvh!(bvhData.keys[], spec)
 
-    return 
+    return bvhData
 end
 function build_bvh_perm(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
 
@@ -708,54 +701,66 @@ end
 # for the integer coordinate vector, we could pass on a tuple of refs to it and the gridkey array from build_bvh
 function rebuild_bvh_cosort!(treeData, position, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
     # i have to rebuild the quantized friends and their indices. UGHHHHH i dont wanna
+
     for each in 1:spec.leaves_count
-        treeData
+        treeData.index_x[][each] = IndexSafeValue{T,K}(position[each][1], each)
     end
-    #morton_type = K
-    #idk how this should be better done to prevent runtime evaluation of a stupid if statement
-    index_x = IndexSafeArray{T, K, Vector{T}, Vector{K}}([position[i][1] for i in 1:spec.leaves_count], [i for i in 1:spec.leaves_count])
-    #index_y = [IndexSafeValue{T, K}(position[i][1], i) for i in 1:spec.leaves_count]
-    index_y = IndexSafeArray{T, K, Vector{T}, Vector{K}}([position[i][2] for i in 1:spec.leaves_count], [i for i in 1:spec.leaves_count])
-    index_z = IndexSafeArray{T, K, Vector{T}, Vector{K}}([position[i][3] for i in 1:spec.leaves_count], [i for i in 1:spec.leaves_count])
-
-
-
-
+    for each in 1:spec.leaves_count
+        treeData.index_y[][each] = IndexSafeValue{T,K}(position[each][2], each)
+    end
+    for each in 1:spec.leaves_count
+        treeData.index_z[][each] = IndexSafeValue{T,K}(position[each][3], each)
+    end
 
     #idk how this should be better done to prevent runtime evaluation of a stupid if statement
     #TODO what is in fact the best way to initalize this integer, K(0)
     # quantized_x = [QuantizedIndexSafePosition{K}(K(0), K(0)) for i in 1:spec.leaves_count]
     # quantized_y = [QuantizedIndexSafePosition{K}(K(0), K(0)) for i in 1:spec.leaves_count]
     # quantized_z = [QuantizedIndexSafePosition{K}(K(0), K(0)) for i in 1:spec.leaves_count]
-    quantized_x = IndexSafeArray{K, K, Vector{K}, Vector{K}}([K(0) for i in 1:spec.leaves_count], [K(0) for i in 1:spec.leaves_count])
-    quantized_y = IndexSafeArray{K, K, Vector{K}, Vector{K}}([K(0) for i in 1:spec.leaves_count], [K(0) for i in 1:spec.leaves_count])
-    quantized_z = IndexSafeArray{K, K, Vector{K}, Vector{K}}([K(0) for i in 1:spec.leaves_count], [K(0) for i in 1:spec.leaves_count])
+    # quantized_x = IndexSafeArray{K, K, Vector{K}, Vector{K}}([K(0) for i in 1:spec.leaves_count], [K(0) for i in 1:spec.leaves_count])
+    # quantized_y = IndexSafeArray{K, K, Vector{K}, Vector{K}}([K(0) for i in 1:spec.leaves_count], [K(0) for i in 1:spec.leaves_count])
+    # quantized_z = IndexSafeArray{K, K, Vector{K}, Vector{K}}([K(0) for i in 1:spec.leaves_count], [K(0) for i in 1:spec.leaves_count])
 
     #quantized_aabbs = [QuantizedAABB{K}(i, MVector{3, K}(0, 0, 0),  MVector{3, K}(0, 0, 0), MVector{3, K}(0, 0, 0)) for i in 1:spec.leaves_count]::Vector{QuantizedAABB{K}}
-    update_quantized_positions!(quantized_x, quantized_y, quantized_z, index_x, index_y, index_z, spec, clct)
+    update_quantized_positions!(treeData.quantized_x[], treeData.quantized_y[], treeData.quantized_z[], treeData.index_x[], treeData.index_y[], treeData.index_z[], spec, clct)
     #update_gridkeys!(quantized_aabbs, aabb_array, spec, K, clct)
 
     #aabb_array = [AABB{T}(i, position[i], position[i] .- spec.critical_distance, position[i] .+ spec.critical_distance) for i in eachindex(position)] #only important info from generate_aabb
     #TODO oh man, we lose on Julia's nice notation, what's the best solution here? Maybe we will still get good enough perf with index_xyz and quantized_xyz as MVectors
-    L = [GridKey{T, K}(i, 0, 
-        MVector{3, T}(index_x[i].value - spec.critical_distance, index_y[i].value - spec.critical_distance, index_z[i].value - spec.critical_distance),
-        MVector{3, T}(index_x[i].value + spec.critical_distance, index_y[i].value + spec.critical_distance, index_z[i].value + spec.critical_distance),
-        0, 0) for i in 1:spec.leaves_count
-    ]
+    for each in 1:spec.leaves_count
+        treeData.keys[][each].min[1] = treeData.index_x[][each].value - spec.critical_distance
+        treeData.keys[][each].min[2] = treeData.index_y[][each].value - spec.critical_distance
+        treeData.keys[][each].min[3] = treeData.index_z[][each].value - spec.critical_distance
+    end
+    for each in 1:spec.leaves_count
+        treeData.keys[][each].max[1] = treeData.index_x[][each].value + spec.critical_distance
+        treeData.keys[][each].max[2] = treeData.index_y[][each].value + spec.critical_distance
+        treeData.keys[][each].max[3] = treeData.index_z[][each].value + spec.critical_distance
+    end
+
+    # L = [GridKey{T, K}(i, 0, 
+    #     MVector{3, T}(index_x[i].value - spec.critical_distance, index_y[i].value - spec.critical_distance, index_z[i].value - spec.critical_distance),
+    #     MVector{3, T}(index_x[i].value + spec.critical_distance, index_y[i].value + spec.critical_distance, index_z[i].value + spec.critical_distance),
+    #     0, 0) for i in 1:spec.leaves_count
+    # ]
 
     #update_mortoncodes!(L, quantized_aabbs, spec.morton_length, K)
-    update_mortoncodes_cosort!(L, quantized_x, quantized_y, quantized_z, spec.morton_length, K)
+    update_mortoncodes_cosort!(treeData.keys[], treeData.quantized_x[], treeData.quantized_y[], treeData.quantized_z[], spec.morton_length, K)
 
-    sort_mortoncodes!(L)#@time "mortons" sort_mortoncodes!(L)
+    sort_mortoncodes!(treeData.keys[], spec)#@time "mortons" sort_mortoncodes!(L)
     #return tuple(Ref(L), Ref(index_x), Ref(index_y), Ref(index_z), Ref(quantized_x), Ref(quantized_y), Ref(quantized_z))
 
-    update_stackless_bvh!(keys, spec)
+    update_stackless_bvh!(treeData.keys[], spec)
 end
 
 function rebuild_bvh_perm!(treeData, position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
     #update positions, convert from mutable vector to struct of vectors
+    #TODO can these loops be replaced?
+    #fill!(treeData[2][].x, [position[each][1] for each in eachindex(position)])
     for each in eachindex(position)
         treeData[2][].x[each] = position[each][1]
+        #copyto!(treeData[2][].x[each], position[each][1])
+        #setindex!(treeData[2][].x, position[1])
     end
     for each in eachindex(position)
         treeData[2][].y[each] = position[each][2]
@@ -772,34 +777,36 @@ function rebuild_bvh_perm!(treeData, position::Vec3D{T}, spec::SpheresBVHSpecs{T
 
     #update leaf boundaries based on new positions
     for each in 1:spec.leaves_count
-        treeData[1][][each].min[1] = treeData[2][].x[each]
-        treeData[1][][each].min[2] = treeData[2][].y[each]
-        treeData[1][][each].min[3] = treeData[2][].z[each]
+        treeData[1][][each].min[1] = treeData[2][].x[each] - spec.critical_distance
+        treeData[1][][each].min[2] = treeData[2][].y[each] - spec.critical_distance
+        treeData[1][][each].min[3] = treeData[2][].z[each] - spec.critical_distance
     end
     for each in 1:spec.leaves_count
-        treeData[1][][each].max[1] = treeData[2][].x[each]
-        treeData[1][][each].max[2] = treeData[2][].y[each]
-        treeData[1][][each].max[3] = treeData[2][].z[each]
+        treeData[1][][each].max[1] = treeData[2][].x[each] + spec.critical_distance
+        treeData[1][][each].max[2] = treeData[2][].y[each] + spec.critical_distance
+        treeData[1][][each].max[3] = treeData[2][].z[each] + spec.critical_distance
     end
 
     update_mortoncodes_perm!(treeData[1][], treeData[5][], treeData[4][], spec.morton_length, K)
-    sort_mortoncodes!(treeData[1][])#@time "mortons" sort_mortoncodes!(L)
+    sort_mortoncodes!(treeData[1][][1:spec.critical_distance], spec)#@time "mortons" sort_mortoncodes!(L)
     
     #return tuple(Ref(L), Ref(position_xyz), Ref(index_xyz), Ref(perm_xyz), Ref(quantized_xyz))
-    
+    # neighbors = []
 
+    #neighbor_traverse(treeData[1][],  position, spec)
+
+    #return treeData
     
 end
 
 function build_traverse_bvh(position, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
     treeData = build_bvh_perm(position, spec, clct)
     keys = treeData[1][] 
-    neighbors = [] #TODO what's the best way to handle this initialization?
-    #TODO how to parallelize? more atomics?
 
-     for query_index in eachindex(position)
-        neighbor_traverse(keys, neighbors, query_index, position, spec)
+
+
+    neighbors = neighbor_traverse(keys, position, spec)
         #neighbor_traverse(tree, neighbors, position[i], spec )
-    end
+
     return neighbors
 end

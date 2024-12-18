@@ -1144,8 +1144,22 @@ Collecting here are efforts towards perf optimization of our implemented algorit
         - other scheme would require updating of the cosorted array structure.
         - overall, this are most likely work equivalent or work similar, but permute is simpler to implement around
         - sortperm! of a zeros allocated array seems less memory intense than sortperm new array while being possibly slower.
+    g. trying to get a better idea of the profiling situation, as my tree and traverse method is, on a single run, slower than the naive method at 1024 atoms. Howeever, traversal gets stuck somewhere in the second run, seemingly in the first or second traversal call. Traversal is becoming stuck, and it seems to be exclusively after rebuilding the bvh. It is most certainly in the morton code sorting, as the sort call sorts every part of the array rather than a selection of indices. Passing a selection of indices into the function appears to rescue function. Future profiling will determine if passing part of an index to sort! / sortperm! reduces performance.
+    h. So final results from this series of perf. studying in morton code preparation
+        - sort/sortperm function calls still take a lot of time and memory
+        -  Modifying `Base.setindex!` and the rest to accommodate cosorting an index array according to the sorting order of a values array is no faster than sorting an array of tuples of `(index, value)` directly with `sort!(array, by = x -> x.value). It however uses 2x less memory.
+        - Generating and updating a permuter array is faster than cosort or direct sort and less memory intensive at all array lengths of `positions` of 2 and greater
+        - Naive pairslist and permuter have perf parity at about 36 primitives (10 000 repetitions, randomly generated positions in 0 to 1, measured by @btime, threshold=0.3), while pairslist aggressively loses to permuter at 37 and above.
+        - most ideal result would be to quantize position coordinates without having to use sortperm!. If we could use a plain sort! call on a lone vector, performance would increase considerably. However, this does not seem realistic. Maybe a hand constructed routine or even `sort!` arguments customization could outperform `sort!` but I refuse to add that to my to-do list. 
 
 7. Restructure GridKeys to be a struct of arrays, and pass sorted morton codes and atom indices back to the struct without sorting the entire struct?
 
 
 ### towards the best CPU multi-threaded method
+
+
+### state of the art
+1. As of 12/17/2024
+    a. In the instantiation of a threshold list from position, bvh is ahead
+    b. In artificial rerunning of the neighbor list functions, bvh is ahead
+    c. In a simulate! called with no forces, 

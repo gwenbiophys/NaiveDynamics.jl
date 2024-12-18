@@ -157,7 +157,7 @@ position8 =[MVector{3, Float32}(0.1, 0.1, 0.1), MVector{3, Float32}(0.2, 0.2, 0.
             MVector{3, Float32}(0.11346, 0.918, 0.1276), MVector{3, Float32}(0.061, 0.76, 0.989)
 ]
 bvhspec8 = SpheresBVHSpecs(; floattype=Float32, 
-                            critical_distance=0.1, 
+                            critical_distance=1.0, 
                             leaves_count=length(position8) 
 )
 treeData = build_bvh_perm(position8, bvhspec8, myCollector8)
@@ -168,7 +168,7 @@ keys = treeData[1][]
 @testset "traversability" begin
 
 
-    # "was every leaf given a skip rope value?"
+    # "was every leaf (except the last) given a skip rope value?"
     @test keys[8].skip == 0
     for each in 1:7
         @test keys[each].skip != 0
@@ -177,6 +177,10 @@ keys = treeData[1][]
     # "can we repeatedly build traversable trees?"
     goodRuns = batch_build_traverse(100, position8, bvhspec8, myCollector8)
     @test goodRuns[1] == 100 
+
+    # "can tree traversal find every pairing between every atom?"
+    list = neighbor_traverse(keys, position8, bvhspec8)
+    
 end
 
 @testset "bounding volumes" begin

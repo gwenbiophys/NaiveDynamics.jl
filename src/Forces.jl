@@ -1,5 +1,5 @@
 export
-    update_pairlist!,
+    update_pairslist!,
     unique_pairs,
     threshold_pairs,
     force_lennardjones!,
@@ -34,7 +34,7 @@ function pairslist_interior(each, a::Vec3D{T}, list) where T
 end
 function update_pairslist!(a::Vec3D{T}, list) where T
 
-    
+    #TODO this if should not be evaluated here, should be evaluate4d ahead of time
     if length(a) == 2
 
         dx = a[1][1] - a[2][1]
@@ -42,7 +42,7 @@ function update_pairslist!(a::Vec3D{T}, list) where T
         dz = a[1][3] - a[2][3]
         d2 = sqrt(dx^2 + dy^2 + dz^2) 
 
-        list[1] = tuple(1, 2, dx, dy, dz, d2)
+        list[1] = tuple(1, 2, d2)
 
     else
 
@@ -58,9 +58,11 @@ end
 function unique_pairs(a::Vec3D{T}) where T
     #list_length = convert(Int64, (length(a)-1) * length(a) / 2)
 
-
+    #TODO this call alone is about as slow as an equivalent bvh build and traverse, can it be optimized
     #list = [tuple(i, j, a[1][1], a[1][1], a[1][1], a[1][1]) for i in 1:length(a)-1 for j in i+1:length(a)]
-    list = [tuple(i, j, a[1][1]) for i in 1:length(a)-1 for j in i+1:length(a)]
+    list =  [tuple(i, j, a[1][1]) for i in 1:length(a)-1 for j in i+1:length(a)]
+    #fillcombinations
+
 
     update_pairslist!(a, list)
 

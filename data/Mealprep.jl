@@ -6,6 +6,7 @@ using BenchmarkTools
 #using StaticArrays
 using NaiveDynamics
 using StaticArrays
+using JET
 
 ###### Video recording
 # using GLMakie
@@ -120,9 +121,9 @@ myCollector2 = GenericRandomCollector(; floattype=Float32,
                                     mincharge=-1f-9,
                                     maxcharge=1f-9
 )
-#myCollection1 = collect_objects(myCollector2)
+myCollection1 = collect_objects(myCollector2)
 position = generate_positions(myCollector2)
-println(sizeof(position))
+#println(sizeof(position))
 
 
 position8 = [MVector{3, Float32}(0.1, 0.1, 0.1), MVector{3, Float32}(0.2, 0.2, 0.2), MVector{3, Float32}(0.346, 0.98, 0.12), MVector{3, Float32}(0.01, 0.76, 0.99), MVector{3, Float32}(0.1111, 0.4, 0.31), MVector{3, Float32}(0.234, 0.29, 0.2), MVector{3, Float32}(0.11346, 0.918, 0.1276), MVector{3, Float32}(0.061, 0.76, 0.989) ]
@@ -134,8 +135,20 @@ position3 = [MVector{3, Float32}(0.1, 0.1, 0.1), MVector{3, Float32}(0.2, 0.2, 0
 
 bvhspec = SpheresBVHSpecs(; floattype=Float32, 
                             critical_distance=0.3, 
-                            leaves_count=length(position) 
+                            leaves_count=length(myCollection1.position) 
 )
+simspec = GenericSpec(; inttype=Int64,
+                    floattype=Float32,
+                    duration=60,
+                    stepwidth=1,
+                    currentstep=1,
+                    logLength=10,
+                    vDamp=1
+)
+##### Compare sim time runs
+#a = simulate_naive!(myCollection1, simspec, myCollector2)
+# println("done wwith naive")
+#b = @time simulate_bvh!(myCollection1, simspec, bvhspec, myCollector2)
 # for each in eachindex(position7)
 #     println(minimum(position7[each]))
 # end
@@ -144,33 +157,56 @@ bvhspec = SpheresBVHSpecs(; floattype=Float32,
 #batched_batch_build(10, 100, myCollection1.position, bvhspec, myCollector2)
 
 function run_cosorts(runs, position, bvhspec, myCollector2)
-    create_mortoncodes(position, bvhspec, myCollector2)
+    treeData = build_bvh_cosort(position, bvhspec, myCollector2)
     for i in 1:runs
-        
+        neighbor_traverse(treeData.keys[], position, bvhspec)
+        rebuild_bvh_cosort!(treeData, position, bvhspec, myCollector2)
     end
 
 end
 function run_perms(runs, position, bvhspec, myCollector2)
     treeData = build_bvh_perm(position, bvhspec, myCollector2)
+    #keys = treeData[1][]
     for i in 1:runs
+
+        neighbor_traverse(treeData[1][], position, bvhspec)
         rebuild_bvh_perm!(treeData, position, bvhspec, myCollector2)
+
     end
 
 end
+function run_naive(runs, position, thresh)
+    list = unique_pairs(position)
+
+    for i in 1:runs
+        update_pairslist!(position, list)
+        threshold_pairs(list, thresh)
+    end
+end
+build_bvh_perm(position, bvhspec, myCollector2)
 #build_bvh(position, bvhspec, myCollector2 )
-#run_perms(1, position, bvhspec, myCollector2)
+# build_bvh_cosort(position, bvhspec, myCollector2)
+# println()
+#e = @btime run_cosorts(10000, $position, $bvhspec, $myCollector2)
+#g = @btime run_perms(10000, $position, $bvhspec, $myCollector2)
+#d = @btime run_naive(10000, $position, 0.3)
+
+#bvh_list = @btime build_traverse_bvh($position, $bvhspec, $myCollector2)
+#naive_list = @btime threshold_pairs(unique_pairs($position), $bvhspec.critical_distance)
+
 
 #@time create_mortoncodes(position, bvhspec, myCollector2)
 #@time create_mortoncodes_perm(position, bvhspec, myCollector2)
 #@profview build_bvh(position, bvhspec, myCollector2 )
 #@profview_allocs build_bvh(position, bvhspec, myCollector2 )
 #@btime build_bvh($position, $bvhspec, $myCollector2 )
-bvh_list = @profview build_traverse_bvh(position, bvhspec, myCollector2)
-println()
+#bvh_list = build_traverse_bvh(position, bvhspec, myCollector2) 
 
-naive_list = threshold_pairs(unique_pairs(position), bvhspec.critical_distance)
-println(bvh_list[1])
-println(naive_list[1])
+#run_naive(10, position, bvhspec.critical_distance)
+#run_perms(10, position, bvhspec, myCollector2)
+#naive_list = 
+#println(bvh_list[1])
+#println(naive_list[1])
 
 ##### end bvh
 
