@@ -160,7 +160,7 @@ bvhspec8 = SpheresBVHSpecs(; floattype=Float32,
                             critical_distance=1.0, 
                             leaves_count=length(position8) 
 )
-treeData = build_bvh_perm(position8, bvhspec8, myCollector8)
+treeData = build_bvh(position8, bvhspec8, myCollector8)
 keys = treeData[1][]
 
 
