@@ -110,7 +110,7 @@ using JET
 
 ###### For BVH
 myCollector2 = GenericRandomCollector(; floattype=Float32,
-                                    objectnumber=1024,
+                                    objectnumber=37,
                                     minDim=tuple(0.0, 0.0, 0.0),
                                     maxDim=tuple(1.0, 1.0, 1.0),
                                     temperature=0.01,
@@ -155,22 +155,13 @@ simspec = GenericSpec(; inttype=Int64,
 
 #batch_build_traverse(100, position8, bvhspec, myCollector2, printARun=true)
 #batched_batch_build(10, 100, myCollection1.position, bvhspec, myCollector2)
-
-function run_cosorts(runs, position, bvhspec, myCollector2)
-    treeData = build_bvh_cosort(position, bvhspec, myCollector2)
-    for i in 1:runs
-        neighbor_traverse(treeData.keys[], position, bvhspec)
-        rebuild_bvh_cosort!(treeData, position, bvhspec, myCollector2)
-    end
-
-end
-function run_perms(runs, position, bvhspec, myCollector2)
-    treeData = build_bvh_perm(position, bvhspec, myCollector2)
+function run_bvh(runs, position, bvhspec, myCollector2)
+    treeData = build_bvh(position, bvhspec, myCollector2)
     #keys = treeData[1][]
     for i in 1:runs
 
         neighbor_traverse(treeData[1][], position, bvhspec)
-        rebuild_bvh_perm!(treeData, position, bvhspec, myCollector2)
+        rebuild_bvh!(treeData, position, bvhspec, myCollector2)
 
     end
 
@@ -183,12 +174,11 @@ function run_naive(runs, position, thresh)
         threshold_pairs(list, thresh)
     end
 end
-build_bvh_perm(position, bvhspec, myCollector2)
+build_bvh(position, bvhspec, myCollector2)
 #build_bvh(position, bvhspec, myCollector2 )
 # build_bvh_cosort(position, bvhspec, myCollector2)
 # println()
-#e = @btime run_cosorts(10000, $position, $bvhspec, $myCollector2)
-#g = @btime run_perms(10000, $position, $bvhspec, $myCollector2)
+g = @btime run_bvh(10000, $position, $bvhspec, $myCollector2)
 #d = @btime run_naive(10000, $position, 0.3)
 
 #bvh_list = @btime build_traverse_bvh($position, $bvhspec, $myCollector2)

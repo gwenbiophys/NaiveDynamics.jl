@@ -1149,7 +1149,7 @@ Collecting here are efforts towards perf optimization of our implemented algorit
         - sort/sortperm function calls still take a lot of time and memory
         -  Modifying `Base.setindex!` and the rest to accommodate cosorting an index array according to the sorting order of a values array is no faster than sorting an array of tuples of `(index, value)` directly with `sort!(array, by = x -> x.value). It however uses 2x less memory.
         - Generating and updating a permuter array is faster than cosort or direct sort and less memory intensive at all array lengths of `positions` of 2 and greater
-        - Naive pairslist and permuter have perf parity at about 36 primitives (10 000 repetitions, randomly generated positions in 0 to 1, measured by @btime, threshold=0.3), while pairslist aggressively loses to permuter at 37 and above.
+        - Naive pairslist and permuter have perf parity at about 36 primitives (10 000 repetitions, randomly generated positions in 0 to 1, measured by @btime, threshold=0.3, about 35-40ms), while pairslist aggressively loses to permuter at 37 and above.
         - most ideal result would be to quantize position coordinates without having to use sortperm!. If we could use a plain sort! call on a lone vector, performance would increase considerably. However, this does not seem realistic. Maybe a hand constructed routine or even `sort!` arguments customization could outperform `sort!` but I refuse to add that to my to-do list. 
 
 7. Restructure GridKeys to be a struct of arrays, and pass sorted morton codes and atom indices back to the struct without sorting the entire struct?
