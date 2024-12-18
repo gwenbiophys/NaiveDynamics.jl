@@ -168,7 +168,7 @@ function sort_mortoncodes!(L::Vector{GridKey{T, K}}, spec::SpheresBVHSpecs{T, K}
     #sort!(L, by = x -> x.morton_code), alg=RadixSort #wont run, RadixSort does not have iterate defined
 end
 
-function create_mortoncodes_perm(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
+function create_mortoncodes(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
     position_xyz = XYZVectors{T}([position[i][1] for i in 1:spec.leaves_count],
                                  [position[i][2] for i in 1:spec.leaves_count],
                                  [position[i][3] for i in 1:spec.leaves_count]
@@ -445,7 +445,7 @@ function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::Generi
 
     # store a tuple of references to each of the persistent data structures created during bvh construction
     # this feels more sane than tupling up a bunch arrays directly
-    bvhData = create_mortoncodes_perm(position, spec, clct)
+    bvhData = create_mortoncodes(position, spec, clct)
 
     #keys = initializationData[1][]
     #println(keys)
