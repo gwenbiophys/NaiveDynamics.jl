@@ -122,10 +122,11 @@ function batch_build_traverse(runs::Int, position::Vec3D{T}, spec::SpheresBVHSpe
 
     for each in 1:runs
         treeData = create_mortoncodes(position, spec, clct)
-        keys = treeData[1][] 
+        keys = treeData[1][]
+        store = treeData[6][] 
         I = [GridKey{T, K}(0, 0, MVector{3, K}(0.0, 0.0, 0.0), MVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
         append!(keys, I)
-        update_stackless_bvh!(keys, spec)
+        update_stackless_bvh!(keys, store, spec)
         result = is_traversable(keys, spec)
         if result[1]
             goodTrees += 1

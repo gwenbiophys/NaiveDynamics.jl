@@ -1181,6 +1181,12 @@ Collecting here are efforts towards perf optimization of our implemented algorit
 
 9. Restructure GridKeys to be a struct of arrays, and pass sorted morton codes and atom indices back to the struct without sorting the entire struct?
 
+13. Immutability
+    a. in boundaries comparisons, could quite accelerate overlap, proximity, and bounding_volume solving all at the same time
+    b. in gridkeys, could accelerate whole structure sorting by mortoncode
+    c. in gridkeys, could accelerate tree formation. but this may be harder to implement.
+    d. We can make the boundaries static vectors almost easily, but have to switch up the rest of naive md to use static vectors as well
+    e. We may be able to make GridKeys immutable, but this may gum up tree formation. Alternatively, we could make a new data structure, GridKeyArrays, but I am less certain that this would be advantageous.
 
 ### towards the best CPU multi-threaded method
 
