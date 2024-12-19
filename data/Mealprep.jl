@@ -110,7 +110,7 @@ using JET
 
 ###### For BVH
 myCollector2 = GenericRandomCollector(; floattype=Float32,
-                                    objectnumber=37,
+                                    objectnumber=10,
                                     minDim=tuple(0.0, 0.0, 0.0),
                                     maxDim=tuple(1.0, 1.0, 1.0),
                                     temperature=0.01,
@@ -174,12 +174,44 @@ function run_naive(runs, position, thresh)
         threshold_pairs(list, thresh)
     end
 end
-build_bvh(position, bvhspec, myCollector2)
-#build_bvh(position, bvhspec, myCollector2 )
+#build_bvh(position, bvhspec, myCollector2)
+build_traverse_bvh(position, bvhspec, myCollector2 )
 # build_bvh_cosort(position, bvhspec, myCollector2)
 # println()
-g = @btime run_bvh(10000, $position, $bvhspec, $myCollector2)
-#d = @btime run_naive(10000, $position, 0.3)
+# list = build_traverse_bvh(position, bvhspec, myCollector2)
+# naivelist = threshold_pairs(unique_pairs(position), bvhspec.critical_distance)
+# println(length(list), " ", list)
+# println(length(naivelist), " ", naivelist)
+#g = @profview   run_bvh(40000, position, bvhspec, myCollector2)
+#j = @profview_allocs   run_bvh(1, position, bvhspec, myCollector2) sample_rate = 1.0
+
+# g = @btime   run_bvh(1000, $position, $bvhspec, $myCollector2) # at 100 objects: 270.630 ms (17975 allocations: 14.06 MiB)
+#  d = @btime run_naive(1000, $position, $bvhspec.critical_distance)
+g = run_bvh(1, position, bvhspec, myCollector2)
+myCollector8 = GenericRandomCollector(; floattype=Float32,
+                                    objectnumber=8,
+                                    minDim=tuple(0.0, 0.0, 0.0),
+                                    maxDim=tuple(1.0, 1.0, 1.0),
+                                    temperature=0.01,
+                                    randomvelocity=false,
+                                    minmass=1.0,
+                                    maxmass=5.0,
+                                    minimumdistance=0.001,
+                                    mincharge=-1f-9,
+                                    maxcharge=1f-9
+)
+position8 =[MVector{3, Float32}(0.1, 0.1, 0.1), MVector{3, Float32}(0.2, 0.2, 0.2), 
+            MVector{3, Float32}(0.346, 0.98, 0.12), MVector{3, Float32}(0.01, 0.76, 0.99), 
+            MVector{3, Float32}(0.1111, 0.4, 0.31), MVector{3, Float32}(0.234, 0.29, 0.2), 
+            MVector{3, Float32}(0.11346, 0.918, 0.1276), MVector{3, Float32}(0.061, 0.76, 0.989)
+]
+bvhspec8 = SpheresBVHSpecs(; floattype=Float32, 
+                            critical_distance=10.0, 
+                            leaves_count=length(position8) 
+)
+#build_bvh(position8, bvhspec8, myCollector8)
+#@btime with vectorized bounding volume update = 2.002 μs (123 allocations: 5.31 KiB)
+#Btime with forloop bounding volume updating = 1.954 μs (116 allocations: 5.09 KiB)
 
 #bvh_list = @btime build_traverse_bvh($position, $bvhspec, $myCollector2)
 #naive_list = @btime threshold_pairs(unique_pairs($position), $bvhspec.critical_distance)

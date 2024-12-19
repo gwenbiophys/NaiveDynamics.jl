@@ -162,7 +162,7 @@ function update_mortoncodes!(L, quantized, perm, morton_length, morton_type)
 end
 
 function sort_mortoncodes!(L::Vector{GridKey{T, K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
-    #make a specialized radix sort to replace base sort // space for GPU backends to put forward their own float
+    #make a specialized radix sort to replace base sort // space for GPU backends to put forward their own sort
     sort!(L, by = x -> x.morton_code, rev=false) # sorts lexicographically both the binary and the integer
     #sort!(L, by=x -> count(c -> c == '1', bitstring(x.morton_code)))
     #sort!(L, by = x -> x.morton_code), alg=RadixSort #wont run, RadixSort does not have iterate defined
@@ -182,6 +182,7 @@ function create_mortoncodes(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clc
         sortperm(position_xyz.y),
         sortperm(position_xyz.z)
     )
+    #partialsort
     quantized_xyz = XYZVectors{K}(zeros(K, spec.leaves_count),
                               zeros(K, spec.leaves_count),
                               zeros(K, spec.leaves_count)
@@ -190,15 +191,17 @@ function create_mortoncodes(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clc
 
     #TODO this has to be fixed with the permuters and syntax
     L = [GridKey{T, K}(i, 0, 
-            MVector{3, T}(position_xyz.x[perm_xyz.x[i]] - spec.critical_distance, position_xyz.y[perm_xyz.y[i]] - spec.critical_distance, position_xyz.z[perm_xyz.z[i]] - spec.critical_distance),
-            MVector{3, T}(position_xyz.x[perm_xyz.x[i]] + spec.critical_distance, position_xyz.y[perm_xyz.y[i]] + spec.critical_distance, position_xyz.z[perm_xyz.z[i]] + spec.critical_distance),
+            #MVector{3, T}(position_xyz.x[perm_xyz.x[i]] - spec.critical_distance, position_xyz.y[perm_xyz.y[i]] - spec.critical_distance, position_xyz.z[perm_xyz.z[i]] - spec.critical_distance),
+            #MVector{3, T}(position_xyz.x[perm_xyz.x[i]] + spec.critical_distance, position_xyz.y[perm_xyz.y[i]] + spec.critical_distance, position_xyz.z[perm_xyz.z[i]] + spec.critical_distance),
+            position[i] .- spec.critical_distance, position[i] .+ spec.critical_distance,
             0, 0) for i in 1:spec.leaves_count
     ]
 
     update_mortoncodes!(L, quantized_xyz, perm_xyz, spec.morton_length, K)
     sort_mortoncodes!(L, spec)#@time "mortons" sort_mortoncodes!(L)
+    store = [Base.Threads.Atomic{Int64}(0) for i in 1:spec.branches_count]
     
-    return tuple(Ref(L), Ref(position_xyz), Ref(index_xyz), Ref(perm_xyz), Ref(quantized_xyz))
+    return tuple(Ref(L), Ref(position_xyz), Ref(index_xyz), Ref(perm_xyz), Ref(quantized_xyz), Ref(store))
 end
 
 
@@ -234,7 +237,9 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
     ranger = i
     dell = delta(rangel - 1, keys, spec)
     delr = delta(ranger, keys, spec)
-    bounding_volume = [keys[i].min, keys[i].max] #TODO change to deepcopy?
+    bounding_volume = [keys[i].min, keys[i].max] #TODO this should be doable without main memory allocations, but because MVec, must instantiate per leaf per stackless_interior! call
+
+
 
 
 
@@ -287,8 +292,14 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
                 rightChild = branch_index(rightChild, spec)
 
             end
-            #TODO who's better? any diff
-            bounding_volume[2] = (keys[rightChild].max .< bounding_volume[2]) .* keys[rightChild].max + (bounding_volume[2] .< keys[rightChild].max) .* bounding_volume[2]
+
+
+            for yep in eachindex(bounding_volume[2])
+                if keys[rightChild].max[yep] < bounding_volume[2][yep]
+                    bounding_volume[2][yep] = keys[rightChild].max[yep] 
+                end
+            end
+            #bounding_volume[2] = (keys[rightChild].max .< bounding_volume[2]) .* keys[rightChild].max + (bounding_volume[2] .< keys[rightChild].max) .* bounding_volume[2]
             # for dim in eachindex(bounding_volume[1])
             #     bounding_volume[2][dim] = (bounding_volume[2][dim] < keys[rightChild].max[dim]) * keys[rightChild].max[dim]
             # end
@@ -319,7 +330,19 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
                 #expand_volume!(bounding_volume[1], keys[leftChild].min, <)
             end
 
-            bounding_volume[1] = (keys[leftChild].min .< bounding_volume[1]) .* keys[leftChild].min + (bounding_volume[1] .< keys[leftChild].min) .* bounding_volume[1]
+
+
+            #TODO can't this be done in a cooler way :(
+            for yep in eachindex(bounding_volume[1])
+                if keys[leftChild].min[yep] < bounding_volume[1][yep]
+                    bounding_volume[1][yep] = keys[leftChild].min[yep] 
+                end
+            end
+            #bounding_volume[1] = eval_triple .* keys[leftChild].min
+
+
+
+            #bounding_volume[1] = (keys[leftChild].min .< bounding_volume[1]) .* keys[leftChild].min + (bounding_volume[1] .< keys[leftChild].min) .* bounding_volume[1]
             
             # for dim in eachindex(bounding_volume[1])
             #     bounding_volume[1][dim] = (bounding_volume[1][dim] > keys[leftChild].min[dim]) * keys[leftChild].min[dim]
@@ -363,10 +386,9 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
 end
 
 
-function update_stackless_bvh!(keys, spec::SpheresBVHSpecs{T, K}) where {T, K}
+function update_stackless_bvh!(keys, store, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
-    # TODO this should be generated in build_bvh and reset in update_bvh!
-    store = [Base.Threads.Atomic{Int64}(0) for i in 1:spec.branches_count]
+
 
     # TODO What is the best perf method of handling inlining and bounds checking here?
     # I don't want to macro my code to hell
@@ -380,20 +402,23 @@ function update_stackless_bvh!(keys, spec::SpheresBVHSpecs{T, K}) where {T, K}
         keys[branch_index(1, spec)].max[dim] = T(1.0)
     end
 
+    #reset the values of the store for next time
+    fill!(store, Base.Threads.Atomic{Int64}(0))
+
 end
 
 
 ###### Phase 3: traversal
-# TODO make this function argument consistent with the series of functions and the rest of the package
-function proximity_test!(neighbors,  query_index::Int64, currentKey::K, positions::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
-    query_reindex = K(query_index)
-    
-    d2 = sqrt( sum((positions[currentKey] .- positions[query_reindex]) .^ 2)) 
-    if query_reindex == currentKey #TODO best place to put this function?
+function proximity_test!(neighbors::Vector{Tuple{K, K, T}},  query_index::K, currentKey::K, positions::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
+     
+    if query_index == currentKey
         return
     else
-        if d2 <= spec.critical_distance
-            push!(neighbors, tuple(query_reindex, currentKey, d2))
+        d2 = sqrt( sum((positions[currentKey] .- positions[query_index]) .^ 2))
+
+        # only push new pairs that are close together and nonredundant
+        if d2 <= spec.critical_distance && query_index < currentKey
+            push!(neighbors, tuple(query_index, currentKey, d2))
 
         end
     end
@@ -402,13 +427,17 @@ end
 function overlap_test(keys, currentKey, query_index, positions, spec::SpheresBVHSpecs{T, K}) where {T, K}
     return sum(keys[currentKey].min .< positions[query_index] .< keys[currentKey].max)
 end
-# TODO would 'branchless' programming make a difference here? CPU vs GPU comparison
-# separate TODO this can be made parallel by giving a neighbor chunk to each thread and mending these threads together at the end
-    #TODO how to parallelize? more atomics?
-function neighbor_traverse(keys, positions, spec::SpheresBVHSpecs{T, K}) where {T, K}
-    currentKey = branch_index(1, spec)
-    neighbors = []
-    for query_index in eachindex(positions)
+
+#TODO this can be made parallel by giving a neighbor chunk to each thread and mending these neighbor lists together at the end
+function neighbor_traverse(keys::Vector{GridKey{T,K}}, positions::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
+    neighbors = Vector{Tuple{K, K, T}}(undef, 0)
+
+    # clamp traversal to 1 index before the last leaf because if every other leaf has been considered, 
+    # then the last leaf does not need to be reconsidered for a neighbor pair
+    for query_index in range(start=K(1), stop=K(spec.branches_count))
+
+        currentKey = branch_index(1, spec)
+
         while currentKey != 0 # currentKey is the sentinel, end traversal of the given query
             # does query at all overlap with the volume of currentKey
             overlap = overlap_test(keys, currentKey, query_index, positions, spec)
@@ -418,7 +447,6 @@ function neighbor_traverse(keys, positions, spec::SpheresBVHSpecs{T, K}) where {
 
             if overlap > 0 
                 if keys[currentKey].left == 0 # currentKey is a leaf node
-                    #println(typeof(keys))
                     proximity_test!(neighbors, query_index, currentKey, positions, spec)
                     currentKey = currentKey = keys[currentKey].skip
                 else #currentKey is a branch node, traverse to the left
@@ -428,13 +456,8 @@ function neighbor_traverse(keys, positions, spec::SpheresBVHSpecs{T, K}) where {
                 currentKey = keys[currentKey].skip
             end
 
-            # if currentKey == 0 
-            #     continue
-            # end
-
         end
     end
-
     return neighbors
 end
 
@@ -448,22 +471,24 @@ function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::Generi
     bvhData = create_mortoncodes(position, spec, clct)
 
     #keys = initializationData[1][]
-    #println(keys)
+
 
     #TODO is this helpful? sometimes the initialization of I takes a very long time and 'z' should help
     I = [GridKey{T, K}(0, 0, MVector{3, T}(0.0, 0.0, 0.0), MVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
 
     append!(bvhData[1][], I)
 
-    update_stackless_bvh!(bvhData[1][], spec)
+    update_stackless_bvh!(bvhData[1][], bvhData[6][], spec)
 
     return bvhData
 end
 
 function rebuild_bvh!(treeData, position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
     #update positions, convert from mutable vector to struct of vectors
+    #::Tuple{Vector{GridKey{T, K}},XYZVectors{T}, XYZVectors{K}, XYZVectors{K}, XYZVectors{K} }
     #TODO can these loops be replaced?
     #fill!(treeData[2][].x, [position[each][1] for each in eachindex(position)])
+    
     for each in eachindex(position)
         treeData[2][].x[each] = position[each][1]
         #copyto!(treeData[2][].x[each], position[each][1])
@@ -483,19 +508,25 @@ function rebuild_bvh!(treeData, position::Vec3D{T}, spec::SpheresBVHSpecs{T, K},
     update_quantized_positions(treeData[3][], treeData[5][], treeData[4][], spec, clct)
 
     #update leaf boundaries based on new positions
+    #this has worse allocation performance than the expanded version without syntactic sugar???
     for each in 1:spec.leaves_count
-        treeData[1][][each].min[1] = treeData[2][].x[each] - spec.critical_distance
-        treeData[1][][each].min[2] = treeData[2][].y[each] - spec.critical_distance
-        treeData[1][][each].min[3] = treeData[2][].z[each] - spec.critical_distance
+        treeData[1][][each].min .= position[each] .- spec.critical_distance
+
     end
     for each in 1:spec.leaves_count
-        treeData[1][][each].max[1] = treeData[2][].x[each] + spec.critical_distance
-        treeData[1][][each].max[2] = treeData[2][].y[each] + spec.critical_distance
-        treeData[1][][each].max[3] = treeData[2][].z[each] + spec.critical_distance
+        treeData[1][][each].max .= position[each] .+ spec.critical_distance #.= or = ?
+
+    end
+    # realign leaf boundaries with indices to the atom positions that they represent
+    for each in 1:spec.leaves_count
+        treeData[1][][each].index = each
     end
 
     update_mortoncodes!(treeData[1][], treeData[5][], treeData[4][], spec.morton_length, K)
-    sort_mortoncodes!(treeData[1][][1:spec.critical_distance], spec)#@time "mortons" sort_mortoncodes!(L)
+    #sort_mortoncodes!(treeData[1][][1:spec.leaves_count], spec)#@time "mortons" sort_mortoncodes!(L)
+    partialsort!(treeData[1][], 1:spec.leaves_count, by=x -> x.morton_code)
+    
+    update_stackless_bvh!(treeData[1][], treeData[6][], spec)
     
     #return tuple(Ref(L), Ref(position_xyz), Ref(index_xyz), Ref(perm_xyz), Ref(quantized_xyz))
     # neighbors = []
@@ -506,7 +537,7 @@ function rebuild_bvh!(treeData, position::Vec3D{T}, spec::SpheresBVHSpecs{T, K},
     
 end
 
-function build_traverse_bvh(position, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
+function build_traverse_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
     treeData = build_bvh(position, spec, clct)
     keys = treeData[1][] 
 

@@ -19,7 +19,7 @@ using Aqua #is this correct? should probably go in test files!
 #using AMDGPU
 #using CUDA
 #using GLMakie
-using InteractiveUtils
+#using InteractiveUtils
 
 
 include("MDInput.jl")

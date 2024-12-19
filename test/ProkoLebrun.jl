@@ -157,7 +157,7 @@ position8 =[MVector{3, Float32}(0.1, 0.1, 0.1), MVector{3, Float32}(0.2, 0.2, 0.
             MVector{3, Float32}(0.11346, 0.918, 0.1276), MVector{3, Float32}(0.061, 0.76, 0.989)
 ]
 bvhspec8 = SpheresBVHSpecs(; floattype=Float32, 
-                            critical_distance=1.0, 
+                            critical_distance=10.0, 
                             leaves_count=length(position8) 
 )
 treeData = build_bvh(position8, bvhspec8, myCollector8)
@@ -178,8 +178,20 @@ keys = treeData[1][]
     goodRuns = batch_build_traverse(100, position8, bvhspec8, myCollector8)
     @test goodRuns[1] == 100 
 
-    # "can tree traversal find every pairing between every atom?"
+    # "does every atom have at least 1 pair in an all-to-all search?"
     list = neighbor_traverse(keys, position8, bvhspec8)
+    is_paired = [false for each in 1:8]
+    println(list)
+    for each in eachindex(list)
+        is_paired[list[each][1]] = true
+        is_paired[list[each][2]] = true
+    end
+    @test sum(is_paired) == 8
+
+    # "can bvh neighbor search return the same result as the naive method?"
+    # NOTE: this only holds true as long as the two methods are maintained the same and only construct sequentially
+    naivelist = threshold_pairs(unique_pairs(position8), bvhspec8.critical_distance)
+    @test list == naivelist
     
 end
 

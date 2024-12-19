@@ -1151,15 +1151,45 @@ Collecting here are efforts towards perf optimization of our implemented algorit
         - Generating and updating a permuter array is faster than cosort or direct sort and less memory intensive at all array lengths of `positions` of 2 and greater
         - Naive pairslist and permuter have perf parity at about 36 primitives (10 000 repetitions, randomly generated positions in 0 to 1, measured by @btime, threshold=0.3, about 35-40ms), while pairslist aggressively loses to permuter at 37 and above.
         - most ideal result would be to quantize position coordinates without having to use sortperm!. If we could use a plain sort! call on a lone vector, performance would increase considerably. However, this does not seem realistic. Maybe a hand constructed routine or even `sort!` arguments customization could outperform `sort!` but I refuse to add that to my to-do list. 
+8. Re: final results from above and onto traversal optimization
+    
+    a. 
+        - neighbor_traverse() had a bug that went unfound because I was too lazy to write a test to check traversal
+        - neighbor_traverse() was only catching 1/8 of the total neighbors it was supposed to
+        - now bvh method is unfavorable at all values, due to full allocation and deallocation of the neighbor list at each call of neighbor_traverse, and possibly other issues in the method as well
+    b. Cut down on allocations and resizings of neighbor list by requiring a particular order from atoms committed to the neighbor list
+        - saved 1/6 allocs, but still about 2x more allocs yet 1/2 data size compared to naivelist
+9. Curious result from changing critical distance on 1000 repeated runs of neighbor list construction 
+    critical_distance = 3.0
+    bvh   36.694 s (48177 allocations: 12.37 GiB)
+    naive 16.817 s (24024 allocations: 24.70 GiB)
 
-7. Restructure GridKeys to be a struct of arrays, and pass sorted morton codes and atom indices back to the struct without sorting the entire struct?
+    critical_distance = 0.3
+    bvh   37.103 s (42099 allocations: 1.19 GiB)
+    naive 7.496 s (18024 allocations: 2.35 GiB)
+
+    a. Memory requirements go up by x10, but bvh time is relatively unaffected while naive reduces a lot of time
+    b. Position used for the 2 runs changed, so it's possible array sorting took more time in the second set of runs than in the first, losing bvh more time.
+10. Refitting bounding volume updating to be more efficient. It requires multiple and variable allocations per instantiation and update of the bounding volume. We may not be able to fix this without resorting to SVecs, but this is a situation where SVecs would thrive as we don't need to set index. At worst, instantiating/updating leaf boundaries may be slightly more tedious.
+    a. Using a forloop instead of vectorized method to update the bounding volumes saved a few allocations, on 8 piece vector
+                2.002 μs (123 allocations: 5.31 KiB) ----> 1.954 μs (116 allocations: 5.09 KiB)
+11. Performance is even worse than anticipated. I have not been correctly reading the flame graph profiles enough to realize that in the tree updater function, rebuild_bvh!, I failed to include the function that actually rebuilds the bvh. I had only discovered this when thinking about how the store woiuld have to be re-deallocated at each call to update the bvh structure.
+    a. update_stackless_bvh! fails to run in rebuild_bvh due to rightChild being set to 20 when the leaves_count = 10. What is the bug occurring now??
+    b. I really have no idea what this issue is about
+
+        
+
+9. Restructure GridKeys to be a struct of arrays, and pass sorted morton codes and atom indices back to the struct without sorting the entire struct?
 
 
 ### towards the best CPU multi-threaded method
 
 
-### state of the art
-1. As of 12/17/2024
-    a. In the instantiation of a threshold list from position, bvh is ahead
-    b. In artificial rerunning of the neighbor list functions, bvh is ahead
-    c. In a simulate! called with no forces, 
+
+### Debugging is really hard sometimes
+
+So I fubbed up my code:
+```julia
+    sort_mortoncodes!(treeData[1][][1:spec.critical_distance], spec)
+```
+and I have run benchmarks, I have passed my test suite verifying end of the line stuff. With this bug, sorting only part of an array as specified from the range *1* to *some float value* broke the rebuild_bvh!() function, causing it to run infinitely. The bug is fixed now, but what a dangerous thing to get caught by. Julia would be exceedingly unlikely to call foul on that, but how on Earth is it valid to index an array usinga float?
