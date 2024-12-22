@@ -129,14 +129,14 @@ function batch_build_traverse(runs::Int, position::Vec3D{T}, spec::SpheresBVHSpe
         badTrees += 1
     end
 
-    for each in 1:runs
+    for each in 1:runs-1
         # treeData = create_mortoncodes(position, spec, clct)
         # keys = treeData[1][]
         # store = treeData[6][] 
         # I = [GridKey{T, K}(0, 0, MVector{3, K}(0.0, 0.0, 0.0), MVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
         # append!(keys, I)
         # update_stackless_bvh!(keys, store, spec)
-        rebuild_bvh!(treeData[], position, spec, clct)
+        rebuild_bvh!(treeData, position, spec, clct)
         result = is_traversable(treeData[1][], spec)
         if result[1]
             goodTrees += 1
@@ -192,7 +192,7 @@ keys = treeData[1][]
     # "does every atom have at least 1 pair in an all-to-all search?"
     list = neighbor_traverse(keys, position8, bvhspec8)
     is_paired = [false for each in 1:8]
-    println(list)
+    #println(list)
     for each in eachindex(list)
         is_paired[list[each][1]] = true
         is_paired[list[each][2]] = true

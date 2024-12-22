@@ -1179,7 +1179,20 @@ Collecting here are efforts towards perf optimization of our implemented algorit
     c. Okay well this sorting issue was a bug, but it was not *the current* bug, but a different bug that somehow did not crop up ahead of time?
     d. To visual inspection, my pre-tree build_bvh GridKeys is exactly the same as my pre-tree rebuild_bvh! GridKeys
 
-In the present situation, we provide `update_stackless_bvh!` with an array of GridKeys and a store of atomic integers. `update_stackless_bvh!` as called in build_bvh and rebuild_bvh! have exactly the same data. However, in the case of rebuild_bvh!, rightChild somehow becomes 20, and attempts to access a 19-element vector at index 20.
+In the present situation, we provide `update_stackless_bvh!` with an array of GridKeys and a store of atomic integers. `update_stackless_bvh!` as called in build_bvh and rebuild_bvh! have exactly the same data. However, in the case of rebuild_bvh!, rightChild somehow becomes 20, and attempts to access a 19-element vector at index 20. This issue is not caused by the use of References, in a hypothetical where Julia's GC changes the memory location of data without updating the references stored in the treeData tuple. We have got it! A fixed issue! By presenting an entirely fresh `store` array, we find proper operation in our experiments. Then using a zeroing forloop, it seems now to work. I am uncertain why it didn't work before, as I was printing the store array and the values were zero. But also, Atomics are iffy. Lack of understanding seems to be the most obvious answer. 
+```julia
+## a valid, but unideal process
+for each in eachindex(store)
+        store[each] = Base.Threads.Atomic{Int64}(0)
+end
+
+# much faster process
+for each in eachindex(store)
+        store[each][] = 0
+end
+```
+The problem here is arround safely accessing the atomically guarded elements of an ordinary array. Why specifically fill!() does not work, I don't know. Probably because I cannot get to the values of the array in the way that I can either rewrite the entire atomic or dereference its value, as shown in the for loops above. But atomic values behaviors differ from plain values behaviors, clearly.
+
 
         
 
@@ -1193,6 +1206,8 @@ In the present situation, we provide `update_stackless_bvh!` with an array of Gr
     e. We may be able to make GridKeys immutable, but this may gum up tree formation. Alternatively, we could make a new data structure, GridKeyArrays, but I am less certain that this would be advantageous.
 
 ### towards the best CPU multi-threaded method
+
+### descent into madness
 
 
 

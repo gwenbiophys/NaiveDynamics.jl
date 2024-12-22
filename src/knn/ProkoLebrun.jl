@@ -266,15 +266,7 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
         isLeftChild = delr < dell
         if isLeftChild
             leftChild = i
-            if i == 19
-                println(i, " pre break cond")
-                println(delr)
-                println(dell)
-                println(ranger)
-                println(rangel)
-                println()
-            end
-            
+
             split = ranger # split position between the range of keys covered by any given INode
             ranger = Threads.atomic_cas!(store[split], 0, rangel)
             #copy!
@@ -301,14 +293,6 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
 
             end
 
-            if i == 19
-                println(i, " post break cond")
-                println(delr)
-                println(dell)
-                println(ranger)
-                println(rangel)
-                println()
-            end
             for yep in eachindex(bounding_volume[2])
                 if keys[rightChild].max[yep] < bounding_volume[2][yep]
                     bounding_volume[2][yep] = keys[rightChild].max[yep] 
@@ -321,14 +305,6 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
 
 
         else
-            if i == 19
-                println(i, " awyeah")
-                println(delr)
-                println(dell)
-                println(ranger)
-                println(rangel)
-                println()
-            end
 
             split = rangel - 1
             rangel = Threads.atomic_cas!(store[split], 0, ranger) 
@@ -416,8 +392,8 @@ function update_stackless_bvh!(keys, store, spec::SpheresBVHSpecs{T, K}) where {
     # TODO What is the best perf method of handling inlining and bounds checking here?
     # I don't want to macro my code to hell
     # Threads.@threads
-
-     for i in 1:spec.leaves_count #in perfect parallel
+    #freshStore = [Base.Threads.Atomic{Int64}(0) for i in 1:spec.leaves_count]
+    Threads.@threads for i in 1:spec.leaves_count #in perfect parallel
         stackless_interior!(store, i, spec.leaves_count, spec.branches_count, keys, spec)
     end
 
@@ -427,8 +403,16 @@ function update_stackless_bvh!(keys, store, spec::SpheresBVHSpecs{T, K}) where {
         keys[branch_index(1, spec)].max[dim] = T(1.0)
     end
 
+    #TODO best place to do this?
+    for each in eachindex(store)
+        store[each][] = 0#Base.Threads.Atomic{Int64}(0)
+    end
+
     #reset the values of the store for next time
-    fill!(store, Base.Threads.Atomic{Int64}(0))
+
+    #fill!(store, Base.Threads.Atomic{Int64}(0))
+    #fill!(store, Base.Threads.Atomic{Int64}(0))
+
 
 end
 
@@ -504,10 +488,6 @@ function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::Generi
     I = [GridKey{T, K}(0, 0, MVector{3, T}(0.0, 0.0, 0.0), MVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
     
     append!(bvhData[1][], I)
-    for each in eachindex(bvhData[1][])
-        println(bvhData[1][][each])
-    end
-    println()
 
     update_stackless_bvh!(bvhData[1][], bvhData[6][], spec)
 
@@ -566,7 +546,7 @@ function rebuild_bvh!(treeData, position::Vec3D{T}, spec::SpheresBVHSpecs{T, K},
 
     #partialsort!(treeData[1][], range(1, 3), by=x -> x.morton_code)
     #sort!(treeData[1][][1:spec.leaves_count], by = x -> x.morton_code) this does nothing
-    println()
+
     leaves = treeData[1][][1:spec.leaves_count]
     sort!(leaves, by = x -> x.morton_code)
     treeData[1][][1:spec.leaves_count] = leaves #lmfao
@@ -579,9 +559,6 @@ function rebuild_bvh!(treeData, position::Vec3D{T}, spec::SpheresBVHSpecs{T, K},
             treeData[1][][each].min[dim] = T(0.0)
             treeData[1][][each].max[dim] = T(0.0)
         end
-    end
-    for each in eachindex(treeData[1][])
-        println(treeData[1][][each])
     end
 
     update_stackless_bvh!(treeData[1][], treeData[6][], spec)

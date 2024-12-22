@@ -182,12 +182,12 @@ end
 # naivelist = threshold_pairs(unique_pairs(position), bvhspec.critical_distance)
 # println(length(list), " ", list)
 # println(length(naivelist), " ", naivelist)
-#g = @profview   run_bvh(40000, position, bvhspec, myCollector2)
-#j = @profview_allocs   run_bvh(1, position, bvhspec, myCollector2) sample_rate = 1.0
+g = @profview   run_bvh(40000, position, bvhspec, myCollector2)
+j = @profview_allocs   run_bvh(1, position, bvhspec, myCollector2) sample_rate = 1.0
 
-# g = @btime   run_bvh(1000, $position, $bvhspec, $myCollector2) # at 100 objects: 270.630 ms (17975 allocations: 14.06 MiB)
+#  g = @btime   run_bvh(1000, $position, $bvhspec, $myCollector2) # at 100 objects: 270.630 ms (17975 allocations: 14.06 MiB)
 #  d = @btime run_naive(1000, $position, $bvhspec.critical_distance)
-g = run_bvh(1, position, bvhspec, myCollector2)
+#g = run_bvh(1, position, bvhspec, myCollector2)
 myCollector8 = GenericRandomCollector(; floattype=Float32,
                                     objectnumber=8,
                                     minDim=tuple(0.0, 0.0, 0.0),
