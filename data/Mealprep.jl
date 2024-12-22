@@ -175,7 +175,7 @@ function run_naive(runs, position, thresh)
     end
 end
 #build_bvh(position, bvhspec, myCollector2)
-build_traverse_bvh(position, bvhspec, myCollector2 )
+#build_traverse_bvh(position, bvhspec, myCollector2 )
 # build_bvh_cosort(position, bvhspec, myCollector2)
 # println()
 # list = build_traverse_bvh(position, bvhspec, myCollector2)

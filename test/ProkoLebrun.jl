@@ -119,15 +119,25 @@ function batch_build_traverse(runs::Int, position::Vec3D{T}, spec::SpheresBVHSpe
     goodTrees = 0
     selfishTrees = 0
     badTrees = 0
+    treeData = build_bvh(position, spec, clct)
+    result = is_traversable(treeData[1][], spec)
+    if result[1]
+        goodTrees += 1
+    elseif result[2] == "Self-referential"
+        selfishTrees += 1
+    elseif result[2] == "Nontraversable"
+        badTrees += 1
+    end
 
     for each in 1:runs
-        treeData = create_mortoncodes(position, spec, clct)
-        keys = treeData[1][]
-        store = treeData[6][] 
-        I = [GridKey{T, K}(0, 0, MVector{3, K}(0.0, 0.0, 0.0), MVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
-        append!(keys, I)
-        update_stackless_bvh!(keys, store, spec)
-        result = is_traversable(keys, spec)
+        # treeData = create_mortoncodes(position, spec, clct)
+        # keys = treeData[1][]
+        # store = treeData[6][] 
+        # I = [GridKey{T, K}(0, 0, MVector{3, K}(0.0, 0.0, 0.0), MVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
+        # append!(keys, I)
+        # update_stackless_bvh!(keys, store, spec)
+        rebuild_bvh!(treeData[], position, spec, clct)
+        result = is_traversable(treeData[1][], spec)
         if result[1]
             goodTrees += 1
         elseif result[2] == "Self-referential"

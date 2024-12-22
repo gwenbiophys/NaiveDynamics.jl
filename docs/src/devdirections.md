@@ -64,8 +64,7 @@
 - [x] update code naming to reflect the fact that AABB's are only first generated right immediately before bvh traversal, and squash down redundant data structures if at all possible
 - [x] fix broken performance by tuple allocation hell, consider switching pairslist to an MVector for values overwrite or trying named tuple shenanigans?
 - [] fix velocity rescaling / substitute with alternative method. fix behavior of interactions and parameterization in order to prevent crazy molecular behavior
-
-
+- [] make treeData tuple of refs into an immutable struct so we can use the names instead. update tests to reflect.
 
 - [] Improve design of the Logger to be compatible with makie
 - [x] Github work flow for a private uhh workspace
@@ -105,10 +104,13 @@ information based on other things the user input, like if single precision, then
 - [] for boundary expansion, is the for loop flowthrough evaluation effective, or is copyto! effective enough
 - [] is it a problem that the root doesnt get updated to cover the whole entire range? may or may not just be a side effect of the algo. ArborX predefines the root.
 - [] update ci.yml for a different OS test and to resolve warnings related to chagnes to GHActions
+- [] figure a considerate way of updating boundaries, currently we have to set to zero in between runs and do the for loop if evaluation / vectorized notation. is the proper fashion to do that, or to just set the boundaries of a parent to be the exact values of its child?
+- [] change create_mortoncodes to GridKeysArray ?. And interior of rebuild bvh to GridKeysArray! ? I guess if we could create the array without storing intermediates, but there is no way that will work so nicely.
 
 
 #### Perf considerations
-- [] could we work up directly to morton code from position without intermediates? that way we don't have to carry around the structure
+- [] could we work up directly to morton code from position without intermediates? that way we don't have to carry around the tuple of 6 different references
+- [] constructor expressions in naive pairs list, could we improve performance by instantiating the entire array(s) with the same value, and then update all values? have to a/b test. this could be better as constructor expressions seem to work best when Julia doesn't have to 'think' about what to place in each position of the array
 
 #### bugfixes from prior versions
 - [x] `update_pairlists!` incorrectly mutated over the index values of the default initialized pairlist. Fixed by changing `list[i] = result` to `list[each] = result` in the pairslist_interior function
@@ -194,7 +196,7 @@ Version
 
 ### Known Bugs / Questions
 - [] is it numerically appropriate to calculate the x dimension force of lennard jones based on the literaly subtraction of two particles? It feels like combining both the direction AND the magnitude of the force in a single value and this may contribute to some of the *irregularities* in force calculations
-- [] bvh solver introduces a neighbor list that should be two times longer than it should be. How should this double counting be addressed? a sorting of redundant bodies? subselection by asking a unique_pairs list if it has a value of(i, j)? im not sure how it is addressed in literature.
+- [x] bvh solver introduces a neighbor list that should be two times longer than it should be. How should this double counting be addressed? a sorting of redundant bodies? subselection by asking a unique_pairs list if it has a value of(i, j)? im not sure how it is addressed in literature. ---SOLVED valid atom pairs, `[i, j]` must consist of `[i, j > i]`
 - [] Public API is not documenting almost any doc strings.
 
 

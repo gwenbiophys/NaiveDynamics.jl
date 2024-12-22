@@ -266,10 +266,18 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
         isLeftChild = delr < dell
         if isLeftChild
             leftChild = i
+            if i == 19
+                println(i, " pre break cond")
+                println(delr)
+                println(dell)
+                println(ranger)
+                println(rangel)
+                println()
+            end
             
             split = ranger # split position between the range of keys covered by any given INode
             ranger = Threads.atomic_cas!(store[split], 0, rangel)
-            copy!
+            #copy!
 
 
             if ranger == 0 
@@ -293,7 +301,14 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
 
             end
 
-
+            if i == 19
+                println(i, " post break cond")
+                println(delr)
+                println(dell)
+                println(ranger)
+                println(rangel)
+                println()
+            end
             for yep in eachindex(bounding_volume[2])
                 if keys[rightChild].max[yep] < bounding_volume[2][yep]
                     bounding_volume[2][yep] = keys[rightChild].max[yep] 
@@ -306,6 +321,14 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
 
 
         else
+            if i == 19
+                println(i, " awyeah")
+                println(delr)
+                println(dell)
+                println(ranger)
+                println(rangel)
+                println()
+            end
 
             split = rangel - 1
             rangel = Threads.atomic_cas!(store[split], 0, ranger) 
@@ -392,7 +415,9 @@ function update_stackless_bvh!(keys, store, spec::SpheresBVHSpecs{T, K}) where {
 
     # TODO What is the best perf method of handling inlining and bounds checking here?
     # I don't want to macro my code to hell
-    Threads.@threads for i in 1:spec.leaves_count #in perfect parallel
+    # Threads.@threads
+
+     for i in 1:spec.leaves_count #in perfect parallel
         stackless_interior!(store, i, spec.leaves_count, spec.branches_count, keys, spec)
     end
 
@@ -410,14 +435,16 @@ end
 
 ###### Phase 3: traversal
 function proximity_test!(neighbors::Vector{Tuple{K, K, T}},  query_index::K, currentKey::K, positions::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
-     
-    if query_index == currentKey
+    
+    # eliminate redundant pairings when qi == cK 
+    #AND when [qi = a, cK = b] with [qi = b, cK = a] in the same pairs list array
+    if !(query_index < currentKey) 
         return
     else
         d2 = sqrt( sum((positions[currentKey] .- positions[query_index]) .^ 2))
 
-        # only push new pairs that are close together and nonredundant
-        if d2 <= spec.critical_distance && query_index < currentKey
+        # only push new pairs that are close together 
+        if d2 <= spec.critical_distance #&& query_index < currentKey
             push!(neighbors, tuple(query_index, currentKey, d2))
 
         end
@@ -475,8 +502,12 @@ function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::Generi
 
     #TODO is this helpful? sometimes the initialization of I takes a very long time and 'z' should help
     I = [GridKey{T, K}(0, 0, MVector{3, T}(0.0, 0.0, 0.0), MVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
-
+    
     append!(bvhData[1][], I)
+    for each in eachindex(bvhData[1][])
+        println(bvhData[1][][each])
+    end
+    println()
 
     update_stackless_bvh!(bvhData[1][], bvhData[6][], spec)
 
@@ -521,19 +552,44 @@ function rebuild_bvh!(treeData, position::Vec3D{T}, spec::SpheresBVHSpecs{T, K},
     for each in 1:spec.leaves_count
         treeData[1][][each].index = each
     end
+    
+    # have to reset to zero because ( I believe) zero values are not set
+    # instead are unchanged from initialization
+    # thus, we have to reset here
+    for each in eachindex(treeData[1][]) 
+        treeData[1][][each].left = 0
+        treeData[1][][each].skip = 0
+    end
 
     update_mortoncodes!(treeData[1][], treeData[5][], treeData[4][], spec.morton_length, K)
     #sort_mortoncodes!(treeData[1][][1:spec.leaves_count], spec)#@time "mortons" sort_mortoncodes!(L)
-    partialsort!(treeData[1][], 1:spec.leaves_count, by=x -> x.morton_code)
-    
+
+    #partialsort!(treeData[1][], range(1, 3), by=x -> x.morton_code)
+    #sort!(treeData[1][][1:spec.leaves_count], by = x -> x.morton_code) this does nothing
+    println()
+    leaves = treeData[1][][1:spec.leaves_count]
+    sort!(leaves, by = x -> x.morton_code)
+    treeData[1][][1:spec.leaves_count] = leaves #lmfao
+
+
+
+    #reset boundaries
+    for each in spec.leaves_count+1:1:spec.leaves_count+spec.branches_count
+        for dim in eachindex(treeData[1][][1].min)
+            treeData[1][][each].min[dim] = T(0.0)
+            treeData[1][][each].max[dim] = T(0.0)
+        end
+    end
+    for each in eachindex(treeData[1][])
+        println(treeData[1][][each])
+    end
+
     update_stackless_bvh!(treeData[1][], treeData[6][], spec)
     
     #return tuple(Ref(L), Ref(position_xyz), Ref(index_xyz), Ref(perm_xyz), Ref(quantized_xyz))
     # neighbors = []
 
-    #neighbor_traverse(treeData[1][],  position, spec)
-
-    #return treeData
+    #neighbor_traverse(treeData[1][],  position, spec)       o9999999999999999999uih
     
 end
 

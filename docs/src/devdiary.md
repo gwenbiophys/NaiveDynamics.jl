@@ -1175,7 +1175,11 @@ Collecting here are efforts towards perf optimization of our implemented algorit
                 2.002 μs (123 allocations: 5.31 KiB) ----> 1.954 μs (116 allocations: 5.09 KiB)
 11. Performance is even worse than anticipated. I have not been correctly reading the flame graph profiles enough to realize that in the tree updater function, rebuild_bvh!, I failed to include the function that actually rebuilds the bvh. I had only discovered this when thinking about how the store woiuld have to be re-deallocated at each call to update the bvh structure.
     a. update_stackless_bvh! fails to run in rebuild_bvh due to rightChild being set to 20 when the leaves_count = 10. What is the bug occurring now??
-    b. I really have no idea what this issue is about
+    b. partialsort! sorts the part of the array specified by the k integer or range input *as though it were sorting the whole array.*
+    c. Okay well this sorting issue was a bug, but it was not *the current* bug, but a different bug that somehow did not crop up ahead of time?
+    d. To visual inspection, my pre-tree build_bvh GridKeys is exactly the same as my pre-tree rebuild_bvh! GridKeys
+
+In the present situation, we provide `update_stackless_bvh!` with an array of GridKeys and a store of atomic integers. `update_stackless_bvh!` as called in build_bvh and rebuild_bvh! have exactly the same data. However, in the case of rebuild_bvh!, rightChild somehow becomes 20, and attempts to access a 19-element vector at index 20.
 
         
 
