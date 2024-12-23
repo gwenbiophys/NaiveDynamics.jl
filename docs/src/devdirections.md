@@ -106,6 +106,7 @@ information based on other things the user input, like if single precision, then
 - [] update ci.yml for a different OS test and to resolve warnings related to chagnes to GHActions
 - [] figure a considerate way of updating boundaries, currently we have to set to zero in between runs and do the for loop if evaluation / vectorized notation. is the proper fashion to do that, or to just set the boundaries of a parent to be the exact values of its child?
 - [] change create_mortoncodes to GridKeysArray ?. And interior of rebuild bvh to GridKeysArray! ? I guess if we could create the array without storing intermediates, but there is no way that will work so nicely.
+- [] for functions taking ref to a value, change so that the body of hte function has the dereferenced value, rather than carrying on with our current mess of this and that. Test perf impact (should be nothing)
 
 
 #### Perf considerations

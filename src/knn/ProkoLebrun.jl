@@ -100,8 +100,8 @@ end
 mutable struct GridKey{T, K} <: AABBGridKey
     index::K
     morton_code::K
-    min::MVector{3, T}
-    max::MVector{3, T}
+    min::SVector{3, T}
+    max::SVector{3, T}
     left::K
     skip::K
 end
@@ -193,7 +193,7 @@ function create_mortoncodes(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clc
     L = [GridKey{T, K}(i, 0, 
             #MVector{3, T}(position_xyz.x[perm_xyz.x[i]] - spec.critical_distance, position_xyz.y[perm_xyz.y[i]] - spec.critical_distance, position_xyz.z[perm_xyz.z[i]] - spec.critical_distance),
             #MVector{3, T}(position_xyz.x[perm_xyz.x[i]] + spec.critical_distance, position_xyz.y[perm_xyz.y[i]] + spec.critical_distance, position_xyz.z[perm_xyz.z[i]] + spec.critical_distance),
-            position[i] .- spec.critical_distance, position[i] .+ spec.critical_distance,
+            SVector{3, T}(position[i] .- spec.critical_distance), SVector{3, T}(position[i] .+ spec.critical_distance),
             0, 0) for i in 1:spec.leaves_count
     ]
 
@@ -237,8 +237,8 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
     ranger = i
     dell = delta(rangel - 1, keys, spec)
     delr = delta(ranger, keys, spec)
-    bounding_volume = [keys[i].min, keys[i].max] #TODO this should be doable without main memory allocations, but because MVec, must instantiate per leaf per stackless_interior! call
-
+    boundingmin = keys[i].min#[keys[i].min, keys[i].max] #TODO this should be doable without main memory allocations, but because MVec, must instantiate per leaf per stackless_interior! call
+    boundingmax = keys[i].max
 
 
 
@@ -293,12 +293,12 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
 
             end
 
-            for yep in eachindex(bounding_volume[2])
-                if keys[rightChild].max[yep] < bounding_volume[2][yep]
-                    bounding_volume[2][yep] = keys[rightChild].max[yep] 
-                end
-            end
-            #bounding_volume[2] = (keys[rightChild].max .< bounding_volume[2]) .* keys[rightChild].max + (bounding_volume[2] .< keys[rightChild].max) .* bounding_volume[2]
+            # for yep in eachindex(bounding_volume[2])
+            #     if keys[rightChild].max[yep] < bounding_volume[2][yep]
+            #         bounding_volume[2][yep] = keys[rightChild].max[yep] 
+            #     end
+            # end
+            boundingmax = (keys[rightChild].max .< boundingmax) .* keys[rightChild].max .+ (boundingmax .< keys[rightChild].max) .* boundingmax
             # for dim in eachindex(bounding_volume[1])
             #     bounding_volume[2][dim] = (bounding_volume[2][dim] < keys[rightChild].max[dim]) * keys[rightChild].max[dim]
             # end
@@ -332,16 +332,16 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
 
 
             #TODO can't this be done in a cooler way :(
-            for yep in eachindex(bounding_volume[1])
-                if keys[leftChild].min[yep] < bounding_volume[1][yep]
-                    bounding_volume[1][yep] = keys[leftChild].min[yep] 
-                end
-            end
+            # for yep in eachindex(bounding_volume[1])
+            #     if keys[leftChild].min[yep] < bounding_volume[1][yep]
+            #         bounding_volume[1][yep] = keys[leftChild].min[yep] 
+            #     end
+            # end
             #bounding_volume[1] = eval_triple .* keys[leftChild].min
 
 
 
-            #bounding_volume[1] = (keys[leftChild].min .< bounding_volume[1]) .* keys[leftChild].min + (bounding_volume[1] .< keys[leftChild].min) .* bounding_volume[1]
+            boundingmin = (keys[leftChild].min .< boundingmin) .* keys[leftChild].min .+ (boundingmin .< keys[leftChild].min) .* boundingmin
             
             # for dim in eachindex(bounding_volume[1])
             #     bounding_volume[1][dim] = (bounding_volume[1][dim] > keys[leftChild].min[dim]) * keys[leftChild].min[dim]
@@ -370,8 +370,10 @@ function stackless_interior!(store::Vector{Base.Threads.Atomic{Int64}}, i, nL, n
         end
 
         # this is incomplete, as a parent node is not guaranteed to encapsulate the volumes of all children
-        copyto!(keys[parentNode].min, bounding_volume[1])
-        copyto!(keys[parentNode].max, bounding_volume[2])
+        # copyto!(keys[parentNode].min, bounding_volume[1])
+        # copyto!(keys[parentNode].max, bounding_volume[2])
+        keys[parentNode].min = boundingmin
+        keys[parentNode].max = boundingmax
 
         
         
@@ -393,15 +395,17 @@ function update_stackless_bvh!(keys, store, spec::SpheresBVHSpecs{T, K}) where {
     # I don't want to macro my code to hell
     # Threads.@threads
     #freshStore = [Base.Threads.Atomic{Int64}(0) for i in 1:spec.leaves_count]
-    Threads.@threads for i in 1:spec.leaves_count #in perfect parallel
+    for i in 1:spec.leaves_count #in perfect parallel
         stackless_interior!(store, i, spec.leaves_count, spec.branches_count, keys, spec)
     end
 
     #Naive method of resetting the root
-    for dim in eachindex(keys[branch_index(1, spec)].min)
-        keys[branch_index(1, spec)].min[dim] = T(0.0)
-        keys[branch_index(1, spec)].max[dim] = T(1.0)
-    end
+    # for dim in eachindex(keys[branch_index(1, spec)].min)
+    #     keys[branch_index(1, spec)].min[dim] = #T(0.0)
+    #     keys[branch_index(1, spec)].max[dim] = T(1.0)
+    # end
+    keys[branch_index(1, spec)].min = SVector{3, T}(0.0, 0.0, 0.0)
+    keys[branch_index(1, spec)].max = SVector{3, T}(1.0, 1.0, 1.0)
 
     #TODO best place to do this?
     for each in eachindex(store)
@@ -485,7 +489,7 @@ function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::Generi
 
 
     #TODO is this helpful? sometimes the initialization of I takes a very long time and 'z' should help
-    I = [GridKey{T, K}(0, 0, MVector{3, T}(0.0, 0.0, 0.0), MVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
+    I = [GridKey{T, K}(0, 0, SVector{3, T}(0.0, 0.0, 0.0), SVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
     
     append!(bvhData[1][], I)
 
@@ -521,11 +525,11 @@ function rebuild_bvh!(treeData, position::Vec3D{T}, spec::SpheresBVHSpecs{T, K},
     #update leaf boundaries based on new positions
     #this has worse allocation performance than the expanded version without syntactic sugar???
     for each in 1:spec.leaves_count
-        treeData[1][][each].min .= position[each] .- spec.critical_distance
+        treeData[1][][each].min = SVector{3, T}(position[each] .- spec.critical_distance)
 
     end
     for each in 1:spec.leaves_count
-        treeData[1][][each].max .= position[each] .+ spec.critical_distance #.= or = ?
+        treeData[1][][each].max = SVector{3, T}(position[each] .+ spec.critical_distance) #.= or = ?
 
     end
     # realign leaf boundaries with indices to the atom positions that they represent
@@ -555,10 +559,13 @@ function rebuild_bvh!(treeData, position::Vec3D{T}, spec::SpheresBVHSpecs{T, K},
 
     #reset boundaries
     for each in spec.leaves_count+1:1:spec.leaves_count+spec.branches_count
-        for dim in eachindex(treeData[1][][1].min)
-            treeData[1][][each].min[dim] = T(0.0)
-            treeData[1][][each].max[dim] = T(0.0)
-        end
+        treeData[1][][each].min = SVector{3, T}(0.0, 0.0, 0.0)
+        treeData[1][][each].max = SVector{3, T}(0.0, 0.0, 0.0)
+
+        # for dim in eachindex(treeData[1][][1].min)
+        #     treeData[1][][each].min[dim] = T(0.0)
+        #     treeData[1][][each].max[dim] = T(0.0)
+        # end
     end
 
     update_stackless_bvh!(treeData[1][], treeData[6][], spec)

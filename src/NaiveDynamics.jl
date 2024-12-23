@@ -28,6 +28,7 @@ include("BaseExtensions.jl")
 #include("knn/NeighborSearch.jl")
 include("knn/ProkoLebrun.jl")
 include("PkgExtensions.jl")
+include("knn/AllToAll.jl")
 include("Forces.jl")
 include("Simulator.jl")
 

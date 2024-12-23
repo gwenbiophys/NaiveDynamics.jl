@@ -1194,18 +1194,21 @@ end
 The problem here is arround safely accessing the atomically guarded elements of an ordinary array. Why specifically fill!() does not work, I don't know. Probably because I cannot get to the values of the array in the way that I can either rewrite the entire atomic or dereference its value, as shown in the for loops above. But atomic values behaviors differ from plain values behaviors, clearly.
 
 
-        
-
-9. Restructure GridKeys to be a struct of arrays, and pass sorted morton codes and atom indices back to the struct without sorting the entire struct?
-
-13. Immutability
+12. Immutability
     a. in boundaries comparisons, could quite accelerate overlap, proximity, and bounding_volume solving all at the same time
     b. in gridkeys, could accelerate whole structure sorting by mortoncode
     c. in gridkeys, could accelerate tree formation. but this may be harder to implement.
     d. We can make the boundaries static vectors almost easily, but have to switch up the rest of naive md to use static vectors as well
     e. We may be able to make GridKeys immutable, but this may gum up tree formation. Alternatively, we could make a new data structure, GridKeyArrays, but I am less certain that this would be advantageous.
 
+
+    Switched to SVectors, improved speed from 270 ms to 240 ms, at a @btime of 1000 runs and 100 leaves. Improved a further 10 ms by having bounding_volume split into 2 separate local variables, but mostly cut allocations and data from 239578 to 39378 and 23.91 to 16.27 MiB
+
 ### towards the best CPU multi-threaded method
+1. @btime of 100 leaves and 1000 runs, we get `211.220 ms (17356 allocations: 14.04 MiB)`, which is a better result at about half the allocations than using Threads.@threads. Gap widens even further when we reload Julia with 8 instead of 4 threads.
+2. Using Base.Threads.@spawn, what is the crossover point of multithreaded tree construction running faster than single threaded?
+    a. 100 leaves: 200 ms single, 350 ms multi
+    b. 
 
 ### descent into madness
 

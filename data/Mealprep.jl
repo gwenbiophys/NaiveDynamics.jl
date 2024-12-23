@@ -108,9 +108,9 @@ using JET
                                                                         # ##### end force testing
 
 
-###### For BVH
+###### Neighbor Search: random days
 myCollector2 = GenericRandomCollector(; floattype=Float32,
-                                    objectnumber=10,
+                                    objectnumber=10000,
                                     minDim=tuple(0.0, 0.0, 0.0),
                                     maxDim=tuple(1.0, 1.0, 1.0),
                                     temperature=0.01,
@@ -134,7 +134,7 @@ position4 = [MVector{3, Float32}(0.1, 0.1, 0.1), MVector{3, Float32}(0.2, 0.2, 0
 position3 = [MVector{3, Float32}(0.1, 0.1, 0.1), MVector{3, Float32}(0.2, 0.2, 0.2), MVector{3, Float32}(0.346, 0.98, 0.12)]
 
 bvhspec = SpheresBVHSpecs(; floattype=Float32, 
-                            critical_distance=0.3, 
+                            critical_distance=0.003, 
                             leaves_count=length(myCollection1.position) 
 )
 simspec = GenericSpec(; inttype=Int64,
@@ -176,35 +176,43 @@ function run_naive(runs, position, thresh)
 end
 #build_bvh(position, bvhspec, myCollector2)
 #build_traverse_bvh(position, bvhspec, myCollector2 )
-# build_bvh_cosort(position, bvhspec, myCollector2)
-# println()
-# list = build_traverse_bvh(position, bvhspec, myCollector2)
-# naivelist = threshold_pairs(unique_pairs(position), bvhspec.critical_distance)
-# println(length(list), " ", list)
-# println(length(naivelist), " ", naivelist)
-g = @profview   run_bvh(40000, position, bvhspec, myCollector2)
-j = @profview_allocs   run_bvh(1, position, bvhspec, myCollector2) sample_rate = 1.0
 
-#  g = @btime   run_bvh(1000, $position, $bvhspec, $myCollector2) # at 100 objects: 270.630 ms (17975 allocations: 14.06 MiB)
+#list = @btime build_traverse_bvh($position, $bvhspec, $myCollector2)
+#naivelist = @btime threshold_pairs(unique_pairs($position), $bvhspec.critical_distance)
+
+#g = run_bvh(1, position, bvhspec, myCollector2)
+# at 10 000 leaves, only run <10 times
+# at ~<1000 leaves, run 1000 times
+h = @btime   run_bvh(10, $position, $bvhspec, $myCollector2) # at 100 objects: 271.214 ms (239976 allocations: 23.92 MiB)
+d = @btime run_naive(10, $position, $bvhspec.critical_distance)
+
+# i = @profview   run_bvh(40000, position, bvhspec, myCollector2)
+# j = @profview_allocs   run_bvh(40000, position, bvhspec, myCollector2) sample_rate = 0.001 #default 0.0001
+
+#  g = @btime   run_bvh(1000, $position, $bvhspec, $myCollector2) # at 100 objects: 271.214 ms (239976 allocations: 23.92 MiB)
 #  d = @btime run_naive(1000, $position, $bvhspec.critical_distance)
 #g = run_bvh(1, position, bvhspec, myCollector2)
-myCollector8 = GenericRandomCollector(; floattype=Float32,
-                                    objectnumber=8,
-                                    minDim=tuple(0.0, 0.0, 0.0),
-                                    maxDim=tuple(1.0, 1.0, 1.0),
-                                    temperature=0.01,
-                                    randomvelocity=false,
-                                    minmass=1.0,
-                                    maxmass=5.0,
-                                    minimumdistance=0.001,
-                                    mincharge=-1f-9,
-                                    maxcharge=1f-9
-)
-position8 =[MVector{3, Float32}(0.1, 0.1, 0.1), MVector{3, Float32}(0.2, 0.2, 0.2), 
-            MVector{3, Float32}(0.346, 0.98, 0.12), MVector{3, Float32}(0.01, 0.76, 0.99), 
-            MVector{3, Float32}(0.1111, 0.4, 0.31), MVector{3, Float32}(0.234, 0.29, 0.2), 
-            MVector{3, Float32}(0.11346, 0.918, 0.1276), MVector{3, Float32}(0.061, 0.76, 0.989)
-]
+
+
+
+###### Neighbor Search: Using fixed position
+# myCollector8 = GenericRandomCollector(; floattype=Float32,
+#                                     objectnumber=8,
+#                                     minDim=tuple(0.0, 0.0, 0.0),
+#                                     maxDim=tuple(1.0, 1.0, 1.0),
+#                                     temperature=0.01,
+#                                     randomvelocity=false,
+#                                     minmass=1.0,
+#                                     maxmass=5.0,
+#                                     minimumdistance=0.001,
+#                                     mincharge=-1f-9,
+#                                     maxcharge=1f-9
+# )
+# position8 =[MVector{3, Float32}(0.1, 0.1, 0.1), MVector{3, Float32}(0.2, 0.2, 0.2), 
+#             MVector{3, Float32}(0.346, 0.98, 0.12), MVector{3, Float32}(0.01, 0.76, 0.99), 
+#             MVector{3, Float32}(0.1111, 0.4, 0.31), MVector{3, Float32}(0.234, 0.29, 0.2), 
+#             MVector{3, Float32}(0.11346, 0.918, 0.1276), MVector{3, Float32}(0.061, 0.76, 0.989)
+# ]
 bvhspec8 = SpheresBVHSpecs(; floattype=Float32, 
                             critical_distance=10.0, 
                             leaves_count=length(position8) 
