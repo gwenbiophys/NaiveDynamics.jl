@@ -110,7 +110,7 @@ using JET
 
 ###### Neighbor Search: random days
 myCollector2 = GenericRandomCollector(; floattype=Float32,
-                                    objectnumber=10000,
+                                    objectnumber=5000,
                                     minDim=tuple(0.0, 0.0, 0.0),
                                     maxDim=tuple(1.0, 1.0, 1.0),
                                     temperature=0.01,
@@ -174,17 +174,30 @@ function run_naive(runs, position, thresh)
         threshold_pairs(list, thresh)
     end
 end
-#build_bvh(position, bvhspec, myCollector2)
-#build_traverse_bvh(position, bvhspec, myCollector2 )
+sort
+sposition = [SVector{3, Float32}(position[i]) for i in eachindex(position)]
+safe_position = [IndexSafePosition{Float32, Int32}(i, SVector{3, Float32}(position[i])) for i in eachindex(position)]
+mutsafe_position = [MutableIndexSafePosition{Float32, Int32}(i, position[i]) for i in eachindex(position)]
+indy = [0 for each in eachindex(position)]
 
+# @btime sortperm!($indy, $position, by=x->[1])
+# @btime sort!($position, by=x->x[1])
+# @btime sort!($sposition, by=x -> x[1])
+# @btime sort!($safe_position, by=x -> x.vec[1])
+# @btime sort!($mutsafe_position, by=x -> x.vec[1])
+#Base.Threads.lock
+
+#build_bvh(position, bvhspec, myCollector2)
+build_traverse_bvh(position, bvhspec, myCollector2 )
+#@benchmark threshold_pairs(unique_pairs($position), $bvhspec.critical_distance)
 #list = @btime build_traverse_bvh($position, $bvhspec, $myCollector2)
 #naivelist = @btime threshold_pairs(unique_pairs($position), $bvhspec.critical_distance)
 
 #g = run_bvh(1, position, bvhspec, myCollector2)
 # at 10 000 leaves, only run <10 times
 # at ~<1000 leaves, run 1000 times
-h = @btime   run_bvh(10, $position, $bvhspec, $myCollector2) # at 100 objects: 271.214 ms (239976 allocations: 23.92 MiB)
-d = @btime run_naive(10, $position, $bvhspec.critical_distance)
+# h = @btime   run_bvh(10, $position, $bvhspec, $myCollector2) # at 100 objects: 271.214 ms (239976 allocations: 23.92 MiB)
+# d = @btime run_naive(10, $position, $bvhspec.critical_distance)
 
 # i = @profview   run_bvh(40000, position, bvhspec, myCollector2)
 # j = @profview_allocs   run_bvh(40000, position, bvhspec, myCollector2) sample_rate = 0.001 #default 0.0001
@@ -213,10 +226,10 @@ d = @btime run_naive(10, $position, $bvhspec.critical_distance)
 #             MVector{3, Float32}(0.1111, 0.4, 0.31), MVector{3, Float32}(0.234, 0.29, 0.2), 
 #             MVector{3, Float32}(0.11346, 0.918, 0.1276), MVector{3, Float32}(0.061, 0.76, 0.989)
 # ]
-bvhspec8 = SpheresBVHSpecs(; floattype=Float32, 
-                            critical_distance=10.0, 
-                            leaves_count=length(position8) 
-)
+# bvhspec8 = SpheresBVHSpecs(; floattype=Float32, 
+#                             critical_distance=10.0, 
+#                             leaves_count=length(position8) 
+# )
 #build_bvh(position8, bvhspec8, myCollector8)
 #@btime with vectorized bounding volume update = 2.002 μs (123 allocations: 5.31 KiB)
 #Btime with forloop bounding volume updating = 1.954 μs (116 allocations: 5.09 KiB)

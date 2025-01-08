@@ -214,6 +214,29 @@ end
         end
     end
 end
+
+@testset "parallelization" begin
+#TODO this test set is incomplete
+
+
+    serial_list = neighbor_traverse(keys, position8, bvhspec8)
+    parallel_list = parallel_neighbor_traverse(keys, position8, bvhspec8)
+    checks = length(serial_list)
+    
+    # "does parallel traversal produce a neighbor list that includes every element of a serially-generated list?"
+    #due to naive chunking method, the two methods do not produce sequentially consistent lists
+    for each in eachindex(serial_list)
+        for peach in eachindex(parallel_list)
+            if serial_list[each] == parallel_list[peach]
+                checks -= 1
+            end
+        end
+    end
+    @test checks == 0
+    
+
+
+end
 # @testset "parent boundaries include all atoms" begin
 #     for each in 1:7
 #         for i in eachindex(position8[1])

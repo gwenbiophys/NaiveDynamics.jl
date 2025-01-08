@@ -55,7 +55,7 @@ end
 function unique_pairs(a::Vec3D{T}) where T
     #list_length = convert(Int64, (length(a)-1) * length(a) / 2)
 
-    #TODO this call alone is about as slow as an equivalent bvh build and traverse, can it be optimized
+    #TODO chunk based parallelization
     #list = [tuple(i, j, a[1][1], a[1][1], a[1][1], a[1][1]) for i in 1:length(a)-1 for j in i+1:length(a)]
     list =  [tuple(i, j, a[1][1]) for i in 1:length(a)-1 for j in i+1:length(a)]
     #fillcombinations
@@ -71,22 +71,5 @@ end
 function threshold_pairs(list, threshold::T) where T
     
     return [list[i] for i in eachindex(list) if list[i][3] ≤ threshold] #TODO this is here hrmm
-
-end
-
-function threshold_pairs_old(list, threshold::T) where T
-    thresh_list::Vector{Tuple{Int64, Int64, T, T, T, T}} = [] # this is a silly fix
-    # would it more perf-efficient to define a threshold list as long as the unique pairs list
-    # at small n particles, and just reorder the threshlist between valid and invalid values
-    # and jsut instruct functions to use the 'valid' region of the array?
-    thresh_list = []
-    for i in eachindex(list)
-        # replace with named tuple?
-        if list[i][6] ≤ threshold
-            push!(thresh_list, list[i])
-        end
-    end
-
-    return thresh_list
 
 end
