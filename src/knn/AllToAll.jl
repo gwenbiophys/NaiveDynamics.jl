@@ -3,8 +3,7 @@ export
     unique_pairs,
     threshold_pairs
 
-#TODO these belong in the neighbor search file directories
-function pairslist_interior(each, a::Vec3D{T}, list) where T
+@inline function pairslist_interior(each, a::Vec3D{T}, list) where T
 
     i = list[each][1]
     j = list[each][2]
@@ -43,8 +42,7 @@ function update_pairslist!(a::Vec3D{T}, list) where T
 
     else
 
-
-        for each in eachindex(list) #multithreading disabled until race condition is resolve
+        Threads.@threads for each in eachindex(list)
             pairslist_interior(each, a, list)
         end
     end
@@ -55,7 +53,8 @@ end
 function unique_pairs(a::Vec3D{T}) where T
     #list_length = convert(Int64, (length(a)-1) * length(a) / 2)
 
-    #TODO chunk based parallelization
+#TODO could we do another thread chunking scheme where we initialize and combine them at the end?
+#or is current scheme ideal, where we initialize dummy values and then parallelwise fill them in later?
     #list = [tuple(i, j, a[1][1], a[1][1], a[1][1], a[1][1]) for i in 1:length(a)-1 for j in i+1:length(a)]
     list =  [tuple(i, j, a[1][1]) for i in 1:length(a)-1 for j in i+1:length(a)]
     #fillcombinations
@@ -67,7 +66,7 @@ function unique_pairs(a::Vec3D{T}) where T
     return list
 end
 
-
+#i don't think this is worth parallelizing
 function threshold_pairs(list, threshold::T) where T
     
     return [list[i] for i in eachindex(list) if list[i][3] ≤ threshold] #TODO this is here hrmm

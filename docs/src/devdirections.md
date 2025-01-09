@@ -64,7 +64,8 @@
 * [x] update code naming to reflect the fact that AABB's are only first generated right immediately before bvh traversal, and squash down redundant data structures if at all possible
 * [x] fix broken performance by tuple allocation hell, consider switching pairslist to an MVector for values overwrite or trying named tuple shenanigans?
 * [] fix velocity rescaling / substitute with alternative method. fix behavior of interactions and parameterization in order to prevent crazy molecular behavior
-* [] make treeData tuple of refs into an immutable struct so we can use the names instead. update tests to reflect.
+* [] make treeData tuple of refs into a named tuple so we can use the names instead. update tests to reflect. And fix dereferencing so now function body has to dereference data and it is all done at the function call/arguments
+* [x] clean up dependencies
 
 * [] Improve design of the Logger to be compatible with makie
 * [x] Github work flow for a private uhh workspace
@@ -76,7 +77,7 @@
 * [x] Random generation for each component. Check that this works
 * [x] Aqua.jl integration that only tests the local package and not every dependency
 * [] Consider putting in architecture to read/write data so we can test coverage with fixed values and compare changes with feature development.
-* [] make it so push! log only runs at every selected interval, and also make this match the frame interval for makie by having makie take the simSpec as default framerate
+* [] make it so push! log only runs at every selected interval, and also make this match the frame interval for makie by having makie take the simSpec as default framerate. Could use CSV.Chunks, or maybe JLD2 has relevant functionality / we can just hack it in
 * [x] add kernel abstractions and AMDGPU and oneAPI and CUDA as formal extensions so that they are only precompiled when the script file to use this package includes 'use cuda'.
 * [] change vectors of structs to be structs of vectors, and add in relevant infrastructure to enable a resort of say the minboundary to change the order in the exact same way of the other elements of the simulation.
 
@@ -112,8 +113,14 @@ information based on other things the user input, like if single precision, then
 #### Perf considerations
 * [] could we work up directly to morton code from position without intermediates? that way we don't have to carry around the tuple of 6 different references
 * [] constructor expressions in naive pairs list, could we improve performance by instantiating the entire array(s) with the same value, and then update all values? have to a/b test. this could be better as constructor expressions seem to work best when Julia doesn't have to 'think' about what to place in each position of the array
-* [] now that we are using static vectors in the lower body of ProkoLebrun, can we use them throughout ND?
-* [] is 3x sort!() on an array of svectors faster than using sortperm on a direct vector of data? balance of power may have changed 
+* [] system wide transition to Static Vectors instead of mutables
+      * [] run through MDInput
+      * [] new boundary function
+      * [] update simulate! suite to use static array syntax (i.e. no for looping, just simple broadcast syntax from Julia)
+      * [] update force / rescaling methods
+      * [] update methods under knn
+      * [] EACH SECTION MODIFIED MUST RECEIVE TESTS TO AFFIRM ITS OVERALL FUNCTIONALITY  -- SVectors require a different syntax than MVectors and this can be easily screwed up to perf loss and incorrectness
+* [x] is 3x sort!() on an array of svectors faster than using sortperm on a direct vector of data? balance of power may have changed. --- The answer is ~yesh~, which is to say, using static vectors nicely speeds up both overlap testing and boundaries setting much more than whatever the balance of power of sortperm against repeatedly sorting an array of struct of index and static vector
 
 #### bugfixes from prior versions
 * [x] `update_pairlists!` incorrectly mutated over the index values of the default initialized pairlist. Fixed by changing `list[i] = result` to `list[each] = result` in the pairslist_interior function

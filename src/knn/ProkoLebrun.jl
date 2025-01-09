@@ -25,7 +25,6 @@ export
     branch_index,
     update_stackless_bvh!,
     parallel_neighbor_traverse,
-    polyester_neighbor_traverse,
     neighbor_traverse,
     build_bvh,
     rebuild_bvh!,
@@ -552,50 +551,6 @@ function parallel_neighbor_traverse(keys::Vector{GridKey{T,K}}, positions::Vec3D
     return neighbors
 end
 
-function polyester_neighbor_traverse(keys::Vector{GridKey{T,K}}, positions::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
-
-    threads = K(Threads.nthreads())
-
-    #TODO isn't this structure extremely unfriendly to growing the individual elements at different times to different extents?
-    neighbor_vec = [Vector{Tuple{K, K, T}}(undef, 0) for i in 1:threads]
-
-
-    # clamp traversal to 1 index before the last leaf because if every other leaf has been considered, 
-    # then the last leaf does not need to be reconsidered for a neighbor pair
-    @batch for chunk in 1:threads
-        for query_index in K(chunk):threads:K(length(positions)-1)#range(start=K(1), stop=K(spec.branches_count))
-            currentKey = branch_index(1, spec)
-
-            while currentKey != 0 # currentKey is the sentinel, end traversal of the given query
-                # does query at all overlap with the volume of currentKey
-                overlap = overlap_test(keys, currentKey, query_index, positions, spec)
-                #overlap = sum(keys[currentKey].min .< positions[query_index] .< keys[currentKey].max)
-                #overlapb = newoverlap_test(keys, currentKey, query_index, positions, spec)
-
-
-
-
-                if overlap > 0 
-                    if keys[currentKey].left == 0 # currentKey is a leaf node
-                        proximity_test!(neighbor_vec[chunk], query_index, currentKey, positions, spec)
-                        currentKey = currentKey = keys[currentKey].skip
-                    else #currentKey is a branch node, traverse to the left
-                        currentKey = keys[currentKey].left
-                    end
-                else #query is not contained, can cut off traversal on the 'lefts' sequencef
-                    currentKey = keys[currentKey].skip
-                end
-
-            end
-        end
-    end
-    neighbors = neighbor_vec[1]
-    for each in 2:1:threads
-        append!(neighbors, neighbor_vec[each] )
-    end
-
-    return neighbors
-end
 function neighbor_traverse(keys::Vector{GridKey{T,K}}, positions::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
     neighbors = Vector{Tuple{K, K, T}}(undef, 0)#(undef)

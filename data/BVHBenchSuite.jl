@@ -69,8 +69,6 @@ function simulate_noforces(; atoms, duration, thresh, usebtime=true )
         b = @btime simulate_bvh!($clxn, $simspec, $bvhspec, $clct)
         println("    parallel bvh:")
         b = @btime simulate_pbvh!($clxn, $simspec, $bvhspec, $clct)
-        println("    polyester bvh:")
-        b = @btime simulate_polyesterbvh!($clxn, $simspec, $bvhspec, $clct)
     else
         println("    naive:")
         a = @time simulate_naive!(clxn, simspec, clct)
@@ -78,11 +76,42 @@ function simulate_noforces(; atoms, duration, thresh, usebtime=true )
         b = @time simulate_bvh!(clxn, simspec, bvhspec, clct)
         println("    parallel bvh:")
         b = @time simulate_pbvh!(clxn, simspec, bvhspec, clct)
-        println("    polyester bvh:")
-        b = @time simulate_polyesterbvh!(clxn, simspec, bvhspec, clct)
     end
     return nothing
 end
+
+#simulate_noforces(atoms=1024, duration=10, thresh=0.03, usebtime=true)
+#Note: These tests are not validated to be consistent, but will hopefulyl show a promising progression through the work
+#perm
+# 1024 atoms, 10 duration, 0.03 thresh
+# 108.138 ms (17683 allocations: 49.85 MiB)
+# done wwith naive
+# 131.970 ms (21268 allocations: 1.39 MiB)
+#direc
+# 1024 atoms, 10 duration, 0.03 thresh
+# 108.929 ms (17683 allocations: 49.85 MiB)
+# done wwith naive
+# 148.514 ms (21157 allocations: 1.36 MiB)
+
+#     Jan 8th:
+#   naive:
+# 80.898 ms (17683 allocations: 49.85 MiB)
+#   bvh:
+# 87.138 ms (21157 allocations: 1.36 MiB)
+#   parallel bvh:
+# 32.902 ms (21705 allocations: 1.41 MiB)
+
+#    Jan9th
+# 1024 atoms, 10 duration, 0.03 thresh
+#   naive:
+# 54.374 ms (18145 allocations: 49.89 MiB)
+#   bvh:
+# 69.047 ms (21223 allocations: 1.70 MiB)
+#   parallel bvh:
+# 20.867 ms (21761 allocations: 1.75 MiB)
+
+
+
 
 function profile_simulate_noforces(; atoms, duration, thresh, allocs=false)
     clct = GenericRandomCollector(; floattype=Float32,
@@ -169,39 +198,16 @@ function bbuild_traverse(position, spec, clct; usebtime=true)
         a = @btime neighbor_traverse($keys, $position, $spec)
         println("    parallel:")
         b = @btime parallel_neighbor_traverse($keys, $position, $spec)
-        println("    polyester:")
-        b = @btime polyester_neighbor_traverse($keys, $position, $spec)
     else
         println("    serial:")
         a = @time neighbor_traverse(keys, position, spec)
         println("    parallel:")
         b = @time parallel_neighbor_traverse(keys, position, spec)
-        println("    polyester:")
-        b = @time polyester_neighbor_traverse(keys, position, spec)
     end
     return nothing
 end
-######### benchmark calls
-simulate_noforces(atoms=1024, duration=10, thresh=0.03, usebtime=true)
-#Note: not apples to apples
-#perm
-# 1024 atoms, 10 duration, 0.03 thresh
-# 108.138 ms (17683 allocations: 49.85 MiB)
-# done wwith naive
-# 131.970 ms (21268 allocations: 1.39 MiB)
-#direc
-# 1024 atoms, 10 duration, 0.03 thresh
-# 108.929 ms (17683 allocations: 49.85 MiB)
-# done wwith naive
-# 148.514 ms (21157 allocations: 1.36 MiB)
 
-#     Jan 8th:
-# naive:
-# 80.898 ms (17683 allocations: 49.85 MiB)
-#   bvh:
-# 87.138 ms (21157 allocations: 1.36 MiB)
-#   parallel bvh:
-# 32.902 ms (21705 allocations: 1.41 MiB)
+
 
 #profile_simulate_noforces(atoms=5000, duration=100, thresh=0.03)
 #atoms=10000, duration=100, thresh=0.03 will fill buffer before completion

@@ -1,20 +1,20 @@
 module NaiveDynamics
 
 using BenchmarkTools
-using UUIDs
-using CSV
-using DataFrames
-using NamedArrays
+# using UUIDs
+# using CSV
+#using DataFrames
+#using NamedArrays
 using StaticArrays
 using Distributions
-using Revise
+#using Revise
 using StructArrays
 #using CellListMap
 #using NearestNeighbors
 using SortingAlgorithms
-using Polyester
+#using Polyester
 
-using Aqua #is this correct? should probably go in test files!
+#using Aqua #is this correct? should probably go in test files!
 
 #using KernelAbstractions
 #using AMDGPU

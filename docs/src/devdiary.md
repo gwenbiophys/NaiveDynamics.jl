@@ -1225,7 +1225,9 @@ A thousand times more data efficient, but still not evidently faster. The critic
 
 4. Using chunking to parallelize traversal seems to become beneficial around 40 atoms with @btime and around 70 atoms with @time.
 
-5. Testing polyester.jl in traversal seems to have very little impact, reducing memory size and allocations associated with multithreading. Performance seems to be same, possibly slightly worse, though I don't think I have testing resolution to +/-10%
+5. Testing polyester.jl in traversal seems to have very little impact, reducing memory size and allocations associated with multithreading. Performance seems to be same, possibly slightly worse, though I don't think I have testing resolution to +/-10%. Maybe not even within 20% between runs. Our benchmark requires a fixed data set for different sizes, from 10 to 5000 atoms (naive pairlist becomes terrifyingly unwieldy after 5000 atoms)
+
+6. ```[Vector{Tuple{K, K, T}}(undef, 0) for i in 1:threads]``` I worried would be damaging to performance, thinking we had a dense vector of dense vectors that would cause dynamic resizing of the entire structure when a single thread would `push!()` one time too far, but instead trying to make an array of references to 'free' the vectors made performance slightly worse with slightly worse memory pressure.
 
 ### descent into madness
 1. Towards high-end perf. optimization, we have to create several batch runs, a wwhole file of functions and function invocations, that tests specific parts of the algorithm. We will need these to generate a macro view of the bvh perf.
