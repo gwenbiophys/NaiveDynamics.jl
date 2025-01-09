@@ -2,9 +2,9 @@ using Revise
 
 
 using BenchmarkTools
-#using CSV
-#using StaticArrays
+
 using NaiveDynamics
+using JLD2
 
 clct = GenericRandomCollector(; floattype=Float32,
                                 objectnumber=10000,
@@ -19,25 +19,19 @@ clct = GenericRandomCollector(; floattype=Float32,
                                 maxcharge=1f-9
 )
 clxn = collect_objects(clct)
-bvhspec = SpheresBVHSpecs(; floattype=Float32, 
-                            critical_distance=0.03, 
-                            leaves_count=length(clxn.position) 
-)
-simspec = GenericSpec(; inttype=Int64,
-                        floattype=Float32,
-                        duration=10,
-                        stepwidth=1,
-                        currentstep=1,
-                        logLength=10,
-                        vDamp=1
-)
+
+
+
+
+
+
 
 
 
 #### no forces simulation
-function simulate_noforces(; atoms, duration, thresh, usebtime=true )
+function simulate_noforces(; position, duration, thresh, usebtime=true )
     clct = GenericRandomCollector(; floattype=Float32,
-                                        objectnumber=atoms,
+                                        objectnumber=length(position),
                                         minDim=tuple(0.0, 0.0, 0.0),
                                         maxDim=tuple(1.0, 1.0, 1.0),
                                         temperature=0.01,
@@ -49,9 +43,13 @@ function simulate_noforces(; atoms, duration, thresh, usebtime=true )
                                         maxcharge=1f-9
     )
     clxn = collect_objects(clct)
+
+    #this was ridiculous to debug. Even though I was closing the jld2 file BEFORE
+    #sending it to this funciton, that IO data was still being overwritten.
+    copyto!.(clxn.position, position)
     bvhspec = SpheresBVHSpecs(; floattype=Float32, 
                                 critical_distance=thresh, 
-                                leaves_count=length(clxn.position) 
+                                leaves_count=length(position) 
     )
     simspec = GenericSpec(; inttype=Int64,
                         floattype=Float32,
@@ -59,8 +57,12 @@ function simulate_noforces(; atoms, duration, thresh, usebtime=true )
                         stepwidth=1,
                         currentstep=1,
                         logLength=10,
-                        vDamp=1
+                        vDamp=1,
+                        threshold=thresh
     )
+    #println(clxn.position)
+
+    atoms = clct.objectnumber
     println(" $atoms atoms, $duration duration, $thresh thresh")
     if usebtime
         println("    naive:")
@@ -71,14 +73,35 @@ function simulate_noforces(; atoms, duration, thresh, usebtime=true )
         b = @btime simulate_pbvh!($clxn, $simspec, $bvhspec, $clct)
     else
         println("    naive:")
-        a = @time simulate_naive!(clxn, simspec, clct)
-        println("    bvh:")
-        b = @time simulate_bvh!(clxn, simspec, bvhspec, clct)
-        println("    parallel bvh:")
-        b = @time simulate_pbvh!(clxn, simspec, bvhspec, clct)
+        a = simulate_naive!(clxn, simspec, clct)
+        # println("    bvh:")
+        # b = @time simulate_bvh!(clxn, simspec, bvhspec, clct)
+        # println("    parallel bvh:")
+        # b = @time simulate_pbvh!(clxn, simspec, bvhspec, clct)
     end
     return nothing
 end
+
+f = jldopen("data/positions/positions.jld2", "r")
+myposition = read(f, "pos5000")
+close(f)
+
+simulate_noforces(position=myposition, duration=2, thresh=0.03, usebtime=false)
+
+bvhspec = SpheresBVHSpecs(; floattype=Float32, 
+                            critical_distance=0.03, 
+                            leaves_count=length(myposition) 
+)
+simspec = GenericSpec(; inttype=Int64,
+                        floattype=Float32,
+                        duration=10,
+                        stepwidth=1,
+                        currentstep=1,
+                        logLength=10,
+                        vDamp=1,
+                        threshold=0.03
+)
+
 
 #simulate_noforces(atoms=1024, duration=10, thresh=0.03, usebtime=true)
 #Note: These tests are not validated to be consistent, but will hopefulyl show a promising progression through the work
@@ -113,7 +136,7 @@ end
 
 
 
-function profile_simulate_noforces(; atoms, duration, thresh, allocs=false)
+function profile_simulate_noforces(; atoms, duration, thresh, allocs=false,  allocrate=0.0001)
     clct = GenericRandomCollector(; floattype=Float32,
                                         objectnumber=atoms,
                                         minDim=tuple(0.0, 0.0, 0.0),
@@ -137,16 +160,17 @@ function profile_simulate_noforces(; atoms, duration, thresh, allocs=false)
                         stepwidth=1,
                         currentstep=1,
                         logLength=10,
-                        vDamp=1
+                        vDamp=1,
+                        threshold=thresh
     )
     println(" $atoms atoms, $duration duration, $thresh thresh")
     println("    naive:")
     if allocs
-        @profview_allocs simulate_naive!(clxn, simspec, clct)
+        @profview_allocs simulate_naive!(clxn, simspec, clct) sample_rate=allocrate
         println("    bvh:")
-        @profview simulate_bvh!(clxn, simspec, bvhspec, clct)
+        @profview_allocs simulate_bvh!(clxn, simspec, bvhspec, clct) sample_rate=allocrate
         println("    parallel bvh:")
-        @profview simulate_pbvh!(clxn, simspec, bvhspec, clct)
+        @profview_allocs simulate_pbvh!(clxn, simspec, bvhspec, clct) sample_rate=allocrate
     else
         @profview simulate_naive!(clxn, simspec, clct)
         println("    bvh:")
@@ -158,6 +182,12 @@ function profile_simulate_noforces(; atoms, duration, thresh, allocs=false)
 
     return nothing
 end
+
+#profile_simulate_noforces(atoms=5000, duration=100, thresh=0.03, allocs=false, allocrate=0.001)
+
+
+
+
 
 function bcreate_mortoncodes(; atoms, thresh=0.01)
     clct = GenericRandomCollector(; floattype=Float32,
@@ -209,7 +239,7 @@ end
 
 
 
-#profile_simulate_noforces(atoms=5000, duration=100, thresh=0.03)
+
 #atoms=10000, duration=100, thresh=0.03 will fill buffer before completion
 
 #5000 atoms, 100 duration, 0.03 thresh

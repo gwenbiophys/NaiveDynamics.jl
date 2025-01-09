@@ -7,5 +7,13 @@
 
 A very Naive Project to follow and study the design of molecular dynamics simulation and high octane algorithms.
 
+As of 9 January, 2025:
+* unitless velocity verlet simulation 
+* no-identity point-particles
+* partially complete coulomb and Lennard-Jones force models
+* an eerily unhelpful velocity rescaler
+* ability video record simulation
+* bvh traversal for neighbor search (CPU parallel)
+
 
 <video controls src="https://github.com/gwenbiophys/NaiveDynamics.jl/blob/main/data/newhope.mp4" title="SampleSim"></video>

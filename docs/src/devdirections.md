@@ -79,7 +79,6 @@
 * [] Consider putting in architecture to read/write data so we can test coverage with fixed values and compare changes with feature development.
 * [] make it so push! log only runs at every selected interval, and also make this match the frame interval for makie by having makie take the simSpec as default framerate. Could use CSV.Chunks, or maybe JLD2 has relevant functionality / we can just hack it in
 * [x] add kernel abstractions and AMDGPU and oneAPI and CUDA as formal extensions so that they are only precompiled when the script file to use this package includes 'use cuda'.
-* [] change vectors of structs to be structs of vectors, and add in relevant infrastructure to enable a resort of say the minboundary to change the order in the exact same way of the other elements of the simulation.
 
 
 * [x] check the naive unique pairs function for correctness. I was kinda just throwing stuff at a wall to see if it worked
@@ -108,6 +107,9 @@ information based on other things the user input, like if single precision, then
 * [] figure a considerate way of updating boundaries, currently we have to set to zero in between runs and do the for loop if evaluation / vectorized notation. is the proper fashion to do that, or to just set the boundaries of a parent to be the exact values of its child?
 * [] change create_mortoncodes to GridKeysArray ?. And interior of rebuild bvh to GridKeysArray! ? I guess if we could create the array without storing intermediates, but there is no way that will work so nicely.
 * [] for functions taking ref to a value, change so that the body of hte function has the dereferenced value, rather than carrying on with our current mess of this and that. Test perf impact (should be nothing)
+* [] to GenericCollector function, add function to avoid generating position data and just borrow preset data
+* [x] implement jld2.jl to have a pre-generated bench suite
+* [] add test to ensure that data in jld2 files are not being overwritten, because in trying to implement this in benchtesting? there was a lot of overwriting.
 
 
 #### Perf considerations
@@ -162,12 +164,16 @@ information based on other things the user input, like if single precision, then
 * [] in mutation functions, is the first operand always the one being mutated?
 * [] do mutation functions return a value? HOw does Base do it?
 * [] write a style guide to structure contributions and make consistent our approach here.
+      * [] shouldshould the tests be structured such that by reading them, you learn how the program works? and to what extent, to not having domain specific knowledge? I think yes tests that parallelized evaluations work as expected. but idk about like, safe usage of files so a 'user' doesn't break their local data. and should it go even further to the correct syntactical use of svectors vs mvectors? i think these are too far, unless this becomes both a research AND teaching repo.
 
 #### bugfixes from prior versions
 
 ### perf considerations
 * [] are inbounds valid in the force vector calculations? I have not researched this thoroughly to know
 * [] can we improve neighbor list performance by calling all neighbor -related functions at the place where we currently `push!` a pair to the pair list? Uneven memory access vs. severely many small allocations. Result may differ between a data vectors stored as SVecs vs MVecs as well
+
+### function requests / wishes
+* [] particle arrangement based on coulomb potential -- like salt crystals, they stay in place because forces are balanced
 
 
 ### Version 0.00.5

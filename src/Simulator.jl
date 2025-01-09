@@ -26,6 +26,7 @@ struct GenericSpec{T, K} <: SimulationSpecification
     currentstep::T
     logChunkLength::T
     velocityDampening::K #idk a better way to handle this
+    threshold::K
 end
 function GenericSpec(;
                     inttype=Int64,
@@ -34,9 +35,10 @@ function GenericSpec(;
                     stepwidth,
                     currentstep,
                     logLength=10,
-                    vDamp
+                    vDamp,
+                    threshold
                         )
-    return GenericSpec{inttype, floattype}(duration, stepwidth, currentstep, logLength, vDamp)
+    return GenericSpec{inttype, floattype}(duration, stepwidth, currentstep, logLength, vDamp, threshold)
 end
 
 
@@ -280,7 +282,9 @@ function simulate_naive!(sys::GenericObjectCollection, spec::GenericSpec, clct::
     for step_n in 1:spec.duration
 
 
-        LJ_pairs = threshold_pairs(pairslist, convert(T, 0.3))
+        LJ_pairs = @btime threshold_pairs($pairslist, $spec.threshold)
+        newLJ_pairs = @btime new_threshold_pairs($pairslist, $spec.threshold)
+        println()
 
 
         for i in eachindex(accels_t)

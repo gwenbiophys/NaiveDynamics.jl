@@ -1,7 +1,8 @@
 export
     update_pairslist!,
     unique_pairs,
-    threshold_pairs
+    threshold_pairs,
+    new_threshold_pairs
 
 @inline function pairslist_interior(each, a::Vec3D{T}, list) where T
 
@@ -66,9 +67,31 @@ function unique_pairs(a::Vec3D{T}) where T
     return list
 end
 
-#i don't think this is worth parallelizing
-function threshold_pairs(list, threshold::T) where T
+#so. how can we improve this, as it takes 84% of execution time
+# I don't think Julia likes it lol
+@inline function threshold_pairs(list, threshold::T) where T
     
     return [list[i] for i in eachindex(list) if list[i][3] ≤ threshold] #TODO this is here hrmm
+
+end
+
+#TODO this is MUCH more mrmory efficient, but is also slightly universally slower from 10 to 5000
+# with @time, usually this loses, but almost always loses to @btime
+@inline function new_threshold_pairs(list, threshold::T) where T
+    counter = 0
+    for each in eachindex(list)
+        if list[each][3] ≤ threshold
+            counter += 1
+        end
+    end
+    thresh = [tuple(0, 0, 0.0f0) for i in 1:counter]#Vector{Tuple{Int64, Int64, T}}(undef, counter)
+    #resize!(thresh, counter)
+     #hrm
+    for each in eachindex(thresh)
+        if list[each][3] ≤ threshold
+            thresh[each] = list[each]
+        end
+    end
+    return thresh#[list[i] for i in eachindex(list) if list[i][3] ≤ threshold] 
 
 end
