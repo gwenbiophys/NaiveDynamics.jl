@@ -5,6 +5,7 @@ using BenchmarkTools
 
 using NaiveDynamics
 using JLD2
+using StaticArrays
 
 
 #### no forces simulation
@@ -186,43 +187,32 @@ end
 
 
 
+function bvh_naive(position, spec, clct; usebtime=true)
 
-
-function bcreate_mortoncodes(; atoms, thresh=0.01)
-    clct = GenericRandomCollector(; floattype=Float32,
-                                        objectnumber=atoms,
-                                        minDim=tuple(0.0, 0.0, 0.0),
-                                        maxDim=tuple(1.0, 1.0, 1.0),
-                                        temperature=0.01,
-                                        randomvelocity=false,
-                                        minmass=1.0,
-                                        maxmass=5.0,
-                                        minimumdistance=0.0001,
-                                        mincharge=-1f-9,
-                                        maxcharge=1f-9,
-                                        pregeneratedposition=true
-    )
-    clxn = collect_objects(clct, position=position)
-    bvhspec = SpheresBVHSpecs(; floattype=Float32, 
-                                critical_distance=thresh, 
-                                leaves_count=length(clxn.position) 
-    )
-    println(atoms, " atoms")
-    println("permsort")
-    @time create_mortoncodes(clxn.position, bvhspec, clct)
-    println("direct sort")
-    @time create_mortoncodes_direct(clxn.position, bvhspec, clct)
-    println("now btime")
-    println("permsort")
-    @btime create_mortoncodes($clxn.position, $bvhspec, $clct)
-    println("direct sort")
-    @btime create_mortoncodes_direct($clxn.position, $bvhspec, $clct)
-    return nothing
+    position = [MVector{3, Float32}(position[i]) for i in eachindex(position)]
+    if usebtime
+        println("    naive:")
+        a = @btime threshold_pairs(unique_pairs($position), $spec.critical_distance)
+        println("    bvh:")
+        b = @btime build_traverse_bvh($position, $spec)
+    else
+        println("    naive:")
+        a = @btime threshold_pairs(unique_pairs(position), spec.critical_distance)
+        println("    bvh:")
+        b = @btime build_traverse_bvh(position, spec)
+    end
 end
+#bvh_naive(myposition, bvhspec, clct; usebtime=true)
+# naive:
+# 449.664 ms (100 allocations: 897.85 MiB)
+#   bvh:
+# 139.689 ms (15245 allocations: 10.50 MiB)
+
+
 
 function bbuild_traverse(position, spec, clct; usebtime=true)
-    treeData = build_bvh(position, spec, clct)
-    keys = treeData[1][]
+    treeData = build_bvh(position, spec)
+    keys = treeData.tree
     #neighbor_traverse(keys, position, spec)
     if usebtime
         println("    base:")
@@ -242,11 +232,11 @@ function profile_build_traverse( runs, position, bvhspec, clct; allocs=false, al
 
     if allocs
         @profview_allocs for i in 1:runs
-            build_traverse_bvh(position, bvhspec, clct)
+            build_traverse_bvh(position, bvhspec)
         end
     else
         @profview for i in 1:runs
-            build_traverse_bvh(position, bvhspec, clct)
+            build_traverse_bvh(position, bvhspec)
         end
     end
 end
@@ -273,17 +263,20 @@ end
 #run 2:
     #naive: 54% update_pairslist!, 44% threshold_pairs, 2% in unique_pairs and the rest
     #bvh: 60% overlap_test, 8% neighbor traverse, the rest in data access and uncertain
-#bcreate_mortoncodes(atoms=1024)
 
 #println(myposition[1])
-bbuild_traverse(myposition, bvhspec, clct; usebtime=true)
+#bbuild_traverse(myposition, bvhspec, clct; usebtime=true)
 
-# treeData = build_bvh(myposition, bvhspec, clct)
-# keys = treeData[1][]
+# treeData = build_bvh(myposition, bvhspec)
+# keys = treeData.tree
 #@benchmark neighbor_traverse($keys, $myposition, $bvhspec)
 #@benchmark expt_neighbor_traverse($keys, $myposition, $bvhspec)
 
-#@benchmark build_traverse_bvh($myposition, $bvhspec, $clct)
+#@benchmark build_traverse_bvh($myposition, $bvhspec)
+
+
+#code native and code llvm look like garbage in the overlap test
+#build_traverse_bvh(myposition, bvhspec)
 
 
 

@@ -160,12 +160,12 @@ simspec = SimSpec(; inttype=Int64,
 #batch_build_traverse(100, position8, bvhspec, myCollector2, printARun=true)
 #batched_batch_build(10, 100, myCollection1.position, bvhspec, myCollector2)
 function run_bvh(runs, position, bvhspec, myCollector2)
-    treeData = build_bvh(position, bvhspec, myCollector2)
+    treeData = build_bvh(position, bvhspec)
     #keys = treeData[1][]
     for i in 1:runs
 
         neighbor_traverse(treeData[1][], position, bvhspec)
-        rebuild_bvh!(treeData, position, bvhspec, myCollector2)
+        rebuild_bvh!(treeData, position, bvhspec)
 
     end
 
@@ -191,16 +191,16 @@ indy = [0 for each in eachindex(position)]
 # @btime sort!($mutsafe_position, by=x -> x.vec[1])
 #Base.Threads.lock
 
-#build_bvh(position, bvhspec, myCollector2)
-build_traverse_bvh(position, bvhspec, myCollector2 )
+#build_bvh(position, bvhspec)
+build_traverse_bvh(position, bvhspec)
 #@benchmark threshold_pairs(unique_pairs($position), $bvhspec.critical_distance)
-#list = @btime build_traverse_bvh($position, $bvhspec, $myCollector2)
+#list = @btime build_traverse_bvh($position, $bvhspec)
 #naivelist = @btime threshold_pairs(unique_pairs($position), $bvhspec.critical_distance)
 
-#g = run_bvh(1, position, bvhspec, myCollector2)
+#g = run_bvh(1, position, bvhspec)
 # at 10 000 leaves, only run <10 times
 # at ~<1000 leaves, run 1000 times
-# h = @btime   run_bvh(10, $position, $bvhspec, $myCollector2) # at 100 objects: 271.214 ms (239976 allocations: 23.92 MiB)
+# h = @btime   run_bvh(10, $position, $bvhspec) # at 100 objects: 271.214 ms (239976 allocations: 23.92 MiB)
 # d = @btime run_naive(10, $position, $bvhspec.critical_distance)
 
 # i = @profview   run_bvh(40000, position, bvhspec, myCollector2)
@@ -235,20 +235,20 @@ build_traverse_bvh(position, bvhspec, myCollector2 )
 #                             critical_distance=10.0, 
 #                             leaves_count=length(position8) 
 # )
-#build_bvh(position8, bvhspec8, myCollector8)
+#build_bvh(position8, bvhspec8)
 #@btime with vectorized bounding volume update = 2.002 μs (123 allocations: 5.31 KiB)
 #Btime with forloop bounding volume updating = 1.954 μs (116 allocations: 5.09 KiB)
 
-#bvh_list = @btime build_traverse_bvh($position, $bvhspec, $myCollector2)
+#bvh_list = @btime build_traverse_bvh($position, $bvhspec)
 #naive_list = @btime threshold_pairs(unique_pairs($position), $bvhspec.critical_distance)
 
 
 #@time create_mortoncodes(position, bvhspec, myCollector2)
 #@time create_mortoncodes_perm(position, bvhspec, myCollector2)
-#@profview build_bvh(position, bvhspec, myCollector2 )
-#@profview_allocs build_bvh(position, bvhspec, myCollector2 )
-#@btime build_bvh($position, $bvhspec, $myCollector2 )
-#bvh_list = build_traverse_bvh(position, bvhspec, myCollector2) 
+#@profview build_bvh(position, bvhspec)
+#@profview_allocs build_bvh(position, bvhspec)
+#@btime build_bvh($position, $bvhspec)
+#bvh_list = build_traverse_bvh(position, bvhspec) 
 
 #run_naive(10, position, bvhspec.critical_distance)
 #run_perms(10, position, bvhspec, myCollector2)

@@ -7,6 +7,7 @@ makedocs(sitename="NaiveDynamics.jl",
          modules = [NaiveDynamics],
          pages = [
             "Home" => "index.md",
+            "Tutorial" => "tutorial.md",
             "Bounding Volume Hierarchies" => "bvh.md",
             "Developer Diary" => "devdiary.md",
             "Development Directions" => "devdirections.md",

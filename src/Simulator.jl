@@ -206,7 +206,7 @@ function simulate!(sys::GenericObjectCollection, spec::SimSpec, clct::GenericRan
         for i in eachindex(sys.position)
             accels_t_dt[i] .= force_nextstep[i] ./ sys.mass[i]
         end
-        
+        #TODO is this correct, or should they rather be additive???
         map!(x->x, force_nextstep, sys.force)
 
 
@@ -345,12 +345,12 @@ function simulate_bvh!(sys::GenericObjectCollection, spec::SimSpec, bvhspec::Sph
     accels_t = copy.(sys.force)::Vec3D{T}
     accels_t_dt = copy.(sys.force)::Vec3D{T}
 
-    treeData = build_bvh(sys.position, bvhspec, clct)
+    treeData = build_bvh(sys.position, bvhspec)
 
 
     for step_n in 1:spec.duration
 
-        pairslist = neighbor_traverse(treeData[1][], sys.position, bvhspec)
+        pairslist = neighbor_traverse(treeData.tree, sys.position, bvhspec)
 
         for i in eachindex(accels_t)
             accels_t[i] .= sys.force[i] ./ sys.mass[i]
@@ -371,7 +371,7 @@ function simulate_bvh!(sys::GenericObjectCollection, spec::SimSpec, bvhspec::Sph
 
         currentstep = 1:step_n
 
-        rebuild_bvh!(treeData, sys.position, bvhspec, clct)
+        rebuild_bvh!(treeData, sys.position, bvhspec)
 
     end
 

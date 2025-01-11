@@ -740,3 +740,109 @@ function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::Generi
     I= [INode{K, T}(tuple(i, length(L)), 0, 0, 0,  MVector{3, T}(0, 0, 0), MVector{3, T}(0, 0, 0), 0) for i in 1:length(L)-1]::Vector{INode{K, T}} 
 
 end
+
+
+
+
+
+
+
+
+
+####### sort perm implementation -- it is legally better than struct sort, but I don't like it as much
+
+
+function update_quantized_positions(index, quantized, perm, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
+    for each in eachindex(quantized.x)
+        quantized.x[index.x[perm.x[each]]] = K(each) #TODO i hope this is right, i have no idea
+    end
+    for each in eachindex(quantized.y)
+        quantized.y[index.y[perm.y[each]]] = K(each)
+    end
+    for each in eachindex(quantized.z)
+        quantized.z[index.z[perm.z[each]]] = K(each)
+    end
+
+end
+
+function create_mortoncodes(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
+    position_xyz = XYZVectors{T}([position[i][1] for i in 1:spec.leaves_count],
+                                 [position[i][2] for i in 1:spec.leaves_count],
+                                 [position[i][3] for i in 1:spec.leaves_count]
+    )
+    index_xyz = XYZVectors{K}([i for i in 1:spec.leaves_count],
+                              [i for i in 1:spec.leaves_count],
+                              [i for i in 1:spec.leaves_count]
+    )
+    perm_xyz = XYZVectors{K}(
+        sortperm(position_xyz.x),
+        sortperm(position_xyz.y),
+        sortperm(position_xyz.z)
+    )
+    #partialsort
+    quantized_xyz = XYZVectors{K}(zeros(K, spec.leaves_count),
+                              zeros(K, spec.leaves_count),
+                              zeros(K, spec.leaves_count)
+    )
+    update_quantized_positions(index_xyz, quantized_xyz, perm_xyz, spec, clct)
+
+    #TODO this has to be fixed with the permuters and syntax
+    L = [GridKey{T, K}(i, 0, 
+            #MVector{3, T}(position_xyz.x[perm_xyz.x[i]] - spec.critical_distance, position_xyz.y[perm_xyz.y[i]] - spec.critical_distance, position_xyz.z[perm_xyz.z[i]] - spec.critical_distance),
+            #MVector{3, T}(position_xyz.x[perm_xyz.x[i]] + spec.critical_distance, position_xyz.y[perm_xyz.y[i]] + spec.critical_distance, position_xyz.z[perm_xyz.z[i]] + spec.critical_distance),
+            SVector{3, T}(position[i] .- spec.critical_distance), SVector{3, T}(position[i] .+ spec.critical_distance),
+            0, 0) for i in 1:spec.leaves_count
+    ]
+
+    update_mortoncodes!(L, quantized_xyz, spec.morton_length, K)
+    #TODO this was greyed out ->sort_mortoncodes!(L, spec)#@time "mortons" sort_mortoncodes!(L)
+    store = [Base.Threads.Atomic{Int64}(0) for i in 1:spec.branches_count]
+    
+    return tuple(Ref(L), Ref(position_xyz), Ref(index_xyz), Ref(perm_xyz), Ref(quantized_xyz), Ref(store))
+end
+
+
+
+
+function bcreate_mortoncodes(; position, thresh=0.01, usebtime=false)
+    clct = GenericRandomCollector(; floattype=Float32,
+                                        objectnumber=length(position),
+                                        minDim=tuple(0.0, 0.0, 0.0),
+                                        maxDim=tuple(1.0, 1.0, 1.0),
+                                        temperature=0.01,
+                                        randomvelocity=false,
+                                        minmass=1.0,
+                                        maxmass=5.0,
+                                        minimumdistance=0.0001,
+                                        mincharge=-1f-9,
+                                        maxcharge=1f-9,
+                                        pregeneratedposition=true
+    )
+    clxn = collect_objects(clct, position=position)
+    #TODO greyed out -># bvhspec = SpheresBVHSpecs(; floattype=Float32, 
+    #                             critical_distance=thresh, 
+    #                             leaves_count=length(position) 
+    # )
+    atoms = length(position)
+    println(atoms, " atoms")
+    println("permsort")
+    if usebtime
+        println("permsort")
+        @btime create_mortoncodes($clxn.position, $bvhspec, $clct)
+        println("direct sort")
+        @btime TreeData($clxn.position, $bvhspec, $clct)
+    else
+        @time create_mortoncodes(clxn.position, bvhspec, clct)
+        println("direct sort")
+        @time TreeData(clxn.position, bvhspec, clct)
+    end
+
+    @profview for i in 1:4000
+        create_mortoncodes(clxn.position, bvhspec, clct)
+    end
+    @profview for i in 1:4000
+        TreeData(clxn.position, bvhspec, clct)
+    end
+
+    return nothing
+end

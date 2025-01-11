@@ -59,12 +59,12 @@
 
 
 ### Version 0.00.3 - repo fixing + bvh-neighbor lists
-* [] make all Big functions part of a a public API so that they can be tested and developed easier. Especially assembly functions with host functional functions.
+* [x] make all Big functions part of a a public API so that they can be tested and developed easier. Especially assembly functions with host functional functions.
 * [x] fix parametric types in neighborsearch, because the T and K switch positions, replace with I and F? or at least make them consistent
 * [x] update code naming to reflect the fact that AABB's are only first generated right immediately before bvh traversal, and squash down redundant data structures if at all possible
 * [x] fix broken performance by tuple allocation hell, consider switching pairslist to an MVector for values overwrite or trying named tuple shenanigans?
 * [] fix velocity rescaling / substitute with alternative method. fix behavior of interactions and parameterization in order to prevent crazy molecular behavior
-* [] make treeData tuple of refs into a named tuple so we can use the names instead. update tests to reflect. And fix dereferencing so now function body has to dereference data and it is all done at the function call/arguments
+* [x] make treeData tuple of refs into a named tuple so we can use the names instead. update tests to reflect. And fix dereferencing so now function body has to dereference data and it is all done at the function call/arguments
 * [x] clean up dependencies
 
 * [] Improve design of the Logger to be compatible with makie
@@ -76,14 +76,12 @@
 * [] Output logfile with modification of the set up routine to allow the user to add in a place and a type of output, but defaulting to a generic
 * [x] Random generation for each component. Check that this works
 * [x] Aqua.jl integration that only tests the local package and not every dependency
-* [] Consider putting in architecture to read/write data so we can test coverage with fixed values and compare changes with feature development.
+* [x] Consider putting in architecture to read/write data so we can test coverage with fixed values and compare changes with feature development.
 * [] make it so push! log only runs at every selected interval, and also make this match the frame interval for makie by having makie take the simSpec as default framerate. Could use CSV.Chunks, or maybe JLD2 has relevant functionality / we can just hack it in
 * [x] add kernel abstractions and AMDGPU and oneAPI and CUDA as formal extensions so that they are only precompiled when the script file to use this package includes 'use cuda'.
 
 
 * [x] check the naive unique pairs function for correctness. I was kinda just throwing stuff at a wall to see if it worked
-* [] add tests to unique pairs function
-* [] fix precision selection so the precision can be selected by user exactly one time and is persistent throughout.
 * [] Fix position recording so that the simulation can be logged for a user specified number of runs
 * [] add ```simulate!()``` resolution so that the system can log the last few steps, if the last step does not trigger a logging of the chunk
 * [x] fix bug in simulation recorder where the chunk_index has to be updated inside the for each step loop. when placed inside the record_simulation if statement, then the value will be reset by simulate!() to it's initial definition value each step, even if the place where the value was defined as '2' sits outside of the stepper loop. this could be automagically fixed when we move to more direct function arguments rather than the equivalency pile up top.
@@ -97,18 +95,24 @@ information based on other things the user input, like if single precision, then
 * [x] package extensions methods break upon trying to use them at all because something something Julia doesnt work. In my Dev environment, Iwant as little loaded as possible. Thus, the extensions, but I am tetsint in my dev environment, which means I don't get to use the extension functionality. I believe it would work better for a user situation, in which the Julia environment is not this package's source code. idk
 * [x] struct instantiate with function for neighborsearch items, so changes to the API are more clear to impelment (but also slightly more tedious)
 * [x] if we use the Julia built in environment instead of our own, could we finally have extensions working correctly, so that we are devved into naive dynamics and using the local dev version wiht a napkin test file, while also being abel to use only the dependencies and extensions we want?
-* [] investigate if other Julian threading routines produce better results. Polyester and OhMyThreads and Dagger come to mind
+* [x] investigate if other Julian threading routines produce better results. Polyester and OhMyThreads and Dagger come to mind
 * [x] api.md only has 1 items on it that is no longer present in the package. Why?
 * [x] fix upper functions of Proko to only iterate over  specific indices of the grid keys array
-* [] for boundary expansion, is the for loop flowthrough evaluation effective, or is copyto! effective enough
-* [] is it a problem that the root doesnt get updated to cover the whole entire range? may or may not just be a side effect of the algo. ArborX predefines the root.
+* [x] for boundary expansion, is the for loop flowthrough evaluation effective, or is copyto! effective enough
+* [x] is it a problem that the root doesnt get updated to cover the whole entire range? may or may not just be a side effect of the algo. ArborX predefines the root. ----- no, the root will only cover thr range if there is an atom perfectly a threshold away from (0.0, 0.0, 0.0) AND another from (1.0, 1.0, 1.0)
 * [x] update ci.yml for a different OS test and to resolve warnings related to chagnes to GHActions -- TENTATIVE
 * [x] figure a considerate way of updating boundaries, currently we have to set to zero in between runs and do the for loop if evaluation / vectorized notation. is the proper fashion to do that, or to just set the boundaries of a parent to be the exact values of its child?
-* [] change create_mortoncodes to GridKeysArray ?. And interior of rebuild bvh to GridKeysArray! ? I guess if we could create the array without storing intermediates, but there is no way that will work so nicely.
+* [x] change create_mortoncodes to TreeData ?. And interior of rebuild bvh to GridKeysArray! ? I guess if we could create the array without storing intermediates, but there is no way that will work so nicely.
 * [x] test if we can get rid of the tuple and the dereferencing syntax by just directly tupling together the data. what is the impact on performance? could we just make a treedata struct? we would have to test with two entire versions of the file, and selectively pretend one or the other is the real version. maybe run @benchmark 4 times then switch, and maybe switch back and forth if we get a weird result, like performance changing a lot
 * [x] to GenericCollector function, add function to avoid generating position data and just borrow preset data
 * [x] implement jld2.jl to have a pre-generated bench suite
 * [x] change GenericSpec to SimSpec
+* [x] start up tutorial docs for bvh, grow in later versions to whatever we add
+* [x] remove collector from bvh and treedata
+* [] change ordering of bvhspec and add a threshold distance. BVH for how large the volumes, and another for close enough or not to have whatever interaction
+* [] fold build bvh and rebuildbvh! into TreeData and TreeData! and update the tutorial
+* [] implement new morton encoder that performs like 3 operations per quantized position integer. and report back here how much faster the new one is. this bit by bit works, and it is an invisible amount of total execution, but come onnnnnnnnnnnn.
+
 
 
 #### Perf considerations
@@ -170,9 +174,6 @@ information based on other things the user input, like if single precision, then
       * [] update methods under knn
       * [] EACH SECTION MODIFIED MUST RECEIVE TESTS TO AFFIRM ITS OVERALL FUNCTIONALITY  -- SVectors require a different syntax than MVectors and this can be easily screwed up to perf loss and incorrectness
 
-### function requests / wishes
-* [] particle arrangement based on coulomb potential -- like salt crystals, they stay in place because forces are balanced
-
 
 ### Version 0.00.5
 
@@ -213,14 +214,10 @@ Version
 ### Known Bugs / Questions
 * [] is it numerically appropriate to calculate the x dimension force of lennard jones based on the literaly subtraction of two particles? It feels like combining both the direction AND the magnitude of the force in a single value and this may contribute to some of the *irregularities* in force calculations
 * [x] bvh solver introduces a neighbor list that should be two times longer than it should be. How should this double counting be addressed? a sorting of redundant bodies? subselection by asking a unique_pairs list if it has a value of(i, j)? im not sure how it is addressed in literature. ---SOLVED valid atom pairs, `[i, j]` must consist of `[i, j > i]`
-* [] Public API is not documenting almost any doc strings.
+* [x] Public API is not documenting almost any doc strings.
 
 
-
-
-
-
-## Naive implementations
-1. NearestNeighbors  -- calculate distance of every unique and evaluate which are within a threshold distance.
-
-## Fancy implementations
+## wishful thinking
+* [] can we integrate ArborX to here, and thus test in a similar environment?
+* [] 2DPlot to copmare when naive is as good as better and worse than bvh, with axes of atoms count, threshold distance. Color from blue to read is a ratio of who won and by how much, with white being even ground, where each data point is a @benchmark median run? It would be pretty nice too if we had an entire function that could be rerun with one click. It would make for an awesome welcome sign on the REPO
+* [] particles naturally forming into fixed arrangements, like a salt crystal
