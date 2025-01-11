@@ -1241,3 +1241,45 @@ So I fubbed up my code:
     sort_mortoncodes!(treeData[1][][1:spec.critical_distance], spec)
 ```
 and I have run benchmarks, I have passed my test suite verifying end of the line stuff. With this bug, sorting only part of an array as specified from the range *1* to *some float value* broke the rebuild_bvh!() function, causing it to run infinitely. The bug is fixed now, but what a dangerous thing to get caught by. Julia would be exceedingly unlikely to call foul on that, but how on Earth is it valid to index an array usinga float?
+
+## 11 January, 2025 - mortoncodes!() 4.8x faster 
+### the problem
+In order to create a 3D Z-order curve / morton code, we have to interleave the bits representing the x, y, and z axes coordinates of our primitive. We achieve this in NaiveDynamics by first converting positions in the continuous (floating point) domain to the meshed (integer) domain. Each primitive is given a 3 integer ranks based on how close they are to (0.0, 0.0, 0.0), with respect to their surrounding primitives.
+
+Bit interleaving combines every third bit of the three mesh coordinates. The problem to solve is how do we interleave only every third bit, without carrying over unnecessary information from the second or first bit places?
+### the old way
+Originally, I took an analytical approach with 3 levels of iteration. For each point primitive being considered, for each dimension, and for each bit of the position coordinate and the resultant morton code. This sounds like a ridiculous amount of sequential work, but asking Julia to run the function below for 20 000 point primitives took only about 700 microseconds. In other words, when I profile the all encapsulating function, `build_traverse_bvh()`, this implementation is not sampled once.
+
+```julia
+function mortoncodes!(L, quantized, morton_length, morton_type) 
+
+    inbit = morton_type(0)
+    t3 = morton_type(3)
+    t1 = morton_type(1)
+    #L is an array of grid keys with an 'index' field which points to the 'nth index of a vector in the objectCollection struct' 
+        # or a particular atom
+    #n is the current nth bit of our morton code to change we wish to change, and it corresponds with every 3rd bit of our grid positions
+    for each in eachindex(quantized.x)
+        # set morton code to zero allows for data reuse
+        L[each].morton_code = morton_type(0)
+
+        for m in morton_type(morton_length):-1:t1 #iterate backwards
+            #TODO this is deccelerated due to having to access 3 different arrays and having to address every bit of th morton codes individualy rather than as ensembles
+            # in this case, quantized being an mvec or even svec of xyz dimensions would be helpful
+            inbit = (quantized.x[each] << (32 - m)) >>> 31
+            L[each].morton_code = (L[each].morton_code << 1) | inbit
+
+
+            inbit = (quantized.y[each] << (32 - m)) >>> 31
+            L[each].morton_code = (L[each].morton_code << 1) | inbit
+
+            
+            inbit = (quantized.z[each] << (32 - m)) >>> 31
+            L[each].morton_code = (L[each].morton_code << 1) | inbit
+
+
+        end
+    end
+end
+```
+### new and improved, using magic values

@@ -28,9 +28,10 @@ function simulate_noforces(; position, duration, thresh, usebtime=true )
     #this was ridiculous to debug. Even though I was closing the jld2 file BEFORE
     #sending it to this funciton, that IO data was still being overwritten.
 
-    bvhspec = SpheresBVHSpecs(; floattype=Float32, 
-                                critical_distance=thresh, 
-                                leaves_count=length(position) 
+    bvhspec = SpheresBVHSpecs(; bounding_distance=thresh,
+                                neighbor_distance=thresh, 
+                                leaves_count=length(position),
+                                floattype=Float32
     )
     simspec = SimSpec(; inttype=Int64,
                         floattype=Float32,
@@ -82,9 +83,10 @@ clxn = collect_objects(clct; position=myposition)
 #this was ridiculous to debug. Even though I was closing the jld2 file BEFORE
 #sending it to this funciton, that IO data was still being overwritten.
 
-bvhspec = SpheresBVHSpecs(; floattype=Float32, 
-                            critical_distance=0.2, 
-                            leaves_count=length(myposition) 
+bvhspec = SpheresBVHSpecs(; bounding_distance=0.2, 
+                            neighbor_distance=0.2, 
+                            leaves_count=length(myposition),
+                            floattype=Float32 
 )
 simspec = SimSpec(; inttype=Int64,
                         floattype=Float32,
@@ -151,9 +153,10 @@ function profile_simulate_noforces(; position, duration, thresh, allocs=false,  
     #this was ridiculous to debug. Even though I was closing the jld2 file BEFORE
     #sending it to this funciton, that IO data was still being overwritten. Oh my fault, I didnt copy over, I only read directly
 
-    bvhspec = SpheresBVHSpecs(; floattype=Float32, 
-                                critical_distance=thresh, 
-                                leaves_count=length(position) 
+    bvhspec = SpheresBVHSpecs(; bounding_distance=thresh, 
+                                neighbor_distance=thresh, 
+                                leaves_count=length(position),
+                                floattype=Float32 
     )
     simspec = SimSpec(; inttype=Int64,
                             floattype=Float32,
@@ -192,12 +195,12 @@ function bvh_naive(position, spec, clct; usebtime=true)
     position = [MVector{3, Float32}(position[i]) for i in eachindex(position)]
     if usebtime
         println("    naive:")
-        a = @btime threshold_pairs(unique_pairs($position), $spec.critical_distance)
+        a = @btime threshold_pairs(unique_pairs($position), $spec.neighbor_distance)
         println("    bvh:")
         b = @btime build_traverse_bvh($position, $spec)
     else
         println("    naive:")
-        a = @btime threshold_pairs(unique_pairs(position), spec.critical_distance)
+        a = @btime threshold_pairs(unique_pairs(position), spec.neighbor_distance)
         println("    bvh:")
         b = @btime build_traverse_bvh(position, spec)
     end
@@ -211,7 +214,7 @@ end
 
 
 function bbuild_traverse(position, spec, clct; usebtime=true)
-    treeData = build_bvh(position, spec)
+    treeData = TreeData(position, spec)
     keys = treeData.tree
     #neighbor_traverse(keys, position, spec)
     if usebtime
@@ -267,7 +270,7 @@ end
 #println(myposition[1])
 #bbuild_traverse(myposition, bvhspec, clct; usebtime=true)
 
-# treeData = build_bvh(myposition, bvhspec)
+#treeData = TreeData(myposition, bvhspec)
 # keys = treeData.tree
 #@benchmark neighbor_traverse($keys, $myposition, $bvhspec)
 #@benchmark expt_neighbor_traverse($keys, $myposition, $bvhspec)
@@ -277,9 +280,6 @@ end
 
 #code native and code llvm look like garbage in the overlap test
 #build_traverse_bvh(myposition, bvhspec)
-
-
-
 
 
 

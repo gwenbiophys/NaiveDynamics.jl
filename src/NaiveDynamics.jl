@@ -17,7 +17,7 @@ using SortingAlgorithms
 #using AMDGPU
 #using CUDA
 #using GLMakie
-using InteractiveUtils #for codellvm and codenative macros
+#using InteractiveUtils #for codellvm and codenative macros, but will always break Documenter
 
 
 include("MDInput.jl")

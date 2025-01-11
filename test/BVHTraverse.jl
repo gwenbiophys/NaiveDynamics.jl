@@ -119,7 +119,7 @@ function batch_build_traverse(runs::Int, position::Vec3D{T}, spec::SpheresBVHSpe
     goodTrees = 0
     selfishTrees = 0
     badTrees = 0
-    treeData = build_bvh(position, spec)
+    treeData = TreeData(position, spec)
     result = is_traversable(treeData.tree, spec)
     if result[1]
         goodTrees += 1
@@ -136,7 +136,7 @@ function batch_build_traverse(runs::Int, position::Vec3D{T}, spec::SpheresBVHSpe
         # I = [GridKey{T, K}(0, 0, MVector{3, K}(0.0, 0.0, 0.0), MVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
         # append!(keys, I)
         # update_stackless_bvh!(keys, store, spec)
-        rebuild_bvh!(treeData, position, spec)
+        TreeData!(treeData, position, spec)
         result = is_traversable(treeData.tree, spec)
         if result[1]
             goodTrees += 1
@@ -167,11 +167,12 @@ position8 =[MVector{3, Float32}(0.1, 0.1, 0.1), MVector{3, Float32}(0.2, 0.2, 0.
             MVector{3, Float32}(0.1111, 0.4, 0.31), MVector{3, Float32}(0.234, 0.29, 0.2), 
             MVector{3, Float32}(0.11346, 0.918, 0.1276), MVector{3, Float32}(0.061, 0.76, 0.989)
 ]
-bvhspec8 = SpheresBVHSpecs(; floattype=Float32, 
-                            critical_distance=10.0, 
-                            leaves_count=length(position8) 
+bvhspec8 = SpheresBVHSpecs(; bounding_distance=10.0,
+                            neighbor_distance=10.0, 
+                            leaves_count=length(position8),
+                            floattype=Float32 
 )
-treeData = build_bvh(position8, bvhspec8)
+treeData = TreeData(position8, bvhspec8)
 keys = treeData.tree
 
 
@@ -201,7 +202,7 @@ keys = treeData.tree
 
 
     # "can bvh neighbor search return the same result as the naive method?"
-    naivelist = threshold_pairs(unique_pairs(position8), bvhspec8.critical_distance)
+    naivelist = threshold_pairs(unique_pairs(position8), bvhspec8.neighbor_distance)
     sort!(list, by=x->x[1]) #naive method produces a list from least to greatest in the first position, 
                             # while bvh  neighbor list's order is wonky 
     @test list == naivelist

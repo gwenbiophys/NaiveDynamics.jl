@@ -20,7 +20,7 @@ bvhspec = SpheresBVHSpecs(; floattype=Float32,
                             leaves_count=length(myposition) 
 )
 
-treeData = build_bvh(myposition, spec)
+treeData = TreeData(myposition, spec)
 
 my_neighbor_list =  neighbor_traverse(treeData.tree, myposition, spec)
 ```
@@ -29,6 +29,6 @@ In the first three lines, we used JLD2.jl to open a file of pregenerated positio
 
 Next, we instantiated a specification that includes the `critical_distance`. This value determines the bounding volume around each 'atom' or point in the `myposition` array. Currently, it is also the threshold distance tested against for whether 2 points are close enough to be considered neighbors.
 
-With a specification and an array of positions, we construct a bvh, along with related and reusable data. 
+With a specification and an array of positions, we construct a bvh, along with related reusable data. 
 
 Finally, neighbor traverse will test the overlap of each element of the `myposition` vector in a time efficient way, using the BVH constructed before, and return a list of neighbors. This list is a tuple with 3 components: index to first element of `myposition`, index to second element, and the Euclidean distance between them.

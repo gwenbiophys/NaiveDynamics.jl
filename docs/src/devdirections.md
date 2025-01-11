@@ -63,11 +63,9 @@
 * [x] fix parametric types in neighborsearch, because the T and K switch positions, replace with I and F? or at least make them consistent
 * [x] update code naming to reflect the fact that AABB's are only first generated right immediately before bvh traversal, and squash down redundant data structures if at all possible
 * [x] fix broken performance by tuple allocation hell, consider switching pairslist to an MVector for values overwrite or trying named tuple shenanigans?
-* [] fix velocity rescaling / substitute with alternative method. fix behavior of interactions and parameterization in order to prevent crazy molecular behavior
 * [x] make treeData tuple of refs into a named tuple so we can use the names instead. update tests to reflect. And fix dereferencing so now function body has to dereference data and it is all done at the function call/arguments
 * [x] clean up dependencies
-
-* [] Improve design of the Logger to be compatible with makie
+* [x] Improve design of the Logger to be compatible with makie
 * [x] Github work flow for a private uhh workspace
 * [x] Github based integrations of the code at start and endpoints
 * [x] Figure out how to start getting test coverage and using formal unit testing procedures
@@ -79,13 +77,8 @@
 * [x] Consider putting in architecture to read/write data so we can test coverage with fixed values and compare changes with feature development.
 * [] make it so push! log only runs at every selected interval, and also make this match the frame interval for makie by having makie take the simSpec as default framerate. Could use CSV.Chunks, or maybe JLD2 has relevant functionality / we can just hack it in
 * [x] add kernel abstractions and AMDGPU and oneAPI and CUDA as formal extensions so that they are only precompiled when the script file to use this package includes 'use cuda'.
-
-
 * [x] check the naive unique pairs function for correctness. I was kinda just throwing stuff at a wall to see if it worked
-* [] Fix position recording so that the simulation can be logged for a user specified number of runs
-* [] add ```simulate!()``` resolution so that the system can log the last few steps, if the last step does not trigger a logging of the chunk
 * [x] fix bug in simulation recorder where the chunk_index has to be updated inside the for each step loop. when placed inside the record_simulation if statement, then the value will be reset by simulate!() to it's initial definition value each step, even if the place where the value was defined as '2' sits outside of the stepper loop. this could be automagically fixed when we move to more direct function arguments rather than the equivalency pile up top.
-* [] fix velocity verlet to prevent velocity from depreciating for no reason. most likely, the velocity values are being overwritten by intermediates, which are based on forces. as forces tend to zero, so shall intermediates and velocities. or the force is just whacked up. not sure!
 * [x] use for each map!() for all instances of IntermediateVector = DataVector
 * [x] allow record_video() to have user input for the frame recording interval. do this by pushing every multiple of frameInterval to the positions vector
 * [x] make these userfill parameters easy to fill in, for name awareness of each paremter
@@ -109,9 +102,9 @@ information based on other things the user input, like if single precision, then
 * [x] change GenericSpec to SimSpec
 * [x] start up tutorial docs for bvh, grow in later versions to whatever we add
 * [x] remove collector from bvh and treedata
-* [] change ordering of bvhspec and add a threshold distance. BVH for how large the volumes, and another for close enough or not to have whatever interaction
-* [] fold build bvh and rebuildbvh! into TreeData and TreeData! and update the tutorial
-* [] implement new morton encoder that performs like 3 operations per quantized position integer. and report back here how much faster the new one is. this bit by bit works, and it is an invisible amount of total execution, but come onnnnnnnnnnnn.
+* [x] change ordering of bvhspec and add a threshold distance. BVH for how large the volumes, and another for close enough or not to have whatever interaction
+* [x] fold build bvh and rebuildbvh! into TreeData and TreeData! and update the tutorial
+* [x] implement new morton encoder that performs like 3 operations per quantized position integer. and report back here how much faster the new one is. this bit by bit works, and it is an invisible amount of total execution, but come onnnnnnnnnnnn. Havt to also change quantized position to an SVec for neat iteration and syntax. Perf doesn't matter, might even improve, overall. . .
 
 
 
@@ -122,10 +115,19 @@ information based on other things the user input, like if single precision, then
 * [x] `update_pairlists!` incorrectly mutated over the index values of the default initialized pairlist. Fixed by changing `list[i] = result` to `list[each] = result` in the pairslist_interior function
 * [x] @autodocs failed to work as intended, requires doc block to make contact with the thing it documents
 
+#### Style guide things
+* [x] are all mutation functions inidcated properly? Are mutation functions redundantly labeled? i.e. with `update` and `!`, how could they be better named to improve clarity? --- in BVH
+* [x] in mutation functions, is the first operand always the one being mutated? --- in BVH
+* [x] do mutation functions return a value? HOw does Base do it? --- in BVH
+
 
 
 
 ### Version 0.00.4 - feature extensions
+* [] fix velocity verlet to prevent velocity from depreciating for no reason. most likely, the velocity values are being overwritten by intermediates, which are based on forces. as forces tend to zero, so shall intermediates and velocities. or the force is just whacked up. not sure!
+* [] Fix position recording so that the simulation can be logged for a user specified number of runs
+* [] add ```simulate!()``` resolution so that the system can log the last few steps, if the last step does not trigger a logging of the chunk
+* [] fix velocity rescaling / substitute with alternative method. fix behavior of interactions and parameterization in order to prevent crazy molecular behavior
 * [] Refine functions , ex: sigma6th and sigma12 should be calculated prior to simulation for each unique radius of objects in our objectcollection --- lord willing the compiler will do this at compile time, but i trust nothing and no one.
 * [] Improve the boundary_reflect!() in some way to either reduce frequency of checking (pair list), use an aligned array(s) to broadcast that checks in a single statement rather than 6 if statements, convert wall actions into a potential,something else, or all of the above. At leat make it Naive+ rather than just Naive.
 * [] Research how boundary conditions are set so as to avoid assessing the value of every particle to see if it exists in the box or not at each time step

@@ -6,7 +6,6 @@ version = "0.0.2"
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
-InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 SortingAlgorithms = "a2af1166-a08f-5f64-846c-94a0d3cef48c"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
@@ -28,4 +27,3 @@ NaiveSIMD = "SIMD"
 
 [compat]
 BenchmarkTools = "1.6.0"
-InteractiveUtils = "1.11.0"

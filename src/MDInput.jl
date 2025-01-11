@@ -295,7 +295,7 @@ end
 Return a GenericObjectCollection with positions and speeds randomly seeded, as specified by the Collector object
 
 """
-function collect_objects(Collector::GenericRandomCollector{T}; position::Vec3D{T}) where T
+function collect_objects(Collector::GenericRandomCollector{T}; position=nothing) where T
 
     massRange = Uniform(Collector.minmass, Collector.maxmass)
     chargeRange = Uniform(Collector.mincharge, Collector.maxcharge)

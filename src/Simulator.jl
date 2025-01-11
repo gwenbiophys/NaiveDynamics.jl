@@ -345,7 +345,7 @@ function simulate_bvh!(sys::GenericObjectCollection, spec::SimSpec, bvhspec::Sph
     accels_t = copy.(sys.force)::Vec3D{T}
     accels_t_dt = copy.(sys.force)::Vec3D{T}
 
-    treeData = build_bvh(sys.position, bvhspec)
+    treeData = TreeData(sys.position, bvhspec)
 
 
     for step_n in 1:spec.duration
@@ -371,7 +371,7 @@ function simulate_bvh!(sys::GenericObjectCollection, spec::SimSpec, bvhspec::Sph
 
         currentstep = 1:step_n
 
-        rebuild_bvh!(treeData, sys.position, bvhspec)
+        TreeData!(treeData, sys.position, bvhspec)
 
     end
 
