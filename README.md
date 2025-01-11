@@ -14,6 +14,3 @@ As of 9 January, 2025:
 * an eerily unhelpful velocity rescaler
 * ability video record simulation
 * bvh traversal for neighbor search (CPU parallel)
-
-
-<video controls src="https://github.com/gwenbiophys/NaiveDynamics.jl/blob/main/data/newhope.mp4" title="SampleSim"></video>
