@@ -9,8 +9,7 @@ export
     simulate_dumloop!,
     simulate_SVec!,
     simulate_naive!,
-    simulate_bvh!,
-    simulate_pbvh!
+    simulate_bvh!
     #record_simulation,
     #update_chunk!,
     #write_chunk!
@@ -281,10 +280,10 @@ function simulate_naive!(sys::GenericObjectCollection, spec::GenericSpec, clct::
 
     for step_n in 1:spec.duration
 
-
-        LJ_pairs = @btime threshold_pairs($pairslist, $spec.threshold)
-        newLJ_pairs = @btime new_threshold_pairs($pairslist, $spec.threshold)
-        println()
+        LJ_pairs = threshold_pairs(pairslist, spec.threshold)
+        #LJ_pairs = @btime threshold_pairs($pairslist, $spec.threshold)
+        #newLJ_pairs = @btime new_threshold_pairs($pairslist, $spec.threshold)
+        #println()
 
 
         for i in eachindex(accels_t)
@@ -338,73 +337,12 @@ function simulate_bvh!(sys::GenericObjectCollection, spec::GenericSpec, bvhspec:
     accels_t = copy.(sys.force)::Vec3D{T}
     accels_t_dt = copy.(sys.force)::Vec3D{T}
 
-    #pairslist = InPlaceNeighborList(x=position, cutoff=0.1, parallel=false)
-
-    #pairslist = unique_pairs(sys.position)
     treeData = build_bvh(sys.position, bvhspec, clct)
-    pairslist = neighbor_traverse(treeData[1][], sys.position, bvhspec)
 
 
     for step_n in 1:spec.duration
 
         pairslist = neighbor_traverse(treeData[1][], sys.position, bvhspec)
-
-        for i in eachindex(accels_t)
-            accels_t[i] .= sys.force[i] ./ sys.mass[i]
-        end
-
-        for i in eachindex(sys.position)
-            sys.position[i] .+= sys.velocity[i] .* spec.stepwidth .+ ((accels_t[i] .* spec.stepwidth ^ 2) ./ 2)
-        end
-
-        for i in eachindex(sys.position)
-            accels_t_dt[i] .= force_nextstep[i] ./ sys.mass[i]
-        end
-
-        for i in eachindex(sys.velocity)
-            sys.velocity[i] .+= (accels_t[i] .+ accels_t_dt[i]) .* spec.stepwidth / 2
-        end
-        boundary_reflect!(sys.position, sys.velocity, clct)
-
-        currentstep = 1:step_n
-
-        rebuild_bvh!(treeData, sys.position, bvhspec, clct)
-
-    end
-
-    return poslog
-end
-function simulate_pbvh!(sys::GenericObjectCollection, spec::GenericSpec, bvhspec::SpheresBVHSpecs, clct::GenericRandomCollector{T}) where T
-
-
-    force_nextstep = deepcopy(sys.force)::Vec3D{T}
-    force_LJ = deepcopy(sys.force)::Vec3D{T}
-    force_C = deepcopy(sys.force)::Vec3D{T}
-
-    chunk_index::Int64 = 2
-
-# type assert error, have to decide if simLog is instantiated with a sys or not
-    #simLog = []::Vector{GenericObjectCollection}
-   # simChunk = [sys for _ in 1:spec.logChunkLength]::Vector{GenericObjectCollection}
-    
-    poslog = [sys.position]::Vector{Vec3D{T}}
-
-    #poslog = [sys.position for i in 1:spec.duration]
-    #sizehint!(poslog, spec.duration)
-    #push!(poslog, copy.(sys.position)::Vector{Vec3D{Float32}})
-    accels_t = copy.(sys.force)::Vec3D{T}
-    accels_t_dt = copy.(sys.force)::Vec3D{T}
-
-    #pairslist = InPlaceNeighborList(x=position, cutoff=0.1, parallel=false)
-
-    #pairslist = unique_pairs(sys.position)
-    treeData = build_bvh(sys.position, bvhspec, clct)
-    pairslist = neighbor_traverse(treeData[1][], sys.position, bvhspec)
-
-
-    for step_n in 1:spec.duration
-
-        pairslist = parallel_neighbor_traverse(treeData[1][], sys.position, bvhspec)
 
         for i in eachindex(accels_t)
             accels_t[i] .= sys.force[i] ./ sys.mass[i]

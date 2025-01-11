@@ -24,8 +24,8 @@ export
     create_mortoncodes,
     branch_index,
     update_stackless_bvh!,
-    parallel_neighbor_traverse,
     neighbor_traverse,
+    expt_neighbor_traverse,
     build_bvh,
     rebuild_bvh!,
     build_traverse_bvh,
@@ -495,22 +495,17 @@ end
 end
 
 # this is a garbage implementation, for reasons unknown.
-function newoverlap_test(keys, currentKey, query_index, positions, spec::SpheresBVHSpecs{T, K}) where {T, K}
-    return  (keys[currentKey].min[1] < positions[query_index][1] < keys[currentKey].max[1]) || 
-            (keys[currentKey].min[2] < positions[query_index][2] < keys[currentKey].max[2]) ||
-            (keys[currentKey].min[3] < positions[query_index][3] < keys[currentKey].max[3])
-
-    
-    
-    #return sum(keys[currentKey].min .< positions[query_index] .< keys[currentKey].max)
+@inline function newoverlap_test(keys, currentKey, query_index, positions, spec::SpheresBVHSpecs{T, K}) where {T, K}
+    return sum(keys[currentKey].min .< positions[query_index] .< keys[currentKey].max) 
 end
 
 #TODO this can be made parallel by giving a neighbor chunk to each thread and mending these neighbor lists together at the end
-function parallel_neighbor_traverse(keys::Vector{GridKey{T,K}}, positions::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
+function neighbor_traverse(keys::Vector{GridKey{T,K}}, positions::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
     threads = K(Threads.nthreads())
 
     #TODO isn't this structure extremely unfriendly to growing the individual elements at different times to different extents?
+    # ----- not sure, having this as a vector of references seemed to diminish performance
     neighbor_vec = [Vector{Tuple{K, K, T}}(undef, 0) for i in 1:threads]
 
 
@@ -523,8 +518,6 @@ function parallel_neighbor_traverse(keys::Vector{GridKey{T,K}}, positions::Vec3D
             while currentKey != 0 # currentKey is the sentinel, end traversal of the given query
                 # does query at all overlap with the volume of currentKey
                 overlap = overlap_test(keys, currentKey, query_index, positions, spec)
-                #overlap = sum(keys[currentKey].min .< positions[query_index] .< keys[currentKey].max)
-                #overlapb = newoverlap_test(keys, currentKey, query_index, positions, spec)
 
 
 
@@ -551,43 +544,57 @@ function parallel_neighbor_traverse(keys::Vector{GridKey{T,K}}, positions::Vec3D
     return neighbors
 end
 
-function neighbor_traverse(keys::Vector{GridKey{T,K}}, positions::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
+function expt_neighbor_traverse(keys::Vector{GridKey{T,K}}, positions::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
-    neighbors = Vector{Tuple{K, K, T}}(undef, 0)#(undef)
+    threads = K(Threads.nthreads())
+
+    #TODO isn't this structure extremely unfriendly to growing the individual elements at different times to different extents?
+    # ----- not sure, having this as a vector of references seemed to diminish performance
+    neighbor_vec = [Vector{Tuple{K, K, T}}(undef, 0) for i in 1:threads]
 
 
     # clamp traversal to 1 index before the last leaf because if every other leaf has been considered, 
     # then the last leaf does not need to be reconsidered for a neighbor pair
+#     currentKey = 5
+#     query_index = 2
 
-    
-    for query_index in range(start=K(1), stop=K(spec.branches_count))
+#     overlap = @btime overlap_test($keys, $currentKey, $query_index, $positions, $spec)
+#    # overlapb = @btime newoverlap_test($keys, $currentKey, $query_index, $positions, $spec)
+#     println()
+#     return
 
-        currentKey = branch_index(1, spec)
+    Threads.@threads for chunk in 1:threads
+        for query_index in K(chunk):threads:K(length(positions)-1)#range(start=K(1), stop=K(spec.branches_count))
+            currentKey = branch_index(1, spec)
 
-        while currentKey != 0 # currentKey is the sentinel, end traversal of the given query
-            # does query at all overlap with the volume of currentKey
-            overlap = overlap_test(keys, currentKey, query_index, positions, spec)
-            #overlapb = newoverlap_test(keys, currentKey, query_index, positions, spec)
+            while currentKey != 0 # currentKey is the sentinel, end traversal of the given query
+                # does query at all overlap with the volume of currentKey
+                overlap = newoverlap_test(keys, currentKey, query_index, positions, spec)
 
 
 
 
-            if overlap > 0 
-                if keys[currentKey].left == 0 # currentKey is a leaf node
-                    proximity_test!(neighbors, query_index, currentKey, positions, spec)
-                    currentKey = currentKey = keys[currentKey].skip
-                else #currentKey is a branch node, traverse to the left
-                    currentKey = keys[currentKey].left
+                if overlap > 0 
+                    if keys[currentKey].left == 0 # currentKey is a leaf node
+                        proximity_test!(neighbor_vec[chunk], query_index, currentKey, positions, spec)
+                        currentKey = currentKey = keys[currentKey].skip
+                    else #currentKey is a branch node, traverse to the left
+                        currentKey = keys[currentKey].left
+                    end
+                else #query is not contained, can cut off traversal on the 'lefts' sequencef
+                    currentKey = keys[currentKey].skip
                 end
-            else #query is not contained, can cut off traversal on the 'lefts' sequencef
-                currentKey = keys[currentKey].skip
-            end
 
+            end
         end
     end
+    neighbors = neighbor_vec[1]
+    for each in 2:1:threads
+        append!(neighbors, neighbor_vec[each] )
+    end
+
     return neighbors
 end
-
 
 ###### Phase 4: put it all together
 
@@ -600,7 +607,8 @@ function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::Generi
     #keys = initializationData[1][]
 
 
-    #TODO is this helpful? sometimes the initialization of I takes a very long time and 'z' should help
+    #TODO is this helpful? sometimes the initialization of I takes a very long time and 'z' should help 
+    # ----- who is 'z'????
     I = [GridKey{T, K}(0, 0, SVector{3, T}(0.0, 0.0, 0.0), SVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
     
     append!(bvhData[1][], I)

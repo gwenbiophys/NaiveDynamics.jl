@@ -6,27 +6,6 @@ using BenchmarkTools
 using NaiveDynamics
 using JLD2
 
-clct = GenericRandomCollector(; floattype=Float32,
-                                objectnumber=10000,
-                                minDim=tuple(0.0, 0.0, 0.0),
-                                maxDim=tuple(1.0, 1.0, 1.0),
-                                temperature=0.01,
-                                randomvelocity=false,
-                                minmass=1.0,
-                                maxmass=5.0,
-                                minimumdistance=0.0001,
-                                mincharge=-1f-9,
-                                maxcharge=1f-9
-)
-clxn = collect_objects(clct)
-
-
-
-
-
-
-
-
 
 #### no forces simulation
 function simulate_noforces(; position, duration, thresh, usebtime=true )
@@ -69,27 +48,39 @@ function simulate_noforces(; position, duration, thresh, usebtime=true )
         a = @btime simulate_naive!($clxn, $simspec, $clct)
         println("    bvh:")
         b = @btime simulate_bvh!($clxn, $simspec, $bvhspec, $clct)
-        println("    parallel bvh:")
-        b = @btime simulate_pbvh!($clxn, $simspec, $bvhspec, $clct)
     else
         println("    naive:")
-        a = simulate_naive!(clxn, simspec, clct)
-        # println("    bvh:")
-        # b = @time simulate_bvh!(clxn, simspec, bvhspec, clct)
-        # println("    parallel bvh:")
-        # b = @time simulate_pbvh!(clxn, simspec, bvhspec, clct)
+        a = @time simulate_naive!(clxn, simspec, clct)
+        println("    bvh:")
+        b = @time simulate_bvh!(clxn, simspec, bvhspec, clct)
     end
     return nothing
 end
 
 f = jldopen("data/positions/positions.jld2", "r")
-myposition = read(f, "pos5000")
+myposition = deepcopy(read(f, "pos5000"))
 close(f)
 
-simulate_noforces(position=myposition, duration=2, thresh=0.03, usebtime=false)
+#simulate_noforces(position=myposition, duration=2, thresh=0.03, usebtime=false)
+clct = GenericRandomCollector(; floattype=Float32,
+                            objectnumber=length(myposition),
+                            minDim=tuple(0.0, 0.0, 0.0),
+                            maxDim=tuple(1.0, 1.0, 1.0),
+                            temperature=0.01,
+                            randomvelocity=false,
+                            minmass=1.0,
+                            maxmass=5.0,
+                            minimumdistance=0.0001,
+                            mincharge=-1f-9,
+                            maxcharge=1f-9
+)
+clxn = collect_objects(clct)
 
+#this was ridiculous to debug. Even though I was closing the jld2 file BEFORE
+#sending it to this funciton, that IO data was still being overwritten.
+copyto!.(clxn.position, myposition)
 bvhspec = SpheresBVHSpecs(; floattype=Float32, 
-                            critical_distance=0.03, 
+                            critical_distance=0.2, 
                             leaves_count=length(myposition) 
 )
 simspec = GenericSpec(; inttype=Int64,
@@ -136,54 +127,57 @@ simspec = GenericSpec(; inttype=Int64,
 
 
 
-function profile_simulate_noforces(; atoms, duration, thresh, allocs=false,  allocrate=0.0001)
+function profile_simulate_noforces(; position, duration, thresh, allocs=false,  allocrate=0.0001)
     clct = GenericRandomCollector(; floattype=Float32,
-                                        objectnumber=atoms,
-                                        minDim=tuple(0.0, 0.0, 0.0),
-                                        maxDim=tuple(1.0, 1.0, 1.0),
-                                        temperature=0.01,
-                                        randomvelocity=false,
-                                        minmass=1.0,
-                                        maxmass=5.0,
-                                        minimumdistance=0.0001,
-                                        mincharge=-1f-9,
-                                        maxcharge=1f-9
-    )
+    objectnumber=length(position),
+    minDim=tuple(0.0, 0.0, 0.0),
+    maxDim=tuple(1.0, 1.0, 1.0),
+    temperature=0.01,
+    randomvelocity=false,
+    minmass=1.0,
+    maxmass=5.0,
+    minimumdistance=0.0001,
+    mincharge=-1f-9,
+    maxcharge=1f-9
+)
     clxn = collect_objects(clct)
+
+    #this was ridiculous to debug. Even though I was closing the jld2 file BEFORE
+    #sending it to this funciton, that IO data was still being overwritten. Oh my fault, I didnt copy over, I only read directly
+    copyto!.(clxn.position, position)
     bvhspec = SpheresBVHSpecs(; floattype=Float32, 
                                 critical_distance=thresh, 
-                                leaves_count=length(clxn.position) 
+                                leaves_count=length(position) 
     )
     simspec = GenericSpec(; inttype=Int64,
-                        floattype=Float32,
-                        duration=duration,
-                        stepwidth=1,
-                        currentstep=1,
-                        logLength=10,
-                        vDamp=1,
-                        threshold=thresh
+                            floattype=Float32,
+                            duration=duration,
+                            stepwidth=1,
+                            currentstep=1,
+                            logLength=10,
+                            vDamp=1,
+                            threshold=thresh
     )
+    #println(clxn.position)
+
+    atoms = clct.objectnumber
     println(" $atoms atoms, $duration duration, $thresh thresh")
     println("    naive:")
     if allocs
         @profview_allocs simulate_naive!(clxn, simspec, clct) sample_rate=allocrate
         println("    bvh:")
         @profview_allocs simulate_bvh!(clxn, simspec, bvhspec, clct) sample_rate=allocrate
-        println("    parallel bvh:")
-        @profview_allocs simulate_pbvh!(clxn, simspec, bvhspec, clct) sample_rate=allocrate
     else
         @profview simulate_naive!(clxn, simspec, clct)
         println("    bvh:")
         @profview simulate_bvh!(clxn, simspec, bvhspec, clct)
-        println("    parallel bvh:")
-        @profview simulate_pbvh!(clxn, simspec, bvhspec, clct)
     end
 
 
     return nothing
 end
 
-#profile_simulate_noforces(atoms=5000, duration=100, thresh=0.03, allocs=false, allocrate=0.001)
+#profile_simulate_noforces(position=myposition, duration=200, thresh=0.03, allocs=false, allocrate=0.001)
 
 
 
@@ -223,16 +217,17 @@ end
 function bbuild_traverse(position, spec, clct; usebtime=true)
     treeData = build_bvh(position, spec, clct)
     keys = treeData[1][]
+    #neighbor_traverse(keys, position, spec)
     if usebtime
-        println("    serial:")
+        println("    base:")
         a = @btime neighbor_traverse($keys, $position, $spec)
-        println("    parallel:")
-        b = @btime parallel_neighbor_traverse($keys, $position, $spec)
+        println("    experimental:")
+        b = @btime expt_neighbor_traverse($keys, $position, $spec)
     else
-        println("    serial:")
+        println("    base:")
         a = @time neighbor_traverse(keys, position, spec)
-        println("    parallel:")
-        b = @time parallel_neighbor_traverse(keys, position, spec)
+        println("    experimental:")
+        b = @time expt_neighbor_traverse(keys, position, spec)
     end
     return nothing
 end
@@ -251,11 +246,13 @@ end
     #bvh: 60% overlap_test, 8% neighbor traverse, the rest in data access and uncertain
 #bcreate_mortoncodes(atoms=1024)
 
+#println(myposition[1])
+bbuild_traverse(myposition, bvhspec, clct; usebtime=true)
 
-#bbuild_traverse(clxn.position, bvhspec, clct; usebtime=true)
-
-
-
+# treeData = build_bvh(myposition, bvhspec, clct)
+# keys = treeData[1][]
+#@benchmark neighbor_traverse($keys, $myposition, $bvhspec)
+#@benchmark expt_neighbor_traverse($keys, $myposition, $bvhspec)
 
 
 
@@ -294,4 +291,4 @@ end
 # println("    bvh:")
 # b = @btime simulate_bvh!($clxn, $simspec, $bvhspec, $clct)
 # println("    parallel bvh:")
-#b = @benchmark simulate_pbvh!($clxn, $simspec, $bvhspec, $clct)
+#b = @benchmark simulate_bvh!($clxn, $simspec, $bvhspec, $clct)

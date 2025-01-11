@@ -87,11 +87,26 @@ clct5000 = GenericRandomCollector(; floattype=Float32,
 )
 clxn5000 = collect_objects(clct5000)
 
+clct20000 = GenericRandomCollector(; floattype=Float32,
+                                objectnumber=20000,
+                                minDim=tuple(0.0, 0.0, 0.0),
+                                maxDim=tuple(1.0, 1.0, 1.0),
+                                temperature=0.01,
+                                randomvelocity=false,
+                                minmass=1.0,
+                                maxmass=5.0,
+                                minimumdistance=0.0001,
+                                mincharge=-1f-9,
+                                maxcharge=1f-9
+)
+clxn20000 = collect_objects(clct20000)
+
 pos10 = clxn10.position
 pos100 = clxn100.position
 pos1000 = clxn1000.position
 pos2000 = clxn2000.position
 pos3000 = clxn3000.position
 pos5000 = clxn5000.position
+pos20000 = clxn20000.position
 
-jldsave("data/positions/positions.jld2"; pos10, pos100, pos1000, pos2000, pos3000, pos5000 )
+jldsave("data/positions/positions.jld2"; pos10, pos100, pos1000, pos2000, pos3000, pos5000, pos20000 )

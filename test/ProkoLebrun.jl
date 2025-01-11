@@ -199,9 +199,11 @@ keys = treeData[1][]
     end
     @test sum(is_paired) == 8
 
+
     # "can bvh neighbor search return the same result as the naive method?"
-    # NOTE: this only holds true as long as the two methods are maintained the same and only construct sequentially
     naivelist = threshold_pairs(unique_pairs(position8), bvhspec8.critical_distance)
+    sort!(list, by=x->x[1]) #naive method produces a list from least to greatest in the first position, 
+                            # while bvh  neighbor list's order is wonky 
     @test list == naivelist
     
 end
@@ -214,29 +216,29 @@ end
         end
     end
 end
+    #DEPRECATED due to removing serial method
+# @testset "parallelization" begin
+# #TODO this test set is incomplete
 
-@testset "parallelization" begin
-#TODO this test set is incomplete
 
-
-    serial_list = neighbor_traverse(keys, position8, bvhspec8)
-    parallel_list = parallel_neighbor_traverse(keys, position8, bvhspec8)
-    checks = length(serial_list)
+#     serial_list = neighbor_traverse(keys, position8, bvhspec8)
+#     parallel_list = parallel_neighbor_traverse(keys, position8, bvhspec8)
+#     checks = length(serial_list)
     
-    # "does parallel traversal produce a neighbor list that includes every element of a serially-generated list?"
-    #due to naive chunking method, the two methods do not produce sequentially consistent lists
-    for each in eachindex(serial_list)
-        for peach in eachindex(parallel_list)
-            if serial_list[each] == parallel_list[peach]
-                checks -= 1
-            end
-        end
-    end
-    @test checks == 0
+#     # "does parallel traversal produce a neighbor list that includes every element of a serially-generated list?"
+#     #due to naive chunking method, the two methods do not produce sequentially consistent lists
+#     for each in eachindex(serial_list)
+#         for peach in eachindex(parallel_list)
+#             if serial_list[each] == parallel_list[peach]
+#                 checks -= 1
+#             end
+#         end
+#     end
+#     @test checks == 0
     
 
 
-end
+# end
 # @testset "parent boundaries include all atoms" begin
 #     for each in 1:7
 #         for i in eachindex(position8[1])
