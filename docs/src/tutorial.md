@@ -15,9 +15,10 @@ f = jldopen("data/positions/positions.jld2", "r")
 myposition = deepcopy(read(f, "pos5000"))
 close(f)
 
-bvhspec = SpheresBVHSpecs(; floattype=Float32, 
-                            critical_distance=0.2, 
-                            leaves_count=length(myposition) 
+bvhspec = SpheresBVHSpecs(; bounding_distance=0.2
+                            threshold_distance=0.2, 
+                            leaves_count=length(myposition),
+                            floattype=Float32, 
 )
 
 treeData = TreeData(myposition, spec)
@@ -27,7 +28,7 @@ my_neighbor_list =  neighbor_traverse(treeData.tree, myposition, spec)
 
 In the first three lines, we used JLD2.jl to open a file of pregenerated positions stored in the data folder of NaiveDynamics. We selected `pos5000` from the file, indicating a vector of 5000 mutable vectors, which are each 3 Float32's long. 
 
-Next, we instantiated a specification that includes the `critical_distance`. This value determines the bounding volume around each 'atom' or point in the `myposition` array. Currently, it is also the threshold distance tested against for whether 2 points are close enough to be considered neighbors.
+Next, we instantiated a specification that includes the `bounding_distance`. This value determines the bounding volume around each 'atom' or point in the `myposition` array. The `threshold_distance` is the maximum distance at which two points are considered neighbors. In this example, we leave these values the same but a simulation which rebuilds the BVH less than 1 time per step would have a `bounding_distance > threshold_distance`.
 
 With a specification and an array of positions, we construct a bvh, along with related reusable data. 
 

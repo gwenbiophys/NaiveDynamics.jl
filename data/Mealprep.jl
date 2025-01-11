@@ -29,7 +29,7 @@ using GLMakie
     #mySpec = SimSpec{Int64, Float32}(50, 1, 1, 10, 1)
     mySpec = SimSpec(; inttype=Int64,
                         floattype=Float32,
-                        duration=5000,
+                        duration=500,
                         stepwidth=1,
                         currentstep=1,
                         logLength=10,
@@ -184,7 +184,7 @@ function run_naive(runs, position, thresh)
 end
 sort
 sposition = [SVector{3, Float32}(position[i]) for i in eachindex(position)]
-safe_position = [IndexSafePosition{Float32, Int32}(i, SVector{3, Float32}(position[i])) for i in eachindex(position)]
+#safe_position = [IndexSafePosition{Float32, Int32}(i, SVector{3, Float32}(position[i])) for i in eachindex(position)]
 mutsafe_position = [MutableIndexSafePosition{Float32, Int32}(i, position[i]) for i in eachindex(position)]
 indy = [0 for each in eachindex(position)]
 

@@ -30,12 +30,12 @@ struct SpheresBVHSpecs{T, K}
     neighbor_distance::T
     leaves_count::Int64
     branches_count::Int64
-    morton_length::K
+
 
 Instantiate a specification towards a BVH of sphere primitives. The ```bounding_distance``` is the size of bounding volumes enclosing leaves. 
 The ```neighbor_distance``` is the distance at which two leaves will be evaluated as neighbors when generating a neighbor list, using the 
 ```proximity_test!```` function. The ```bins_count``` is the number of chunks each axis will be divided byin order convert particles from 
-real space to grid space. By default, ```bins_count = atoms count```. Morton_length. Though Howard et al., 2019 chose 1023 bins to fit each 
+real space to grid space. By default, ```bins_count = atoms count```. Though Howard et al., 2019 chose 1023 bins to fit each 
 grid axis within a UInt8, instead of here where the integer that fits a grid space axis has the same number of bits as the ```floattype```. 
 """
 struct SpheresBVHSpecs{T, K} 
@@ -43,8 +43,6 @@ struct SpheresBVHSpecs{T, K}
     neighbor_distance::T
     leaves_count::Int64
     branches_count::Int64
-    morton_length::K
-
 end
 
 function SpheresBVHSpecs(; bounding_distance, neighbor_distance, leaves_count, floattype )
@@ -56,14 +54,12 @@ function SpheresBVHSpecs(; bounding_distance, neighbor_distance, leaves_count, f
     # this is arbitrary and really just my personal demonstration of struct instantiation with same name functions
     if floattype==Float32
         morton_type = Int32
-        morton_length = Int32(10)
 
-        return SpheresBVHSpecs{floattype, morton_type}(bounding_distance, neighbor_distance, leaves_count, branches_count, morton_length)
+        return SpheresBVHSpecs{floattype, morton_type}(bounding_distance, neighbor_distance, leaves_count, branches_count)
     elseif floattype==Float64
         morton_type = Int64
-        morton_length = Int64(21)
 
-        return SpheresBVHSpecs{floattype, morton_type}(bounding_distance,  neighbor_distance, leaves_count, branches_count, morton_length)
+        return SpheresBVHSpecs{floattype, morton_type}(bounding_distance,  neighbor_distance, leaves_count, branches_count)
     end
     
 end
@@ -109,14 +105,14 @@ struct TreeData{T, K}
 end
 
 """
-    mortoncodes!(L, quantized_aabbs, morton_length, morton_type)
+    mortoncodes!(L, quantized_aabbs, morton_type)
 
 Take an array of GridKeys, L, an array of 3D integer coordinates, quantized aabbs, and specification information,
 to generate morton codes for each GridKey.
 
 For a discussion into how this function works, see 11 January, 2025 in devdiary, approx. L1245.
 """
-function mortoncodes!(L, quantized, morton_length, morton_type) 
+function mortoncodes!(L, quantized, morton_type) 
     #TODO implement for morton_type::Int32, and Int64 as the magic numbers change
     #TODO is it possible to avoid the magic not values? so that this runs on selective promotion of zero to 1
     # i.e. a morton code bit will be left as zero because it was not modified, but becomes 1 in order to fulfill bit interleaving?
@@ -171,7 +167,7 @@ function TreeData(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
             0, 0) for i in 1:spec.leaves_count
     ]
 
-    mortoncodes!(L, quantized_xyz, spec.morton_length, K)
+    mortoncodes!(L, quantized_xyz, K)
 
     sort_mortoncodes!(L, spec)
     store = [Base.Threads.Atomic{Int64}(0) for i in 1:spec.branches_count]
@@ -221,7 +217,7 @@ function TreeData!(treeData::TreeData{T, K}, position::Vec3D{T}, spec::SpheresBV
         treeData.tree[each].skip = 0
     end
 
-    mortoncodes!(treeData.tree, treeData.quantizedposition, spec.morton_length, K)
+    mortoncodes!(treeData.tree, treeData.quantizedposition, K)
 
     leaves = treeData.tree[1:spec.leaves_count]
     sort!(leaves, by = x -> x.morton_code)
