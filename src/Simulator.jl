@@ -4,7 +4,7 @@
 export 
 
     SimulationSpecification,
-    GenericSpec,
+    SimSpec,
     simulate!,
     simulate_dumloop!,
     simulate_SVec!,
@@ -13,13 +13,21 @@ export
     #record_simulation,
     #update_chunk!,
     #write_chunk!
-    #unique_pairs,
-    #threshold_pairs
 
 
 
 abstract type SimulationSpecification end
-struct GenericSpec{T, K} <: SimulationSpecification
+"""
+    struct SimSpec{T, K}
+        duration::T
+        stepwidth::T
+        currentstep::T
+        logChunkLength::T
+        velocityDampening::K #idk a better way to handle this
+        threshold::K
+Return a SimSpec to pass into simulate!
+"""
+struct SimSpec{T, K} <: SimulationSpecification
     duration::T
     stepwidth::T
     currentstep::T
@@ -27,7 +35,7 @@ struct GenericSpec{T, K} <: SimulationSpecification
     velocityDampening::K #idk a better way to handle this
     threshold::K
 end
-function GenericSpec(;
+function SimSpec(;
                     inttype=Int64,
                     floattype=Float32,
                     duration,
@@ -37,7 +45,7 @@ function GenericSpec(;
                     vDamp,
                     threshold
                         )
-    return GenericSpec{inttype, floattype}(duration, stepwidth, currentstep, logLength, vDamp, threshold)
+    return SimSpec{inttype, floattype}(duration, stepwidth, currentstep, logLength, vDamp, threshold)
 end
 
 
@@ -143,8 +151,7 @@ and waiting until completion to advance to the next property/interaction.
 At June 29th, best performing and minimal allocations per time step. better performing for SVecs 
 but does not interoperate with other functions like boundary_reflect!() or forces.
 """
-
-function simulate!(sys::GenericObjectCollection, spec::GenericSpec, clct::GenericRandomCollector{T}) where T
+function simulate!(sys::GenericObjectCollection, spec::SimSpec, clct::GenericRandomCollector{T}) where T
 
 
     force_nextstep = deepcopy(sys.force)::Vec3D{T}
@@ -252,7 +259,7 @@ end
     simulate_naive!
 No forces simulation emphasizing time component of naive pair listing.
 """
-function simulate_naive!(sys::GenericObjectCollection, spec::GenericSpec, clct::GenericRandomCollector{T}) where T
+function simulate_naive!(sys::GenericObjectCollection, spec::SimSpec, clct::GenericRandomCollector{T}) where T
 
 
     force_nextstep = deepcopy(sys.force)::Vec3D{T}
@@ -313,10 +320,11 @@ function simulate_naive!(sys::GenericObjectCollection, spec::GenericSpec, clct::
 end
 
 """
-    simulate_bvh!
+    simulate_bvh!(sys::GenericObjectCollection, spec::SimSpec, 
+    bvhspec::SpheresBVHSpecs, clct::GenericRandomCollector{T}) where T
 NO forces simulation emphasizing neighbor list time using bvh traversal to generate a neighbor list
 """
-function simulate_bvh!(sys::GenericObjectCollection, spec::GenericSpec, bvhspec::SpheresBVHSpecs, clct::GenericRandomCollector{T}) where T
+function simulate_bvh!(sys::GenericObjectCollection, spec::SimSpec, bvhspec::SpheresBVHSpecs, clct::GenericRandomCollector{T}) where T
 
 
     force_nextstep = deepcopy(sys.force)::Vec3D{T}

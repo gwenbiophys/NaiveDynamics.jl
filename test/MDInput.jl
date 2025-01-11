@@ -11,7 +11,8 @@
 #                                     maxmass=5.0,
 #                                     minimumdistance=1.0,
 #                                     mincharge=-1f-9,
-#                                     maxcharge=1f-9
+#                                     maxcharge=1f-9,
+#                                     pregeneatedposition=false
 # )
 
 # @testset "position spawning" begin

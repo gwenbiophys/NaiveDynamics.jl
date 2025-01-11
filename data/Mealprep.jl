@@ -21,12 +21,13 @@ using JET
 #                                         maxmass=5.0,
 #                                         minimumdistance=0.001,
 #                                         mincharge=-1f-9,
-#                                         maxcharge=1f-9
+#                                         maxcharge=1f-9,
+#                                         pregeneratedposition=false
 #                                         )
 
 #     myCollection = collect_objects(myCollector)
-#     #mySpec = GenericSpec{Int64, Float32}(50, 1, 1, 10, 1)
-#     mySpec = GenericSpec(; inttype=Int64,
+#     #mySpec = SimSpec{Int64, Float32}(50, 1, 1, 10, 1)
+#     mySpec = SimSpec(; inttype=Int64,
 #                         floattype=Float32,
 #                         duration=1000,
 #                         stepwidth=1,
@@ -49,7 +50,7 @@ using JET
 
 #myCollector = GenericRandomCollector{Float32}(40, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, -0.000002, 0.000002, 0.001)
 #myCollection = collect_objects(myCollector)
-#mySpec = GenericSpec{Int64}(800000, 1, 1, 10)
+#mySpec = SimSpec{Int64}(800000, 1, 1, 10)
 # memory limit starts getting feisty at 4 million steps
 #@btime simulate!($largeSimulation, $largeCollector)
 #@btime logpos = simulate_bravado!($myCollection, $mySpec, $myCollector)
@@ -69,7 +70,8 @@ using JET
 #                                     maxmass=5.0,
 #                                     minimumdistance=0.001,
 #                                     mincharge=-1f-9,
-#                                     maxcharge=1f-9
+#                                     maxcharge=1f-9,
+#                                      pregeneratedposition = false
 # )
 # myCollection = collect_objects(myCollector1)
 
@@ -85,6 +87,7 @@ using JET
 #                                         minimumdistance=0.001,
 #                                         mincharge=-1f-9,
 #                                         maxcharge=1f-9
+                                        #   pregeneratedposition=false
 #     )
 #     myCollection = collect_objects(myCollector1)
 #     force_C = deepcopy(myCollection.force)
@@ -96,7 +99,7 @@ using JET
 # end
 # #force_testing(3)
 
-# mySpec = GenericSpec(; inttype=Int64,
+# mySpec = SimSpec(; inttype=Int64,
 #                     floattype=Float32,
 #                     duration=3,
 #                     stepwidth=1,
@@ -119,7 +122,8 @@ myCollector2 = GenericRandomCollector(; floattype=Float32,
                                     maxmass=5.0,
                                     minimumdistance=0.0001,
                                     mincharge=-1f-9,
-                                    maxcharge=1f-9
+                                    maxcharge=1f-9,
+                                    pregeneratedposition=false
 )
 myCollection1 = collect_objects(myCollector2)
 position = generate_positions(myCollector2)
@@ -137,7 +141,7 @@ bvhspec = SpheresBVHSpecs(; floattype=Float32,
                             critical_distance=0.003, 
                             leaves_count=length(myCollection1.position) 
 )
-simspec = GenericSpec(; inttype=Int64,
+simspec = SimSpec(; inttype=Int64,
                     floattype=Float32,
                     duration=60,
                     stepwidth=1,
@@ -219,7 +223,8 @@ build_traverse_bvh(position, bvhspec, myCollector2 )
 #                                     maxmass=5.0,
 #                                     minimumdistance=0.001,
 #                                     mincharge=-1f-9,
-#                                     maxcharge=1f-9
+#                                     maxcharge=1f-9,
+                                    # pregeneratedposition=false
 # )
 # position8 =[MVector{3, Float32}(0.1, 0.1, 0.1), MVector{3, Float32}(0.2, 0.2, 0.2), 
 #             MVector{3, Float32}(0.346, 0.98, 0.12), MVector{3, Float32}(0.01, 0.76, 0.99), 
@@ -256,6 +261,6 @@ build_traverse_bvh(position, bvhspec, myCollector2 )
 
 #myCollector = GenericRandomCollector(Float32, 40, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, -0.02, 0.02, 0.001)
 #myCollection = collect_objects(myCollector)
-#mySpec = GenericSpec{Int64}(4000, 1, 1, 10)
+#mySpec = SimSpec{Int64}(4000, 1, 1, 10)
 #logpos2 = simulate_dumloop!(myCollection, mySpec, myCollector)
 #@btime logpos2 = simulate!($myCollection, $mySpec, $myCollector)

@@ -22,7 +22,7 @@ abstract type Collector end
 """
     GenericRandomCollector(objectnumber, minsize, maxsize, minspeed, maxspeed)
     
-An Collector-subtype meant to acquire additional information from the user about how to make their system.
+Struct to acquire additional information from the user about how to make their system.
 In the collection function, positions and velocities will be randomly seeded from this Collector's boundary values.
 """
 
@@ -64,12 +64,6 @@ end
 
 
 
-"""
-    Collector
-
-Collector supertype for simulation initialization.
-
-"""
 struct GenericRandomCollector{T<:AbstractFloat} <: Collector
     objectnumber::Int64
 
@@ -86,6 +80,7 @@ struct GenericRandomCollector{T<:AbstractFloat} <: Collector
     minimumdistance::T
     mincharge::T
     maxcharge::T
+    pregeneratedposition::Bool
 end
 
 function GenericRandomCollector(;
@@ -99,10 +94,11 @@ function GenericRandomCollector(;
                                 maxmass,
                                 minimumdistance,
                                 mincharge,
-                                maxcharge
+                                maxcharge,
+                                pregeneratedposition=false
                                     )
     return GenericRandomCollector{floattype}(objectnumber, minDim, maxDim, 
-            temperature, randomvelocity, minmass, maxmass, minimumdistance, mincharge, maxcharge)
+            temperature, randomvelocity, minmass, maxmass, minimumdistance, mincharge, maxcharge, pregeneratedposition)
 end
 
 struct GenericStaticRandomCollector{T<:AbstractFloat} <: Collector
@@ -160,11 +156,10 @@ struct GenericUserValueCollector{T<:AbstractFloat} <: Collector
 end
 
 """
-    generate_positions(objectcount, min_xDim, min_yDim, min_zDim, max_xDim, max_yDim, max_zDim)
+    generate_positions(Collector::GenericRandomCollector)
 
 Return a position vector of 3-dimensional mutable vectors when given box dimensions from  the GenericRandomCollector object.
 """
-
 function generate_positions(Collector::GenericRandomCollector)
 
     objectcount = Collector.objectnumber
@@ -223,15 +218,6 @@ function generate_onePosition(Collector::GenericStaticRandomCollector)
     return SVector{3, Float32}(x, y, z)
 end
 
-"""
-    function generate_pruned_positions!(Collector::GenericRandomCollector, Collection)
-
-After collect_objects() has generated a vector of vectors of positions, 
-this function will naively prune the positions and replace them with other positions. 
-At present, pruning proceeds until try catch control flow until neighborlist()
-fails due to having no neighbors within the minimiumdistance cutoff.
-"""
-
 function unique_pairs_prune(a::AbstractArray, threshold::AbstractFloat)
     # TODO only push unique pairs to the list for eachindex(a), instead of for each pair
     tooClose = 0
@@ -263,9 +249,7 @@ function unique_pairs_prune(a::AbstractArray, threshold::AbstractFloat)
     end
     return tooClose
 end
-struct CannotInitializePositions <: Exception
-    message::String
-end
+
 function generate_pruned_positions!(Collector::GenericRandomCollector, Collection)
     #1. generate a set of radialPositions, in each each ooooh no wait i'd have to make radii spheres
     #2. ask if the distance between any of the spheres is negative with a neighborlist cutoff =o (if that works)
@@ -277,7 +261,7 @@ function generate_pruned_positions!(Collector::GenericRandomCollector, Collectio
         recursions += 1
         if recursions == recursion_limit
             #error("You either have too small a box, too many atoms, or too large a minimum initial distance between them")
-            CannotInitializePositions("Objects could not be placed, increase box size, reduce object count, or decrease minimum spawning distance")
+            error("Objects could not be placed, increase box size, reduce object count, or decrease minimum spawning distance")
         end
 
         for object in eachindex(Collection.position)
@@ -311,8 +295,7 @@ end
 Return a GenericObjectCollection with positions and speeds randomly seeded, as specified by the Collector object
 
 """
-
-function collect_objects(Collector::GenericRandomCollector{T}) where T
+function collect_objects(Collector::GenericRandomCollector{T}; position::Vec3D{T}) where T
 
     massRange = Uniform(Collector.minmass, Collector.maxmass)
     chargeRange = Uniform(Collector.mincharge, Collector.maxcharge)
@@ -346,20 +329,34 @@ function collect_objects(Collector::GenericRandomCollector{T}) where T
 
 
     # TODO update the Collector Series so that the user can input names and masses and radii.
-    simCollection = GenericObjectCollection{T}(
+    if Collector.pregeneratedposition
+        simCollection = GenericObjectCollection{T}(
         fill(step_n, objectcount),
         fill("duck", objectcount),
         deepcopy(mass),
         deepcopy(charge),
         fill(0.01, objectcount),
         [1:objectcount;],
-        generate_positions(Collector),
+        position,
         deepcopy(velocity),
         [MVector{3, T}(zeros(Float64, 3)) for each in 1:objectcount],
         )
-    #density_check(simCollection, Collector)
+    else
+        simCollection = GenericObjectCollection{T}(
+            fill(step_n, objectcount),
+            fill("duck", objectcount),
+            deepcopy(mass),
+            deepcopy(charge),
+            fill(0.01, objectcount),
+            [1:objectcount;],
+            generate_positions(Collector),
+            deepcopy(velocity),
+            [MVector{3, T}(zeros(Float64, 3)) for each in 1:objectcount],
+            )
+        #density_check(simCollection, Collector)
 
-    generate_pruned_positions!(Collector, simCollection)
+        generate_pruned_positions!(Collector, simCollection)
+    end
     return simCollection
 end
 

@@ -96,36 +96,27 @@ information based on other things the user input, like if single precision, then
 * [x] currently, MakieExt redefines the record_video function stored in PkgExtensions. Will the extension continue to work if it exports record_video on its own?
 * [x] package extensions methods break upon trying to use them at all because something something Julia doesnt work. In my Dev environment, Iwant as little loaded as possible. Thus, the extensions, but I am tetsint in my dev environment, which means I don't get to use the extension functionality. I believe it would work better for a user situation, in which the Julia environment is not this package's source code. idk
 * [x] struct instantiate with function for neighborsearch items, so changes to the API are more clear to impelment (but also slightly more tedious)
-* [] companion arrays of morton codes, indices to atoms, and grid aabbs and simplified structures for more purposeful datamanagement. These optimizations won't especially work until we have struct arrays and or the deep compression used in contemporary bvh papers.
 * [x] if we use the Julia built in environment instead of our own, could we finally have extensions working correctly, so that we are devved into naive dynamics and using the local dev version wiht a napkin test file, while also being abel to use only the dependencies and extensions we want?
 * [] investigate if other Julian threading routines produce better results. Polyester and OhMyThreads and Dagger come to mind
-* [] api.md only has 1 items on it that is no longer present in the package. Why?
+* [x] api.md only has 1 items on it that is no longer present in the package. Why?
 * [x] fix upper functions of Proko to only iterate over  specific indices of the grid keys array
 * [] for boundary expansion, is the for loop flowthrough evaluation effective, or is copyto! effective enough
 * [] is it a problem that the root doesnt get updated to cover the whole entire range? may or may not just be a side effect of the algo. ArborX predefines the root.
-* [] update ci.yml for a different OS test and to resolve warnings related to chagnes to GHActions
-* [] figure a considerate way of updating boundaries, currently we have to set to zero in between runs and do the for loop if evaluation / vectorized notation. is the proper fashion to do that, or to just set the boundaries of a parent to be the exact values of its child?
+* [x] update ci.yml for a different OS test and to resolve warnings related to chagnes to GHActions -- TENTATIVE
+* [x] figure a considerate way of updating boundaries, currently we have to set to zero in between runs and do the for loop if evaluation / vectorized notation. is the proper fashion to do that, or to just set the boundaries of a parent to be the exact values of its child?
 * [] change create_mortoncodes to GridKeysArray ?. And interior of rebuild bvh to GridKeysArray! ? I guess if we could create the array without storing intermediates, but there is no way that will work so nicely.
-* [] for functions taking ref to a value, change so that the body of hte function has the dereferenced value, rather than carrying on with our current mess of this and that. Test perf impact (should be nothing)
-* [] to GenericCollector function, add function to avoid generating position data and just borrow preset data
+* [x] test if we can get rid of the tuple and the dereferencing syntax by just directly tupling together the data. what is the impact on performance? could we just make a treedata struct? we would have to test with two entire versions of the file, and selectively pretend one or the other is the real version. maybe run @benchmark 4 times then switch, and maybe switch back and forth if we get a weird result, like performance changing a lot
+* [x] to GenericCollector function, add function to avoid generating position data and just borrow preset data
 * [x] implement jld2.jl to have a pre-generated bench suite
-* [] add test to ensure that data in jld2 files are not being overwritten, because in trying to implement this in benchtesting? there was a lot of overwriting.
+* [x] change GenericSpec to SimSpec
 
 
 #### Perf considerations
-* [] could we work up directly to morton code from position without intermediates? that way we don't have to carry around the tuple of 6 different references
-* [] constructor expressions in naive pairs list, could we improve performance by instantiating the entire array(s) with the same value, and then update all values? have to a/b test. this could be better as constructor expressions seem to work best when Julia doesn't have to 'think' about what to place in each position of the array
-* [] system wide transition to Static Vectors instead of mutables
-      * [] run through MDInput
-      * [] new boundary function
-      * [] update simulate! suite to use static array syntax (i.e. no for looping, just simple broadcast syntax from Julia)
-      * [] update force / rescaling methods
-      * [] update methods under knn
-      * [] EACH SECTION MODIFIED MUST RECEIVE TESTS TO AFFIRM ITS OVERALL FUNCTIONALITY  -- SVectors require a different syntax than MVectors and this can be easily screwed up to perf loss and incorrectness
 * [x] is 3x sort!() on an array of svectors faster than using sortperm on a direct vector of data? balance of power may have changed. --- The answer is ~yesh~, which is to say, using static vectors nicely speeds up both overlap testing and boundaries setting much more than whatever the balance of power of sortperm against repeatedly sorting an array of struct of index and static vector
 
 #### bugfixes from prior versions
 * [x] `update_pairlists!` incorrectly mutated over the index values of the default initialized pairlist. Fixed by changing `list[i] = result` to `list[each] = result` in the pairslist_interior function
+* [x] @autodocs failed to work as intended, requires doc block to make contact with the thing it documents
 
 
 
@@ -158,6 +149,7 @@ information based on other things the user input, like if single precision, then
 * [] toggle-able force clamp based on user input or opt-in default value
 * [] allow for random generation of positions within a grid, where each particle will spawn in a random area in its grid cube
 * [] bvh traversal for boundary detection so we don';t have to check every atom? Uncertain if this would be better than just running several 2 ns operations over every atom.
+* [] object collection should not be mutable
 
 #### Style guide things
 * [] are all mutation functions inidcated properly? Are mutation functions redundantly labeled? i.e. with `update` and `!`, how could they be better named to improve clarity?
@@ -170,7 +162,13 @@ information based on other things the user input, like if single precision, then
 
 ### perf considerations
 * [] are inbounds valid in the force vector calculations? I have not researched this thoroughly to know
-* [] can we improve neighbor list performance by calling all neighbor -related functions at the place where we currently `push!` a pair to the pair list? Uneven memory access vs. severely many small allocations. Result may differ between a data vectors stored as SVecs vs MVecs as well
+* [] system wide transition to Static Vectors instead of mutables
+      * [] run through MDInput
+      * [] new boundary function
+      * [] update simulate! suite to use static array syntax (i.e. no for looping, just simple broadcast syntax from Julia)
+      * [] update force / rescaling methods
+      * [] update methods under knn
+      * [] EACH SECTION MODIFIED MUST RECEIVE TESTS TO AFFIRM ITS OVERALL FUNCTIONALITY  -- SVectors require a different syntax than MVectors and this can be easily screwed up to perf loss and incorrectness
 
 ### function requests / wishes
 * [] particle arrangement based on coulomb potential -- like salt crystals, they stay in place because forces are balanced

@@ -13,9 +13,6 @@ using StructArrays
 #using NearestNeighbors
 using SortingAlgorithms
 #using Polyester
-
-#using Aqua #is this correct? should probably go in test files!
-
 #using KernelAbstractions
 #using AMDGPU
 #using CUDA
@@ -27,7 +24,8 @@ include("MDInput.jl")
 
 include("BaseExtensions.jl")
 #include("knn/NeighborSearch.jl")
-include("knn/ProkoLebrun.jl")
+#include("knn/ProkoLebrun.jl")
+include("knn/BVHTraverse.jl")
 include("PkgExtensions.jl")
 include("knn/AllToAll.jl")
 include("Forces.jl")

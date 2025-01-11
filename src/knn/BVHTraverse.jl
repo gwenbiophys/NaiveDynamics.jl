@@ -76,6 +76,8 @@ function SpheresBVHSpecs(; floattype, critical_distance, leaves_count )
     
 end
 
+
+
 ##### Phase 1: morton code construction and updating
 
 #TODO this variable type needs to become either T or K (or something else) to be consistent with MDInput
@@ -119,6 +121,13 @@ end
 struct MutableIndexSafePosition{T, K}
     index::K
     vec::MVector{3, T}
+end
+
+struct TreeData{T, K}
+    tree::Vector{GridKey{T, K}}
+    position::Vector{IndexSafePosition{T, K}}
+    quantizedposition::XYZVectors{K}
+    store::Vector{Base.Threads.Atomic{Int64}}
 end
 
 
@@ -253,7 +262,8 @@ function create_mortoncodes_direct(position::Vec3D{T}, spec::SpheresBVHSpecs{T, 
     sort_mortoncodes!(L, spec)#@time "mortons" sort_mortoncodes!(L)
     store = [Base.Threads.Atomic{Int64}(0) for i in 1:spec.branches_count]
     #storeb = zeros(Base.Threads.Atomic{Int64}(0), spec.branches_count)
-    return tuple(Ref(L), Ref(pos), Ref(quantized_xyz), Ref(store))
+    #return tuple(Ref(L), Ref(pos), Ref(quantized_xyz), Ref(store))
+    return TreeData{T, K}(L, pos, quantized_xyz, store)
 end
 
 
@@ -599,7 +609,7 @@ function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::Generi
 
     # store a tuple of references to each of the persistent data structures created during bvh construction
     # this feels more sane than tupling up a bunch arrays directly
-    bvhData = create_mortoncodes_direct(position, spec, clct)
+    treeData = create_mortoncodes_direct(position, spec, clct)
 
     #keys = initializationData[1][]
 
@@ -608,97 +618,97 @@ function build_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::Generi
     # ----- who is 'z'????
     I = [GridKey{T, K}(0, 0, SVector{3, T}(0.0, 0.0, 0.0), SVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
     
-    append!(bvhData[1][], I)
+    append!(treeData.tree, I)
 
-    update_stackless_bvh!(bvhData[1][], bvhData[4][], spec)
+    update_stackless_bvh!(treeData.tree, treeData.store, spec)
 
-    return bvhData
+    return treeData
 end
 
 function rebuild_bvh!(treeData, position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
     #update positions, convert from mutable vector to struct of vectors
     #::Tuple{Vector{GridKey{T, K}},XYZVectors{T}, XYZVectors{K}, XYZVectors{K}, XYZVectors{K} }
     #TODO can these loops be replaced?
-    #fill!(treeData[2][].x, [position[each][1] for each in eachindex(position)])
+    #fill!(treeData.position.x, [position[each][1] for each in eachindex(position)])
     for i in eachindex(position)
-        treeData[2][][i] = IndexSafePosition{T,K}(i, SVector{3, T}(position[i]))
+        treeData.position[i] = IndexSafePosition{T,K}(i, SVector{3, T}(position[i]))
     end
     # for each in eachindex(position)
-    #     treeData[2][].x[each] = position[each][1]
-    #     #copyto!(treeData[2][].x[each], position[each][1])
-    #     #setindex!(treeData[2][].x, position[1])
+    #     treeData.position.x[each] = position[each][1]
+    #     #copyto!(treeData.position.x[each], position[each][1])
+    #     #setindex!(treeData.position.x, position[1])
     # end
     # for each in eachindex(position)
-    #     treeData[2][].y[each] = position[each][2]
+    #     treeData.position.y[each] = position[each][2]
     # end
     # for each in eachindex(position)
-    #     treeData[2][].z[each] = position[each][3]
+    #     treeData.position.z[each] = position[each][3]
     # end
     # update permuters
-    # sortperm!(treeData[4][].x, treeData[2][].x)
-    # sortperm!(treeData[4][].y, treeData[2][].y)
-    # sortperm!(treeData[4][].z, treeData[2][].z)
-    update_quantized_positions_direct(treeData[2][], treeData[3][], spec)
-    #update_quantized_positions(treeData[3][], treeData[5][], treeData[4][], spec, clct)
+    # sortperm!(treeData.store.x, treeData.position.x)
+    # sortperm!(treeData.store.y, treeData.position.y)
+    # sortperm!(treeData.store.z, treeData.position.z)
+    update_quantized_positions_direct(treeData.position, treeData.quantizedposition, spec)
+    #update_quantized_positions(treeData.quantizedposition, treeData[5][], treeData.store, spec, clct)
 
     #update leaf boundaries based on new positions
     #this has worse allocation performance than the expanded version without syntactic sugar???
     for each in 1:spec.leaves_count
-        treeData[1][][each].min = SVector{3, T}(position[each] .- spec.critical_distance)
+        treeData.tree[each].min = SVector{3, T}(position[each] .- spec.critical_distance)
 
     end
     for each in 1:spec.leaves_count
-        treeData[1][][each].max = SVector{3, T}(position[each] .+ spec.critical_distance) #.= or = ?
+        treeData.tree[each].max = SVector{3, T}(position[each] .+ spec.critical_distance) #.= or = ?
 
     end
     # realign leaf boundaries with indices to the atom positions that they represent
     for each in 1:spec.leaves_count
-        treeData[1][][each].index = each
+        treeData.tree[each].index = each
     end
     
     # have to reset to zero because ( I believe) zero values are not set
     # instead are unchanged from initialization
     # thus, we have to reset here
-    for each in eachindex(treeData[1][]) 
-        treeData[1][][each].left = 0
-        treeData[1][][each].skip = 0
+    for each in eachindex(treeData.tree) 
+        treeData.tree[each].left = 0
+        treeData.tree[each].skip = 0
     end
 
-    update_mortoncodes!(treeData[1][], treeData[3][], spec.morton_length, K)
-    #sort_mortoncodes!(treeData[1][][1:spec.leaves_count], spec)#@time "mortons" sort_mortoncodes!(L)
+    update_mortoncodes!(treeData.tree, treeData.quantizedposition, spec.morton_length, K)
+    #sort_mortoncodes!(treeData.tree[1:spec.leaves_count], spec)#@time "mortons" sort_mortoncodes!(L)
 
-    #partialsort!(treeData[1][], range(1, 3), by=x -> x.morton_code)
-    #sort!(treeData[1][][1:spec.leaves_count], by = x -> x.morton_code) this does nothing
+    #partialsort!(treeData.tree, range(1, 3), by=x -> x.morton_code)
+    #sort!(treeData.tree[1:spec.leaves_count], by = x -> x.morton_code) this does nothing
 
-    leaves = treeData[1][][1:spec.leaves_count]
+    leaves = treeData.tree[1:spec.leaves_count]
     sort!(leaves, by = x -> x.morton_code)
-    treeData[1][][1:spec.leaves_count] = leaves #lmfao
+    treeData.tree[1:spec.leaves_count] = leaves #lmfao
 
 
 
     #reset boundaries
     for each in spec.leaves_count+1:1:spec.leaves_count+spec.branches_count
-        treeData[1][][each].min = SVector{3, T}(0.0, 0.0, 0.0)
-        treeData[1][][each].max = SVector{3, T}(0.0, 0.0, 0.0)
+        treeData.tree[each].min = SVector{3, T}(0.0, 0.0, 0.0)
+        treeData.tree[each].max = SVector{3, T}(0.0, 0.0, 0.0)
 
-        # for dim in eachindex(treeData[1][][1].min)
-        #     treeData[1][][each].min[dim] = T(0.0)
-        #     treeData[1][][each].max[dim] = T(0.0)
+        # for dim in eachindex(treeData.tree[1].min)
+        #     treeData.tree[each].min[dim] = T(0.0)
+        #     treeData.tree[each].max[dim] = T(0.0)
         # end
     end
 
-    update_stackless_bvh!(treeData[1][], treeData[4][], spec)
+    update_stackless_bvh!(treeData.tree, treeData.store, spec)
     
     #return tuple(Ref(L), Ref(position_xyz), Ref(index_xyz), Ref(perm_xyz), Ref(quantized_xyz))
     # neighbors = []
 
-    #neighbor_traverse(treeData[1][],  position, spec)       o9999999999999999999uih
+    #neighbor_traverse(treeData.tree,  position, spec)       o9999999999999999999uih
     
 end
 
 function build_traverse_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}, clct::GenericRandomCollector{T}) where {T, K}
     treeData = build_bvh(position, spec, clct)
-    keys = treeData[1][] 
+    keys = treeData.tree 
 
 
 

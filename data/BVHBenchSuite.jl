@@ -19,18 +19,19 @@ function simulate_noforces(; position, duration, thresh, usebtime=true )
                                         maxmass=5.0,
                                         minimumdistance=0.0001,
                                         mincharge=-1f-9,
-                                        maxcharge=1f-9
+                                        maxcharge=1f-9,
+                                        pregeneratedposition=true
     )
-    clxn = collect_objects(clct)
+    clxn = collect_objects(clct, position=position)
 
     #this was ridiculous to debug. Even though I was closing the jld2 file BEFORE
     #sending it to this funciton, that IO data was still being overwritten.
-    copyto!.(clxn.position, position)
+
     bvhspec = SpheresBVHSpecs(; floattype=Float32, 
                                 critical_distance=thresh, 
                                 leaves_count=length(position) 
     )
-    simspec = GenericSpec(; inttype=Int64,
+    simspec = SimSpec(; inttype=Int64,
                         floattype=Float32,
                         duration=duration,
                         stepwidth=1,
@@ -72,18 +73,19 @@ clct = GenericRandomCollector(; floattype=Float32,
                             maxmass=5.0,
                             minimumdistance=0.0001,
                             mincharge=-1f-9,
-                            maxcharge=1f-9
+                            maxcharge=1f-9,
+                            pregeneratedposition=true
 )
-clxn = collect_objects(clct)
+clxn = collect_objects(clct; position=myposition)
 
 #this was ridiculous to debug. Even though I was closing the jld2 file BEFORE
 #sending it to this funciton, that IO data was still being overwritten.
-copyto!.(clxn.position, myposition)
+
 bvhspec = SpheresBVHSpecs(; floattype=Float32, 
                             critical_distance=0.2, 
                             leaves_count=length(myposition) 
 )
-simspec = GenericSpec(; inttype=Int64,
+simspec = SimSpec(; inttype=Int64,
                         floattype=Float32,
                         duration=10,
                         stepwidth=1,
@@ -92,6 +94,8 @@ simspec = GenericSpec(; inttype=Int64,
                         vDamp=1,
                         threshold=0.03
 )
+
+
 
 
 #simulate_noforces(atoms=1024, duration=10, thresh=0.03, usebtime=true)
@@ -138,18 +142,19 @@ function profile_simulate_noforces(; position, duration, thresh, allocs=false,  
     maxmass=5.0,
     minimumdistance=0.0001,
     mincharge=-1f-9,
-    maxcharge=1f-9
+    maxcharge=1f-9,
+    pregeneratedposition=true
 )
-    clxn = collect_objects(clct)
+    clxn = collect_objects(clct; position)
 
     #this was ridiculous to debug. Even though I was closing the jld2 file BEFORE
     #sending it to this funciton, that IO data was still being overwritten. Oh my fault, I didnt copy over, I only read directly
-    copyto!.(clxn.position, position)
+
     bvhspec = SpheresBVHSpecs(; floattype=Float32, 
                                 critical_distance=thresh, 
                                 leaves_count=length(position) 
     )
-    simspec = GenericSpec(; inttype=Int64,
+    simspec = SimSpec(; inttype=Int64,
                             floattype=Float32,
                             duration=duration,
                             stepwidth=1,
@@ -194,9 +199,10 @@ function bcreate_mortoncodes(; atoms, thresh=0.01)
                                         maxmass=5.0,
                                         minimumdistance=0.0001,
                                         mincharge=-1f-9,
-                                        maxcharge=1f-9
+                                        maxcharge=1f-9,
+                                        pregeneratedposition=true
     )
-    clxn = collect_objects(clct)
+    clxn = collect_objects(clct, position=position)
     bvhspec = SpheresBVHSpecs(; floattype=Float32, 
                                 critical_distance=thresh, 
                                 leaves_count=length(clxn.position) 
@@ -232,7 +238,30 @@ function bbuild_traverse(position, spec, clct; usebtime=true)
     return nothing
 end
 
+function profile_build_traverse( runs, position, bvhspec, clct; allocs=false, allocrate=0.0001)
 
+    if allocs
+        @profview_allocs for i in 1:runs
+            build_traverse_bvh(position, bvhspec, clct)
+        end
+    else
+        @profview for i in 1:runs
+            build_traverse_bvh(position, bvhspec, clct)
+        end
+    end
+end
+
+#profile_build_traverse(20, myposition, bvhspec, clct)
+#From the perspective of the prime thread/the thread which does all of the work
+# we spend about 67% performing parallel traversal, 
+#about 15% managing the multithreading (most of this time is spend waiting), 
+# about 2% sewing the thread work together,
+# 3% preparing to build and building the tree,
+# about 10% growing the ends of arrays, but i have no idea where that is distributed
+# and 3% managing tasks in the Julia runtime.
+
+#Traversal is further split into about 42% of the time performing overlap testing, 12% proximity testing, some memory access outside of those, and
+# about 3% that is unaccounted for (points to Line zero of the file)
 
 
 #atoms=10000, duration=100, thresh=0.03 will fill buffer before completion
@@ -254,13 +283,7 @@ bbuild_traverse(myposition, bvhspec, clct; usebtime=true)
 #@benchmark neighbor_traverse($keys, $myposition, $bvhspec)
 #@benchmark expt_neighbor_traverse($keys, $myposition, $bvhspec)
 
-
-
-
-
-
-
-
+#@benchmark build_traverse_bvh($myposition, $bvhspec, $clct)
 
 
 
