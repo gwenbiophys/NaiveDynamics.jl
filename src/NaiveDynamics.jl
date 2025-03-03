@@ -12,6 +12,7 @@ using StructArrays
 #using CellListMap
 #using NearestNeighbors
 using SortingAlgorithms
+using Accessors
 #using Polyester
 #using KernelAbstractions
 #using AMDGPU

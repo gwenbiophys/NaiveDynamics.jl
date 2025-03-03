@@ -5,12 +5,12 @@
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://gwenbiophys.github.io/NaiveDynamics.jl/dev)
 
 
-A very Naive Project to follow and study the design of molecular dynamics simulation and high octane algorithms.
+A very Naive Project to follow and study the design of molecular dynamics simulations and high octane algorithms.
 
 As of 9 January, 2025:
 * unitless velocity verlet simulation 
 * no-identity point-particles
 * partially complete coulomb and Lennard-Jones force models
 * an eerily unhelpful velocity rescaler
-* ability video record simulation
+* ability to video record simulation
 * bvh traversal for neighbor search (CPU parallel)

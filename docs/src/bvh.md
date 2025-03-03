@@ -15,9 +15,9 @@ With modern graphics processors adding ray tracing hardware for realistic render
     
 
 
-2. Because traditional Verlet lists are not appropriate for all simulation types
+2. Because traditional Verlet lists are not appropriate for all simulation types.
 
-3. because it is cool! What better way could there be to be introduced to GPU programming than trying on something that might not work?
+3. Because it is cool! What better way could there be to be introduced to programming than trying something I have no idea how to do!
 
 
 

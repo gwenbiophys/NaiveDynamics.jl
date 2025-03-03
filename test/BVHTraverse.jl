@@ -30,7 +30,7 @@ end
 # to adequately prevent recursion, we would need a companion array for both the leaves and each of their connections
 # as in, evaluate 'has this rope connection been used to update the traversal path already'
 # and that's maybe too much work, so let's just run the above counter anyway.
-function recursive_traversal(index, keys::Vector{GridKey{T, K}}, wasVisited::Vector{Bool}, spec::SpheresBVHSpecs{T, K}) where {T, K}
+function recursive_traversal(index, keys::Vector{MGridKey{T, K}}, wasVisited::Vector{Bool}, spec::SpheresBVHSpecs{T, K}) where {T, K}
     traversal_count = 0
     left = keys[index].left
     skip = keys[index].skip
@@ -84,7 +84,7 @@ function recursive_traversal(index, keys::Vector{GridKey{T, K}}, wasVisited::Vec
     end
 end
     
-function is_traversable(keys::Vector{GridKey{T, K}}, spec::SpheresBVHSpecs{T, K}; ShowLonelyKeys=false) where {T, K}
+function is_traversable(keys::Vector{MGridKey{T, K}}, spec::SpheresBVHSpecs{T, K}; ShowLonelyKeys=false) where {T, K}
     # should probably be an int to detect fro multiple visits
 
     # catch key pointing to itself, but not structural loops

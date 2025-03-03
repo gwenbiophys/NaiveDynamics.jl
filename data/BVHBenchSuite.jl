@@ -7,6 +7,8 @@ using NaiveDynamics
 using JLD2
 using StaticArrays
 
+using CellListMap
+
 
 #### no forces simulation
 function simulate_noforces(; position, duration, thresh, usebtime=true )
@@ -83,10 +85,11 @@ clxn = collect_objects(clct; position=myposition)
 #this was ridiculous to debug. Even though I was closing the jld2 file BEFORE
 #sending it to this funciton, that IO data was still being overwritten.
 
-bvhspec = SpheresBVHSpecs(; bounding_distance=0.2, 
-                            neighbor_distance=0.2, 
+bvhspec = SpheresBVHSpecs(; bounding_distance=0.10, 
+                            neighbor_distance=0.95, 
                             leaves_count=length(myposition),
-                            floattype=Float32 
+                            floattype=Float32, 
+                            atomsperleaf = 4 
 )
 simspec = SimSpec(; inttype=Int64,
                         floattype=Float32,
@@ -192,40 +195,99 @@ end
 
 function bvh_naive(position, spec, clct; usebtime=true)
 
-    position = [MVector{3, Float32}(position[i]) for i in eachindex(position)]
+    MVecposition = [MVector{3, Float32}(position[i]) for i in eachindex(position)]
     if usebtime
-        println("    naive:")
-        a = @btime threshold_pairs(unique_pairs($position), $spec.neighbor_distance)
+        if length(position) < 10001
+            println("  naive:")
+            @btime threshold_pairs(unique_pairs($MVecposition), $spec.neighbor_distance)
+        end
+        a = threshold_pairs(unique_pairs(MVecposition), spec.neighbor_distance)
+
         println("    bvh:")
         b = @btime build_traverse_bvh($position, $spec)
+        
+        println("    expt_bvh:")
+        c = @btime exptbuild_traverse_bvh($position, $spec)
+
+        println(" CLM.jl:")
+        d = @btime neighborlist($position, $spec.neighbor_distance)
+
+        sort!(a, by = x -> x[1])
+        sort!(b, by = x -> x[1])
+        sort!(c, by = x -> x[1])
+        sort!(d, by = x -> x[1])
+        println(length(a), " ", length(b), " ", length(c), " ", length(d), " ")
+
+        if length(a) < 55
+            println(a)
+            println(b)
+            println(c)
+            println(d)
+        end
+
     else
-        println("    naive:")
-        a = @btime threshold_pairs(unique_pairs(position), spec.neighbor_distance)
+        # println("    naive:")
+        # #a = @time threshold_pairs(unique_pairs(position), spec.neighbor_distance)
+        # println("    bvh:")
+        # b = build_traverse_bvh(position, spec)
+        if length(position) < 10001
+            println("  naive:")
+            @time threshold_pairs(unique_pairs(MVecposition), spec.neighbor_distance)
+        end
+        a = threshold_pairs(unique_pairs(MVecposition), spec.neighbor_distance)
+
         println("    bvh:")
-        b = @btime build_traverse_bvh(position, spec)
+        b = @time build_traverse_bvh(position, spec)
+        
+        #println("    expt_bvh:")
+        #c = @time exptbuild_traverse_bvh(position, spec)
+
+        println(" CLM.jl:")
+        d = @time neighborlist(position, spec.neighbor_distance)
+
+        sort!(a, by = x -> x[1])
+        sort!(b, by = x -> x[2])
+        sort!(b, by = x -> x[1])
+        #sort!(c, by = x -> x[1])
+        sort!(d, by = x -> x[1])
+        #println(length(a), " ", length(b), " ", length(c), " ", length(d), " ")
+        println(length(a), " ", length(b), " ", " ", length(d), " ")
+        println("The ultimate sucess, did I win?: ", a == b)
+        if length(a) < 55
+            println(a)
+            println()
+            println(b)
+
+            println()
+            #println(c)
+            println(d)
+        end
     end
 end
-#bvh_naive(myposition, bvhspec, clct; usebtime=true)
+bvh_naive(myposition, bvhspec, clct; usebtime=false)
 # naive:
 # 449.664 ms (100 allocations: 897.85 MiB)
 #   bvh:
 # 139.689 ms (15245 allocations: 10.50 MiB)
 
+# 67.926 μs (0 allocations: 0 bytes)
+# 67.436 μs (1 allocation: 16 bytes)
+# 29.407 μs (0 allocations: 0 bytes)
+# 29.448 μs (0 allocations: 0 bytes)
 
 
 function bbuild_traverse(position, spec, clct; usebtime=true)
     treeData = TreeData(position, spec)
-    keys = treeData.tree
     #neighbor_traverse(keys, position, spec)
     if usebtime
-        println("    base:")
-        a = @btime neighbor_traverse($keys, $position, $spec)
-        println("    experimental:")
-        b = @btime expt_neighbor_traverse($keys, $position, $spec)
+        println("    base trav:")
+        a = @btime neighbor_traverse($treeData.tree, $position, $spec)
+        println("    experimental trav:")
+        b = @btime expt_neighbor_traverse($treeData.tree, $position, $spec)
     else
-        println("    base:")
+        println("    base trav:")
         a = @time neighbor_traverse(keys, position, spec)
-        println("    experimental:")
+        println("    experimental trav:")
         b = @time expt_neighbor_traverse(keys, position, spec)
     end
     return nothing
@@ -269,6 +331,44 @@ end
 
 #println(myposition[1])
 #bbuild_traverse(myposition, bvhspec, clct; usebtime=true)
+
+
+function exptbuildtraverse(myposition, bvhspec)
+    println("   base build")
+    #tree = @btime TreeData($myposition, $bvhspec)
+    tree =  @time TreeData(myposition, bvhspec)
+    println("   expt build")
+    #expttree = @btime exptTreeData($myposition, $bvhspec)
+    expttree = @time exptTreeData(myposition, bvhspec)
+
+    println("   base trav")
+    a = @btime neighbor_traverse($tree.tree, $myposition, $bvhspec)
+    println("   expt trav")
+    b = @btime expt_neighbor_traverse($expttree.tree, $myposition, $bvhspec)
+    freetree = deepcopy(expttree.tree)
+    #b = @code_warntype expt_neighbor_traverse(expttree.tree, myposition, bvhspec)
+    # println("   expt trav free")
+    # b = @btime expt_neighbor_traverse($freetree, $myposition, $bvhspec)
+    println(a==b)
+
+    badpos = [MVector{3, Float32}(myposition[i]) for i in eachindex(myposition)]
+    c = @btime threshold_pairs(unique_pairs($badpos), $bvhspec.neighbor_distance)
+
+    # d = @btime neighborlist($myposition, $bvhspec.neighbor_distance)
+    println(a==c)
+    println(b==c)
+    println(" base neighbor traverse ", a)
+    println(" expt neighbor traverse ", b)
+    println(" classic pairlist ", c)
+    # println(" CellListMap.jl ", d)
+
+
+
+    return nothing
+end
+#exptbuildtraverse(myposition, bvhspec)
+#expttree = @time exptTreeData(myposition, bvhspec)
+#b = @code_lowered expt_neighbor_traverse(expttree.tree, myposition, bvhspec)
 
 #treeData = TreeData(myposition, bvhspec)
 # keys = treeData.tree

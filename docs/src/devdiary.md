@@ -1217,6 +1217,18 @@ The problem here is arround safely accessing the atomically guarded elements of 
 A thousand times more data efficient, but still not evidently faster. The critical labor is to find the issues. I suspect that our push! to the threshold pairs list is a lot slower than the generator expression.
 
 
+Requisites for immutable gridkey:
+    a. change mortoncodes! to act on an array of morton codes, and then fold these into gridkey initialization
+    b. a convenient way to update values of an immutable struct
+
+In an initial test,assing off an array of immutable GridKeys appeared to improve traversal performance by 30%, from 300 ms to 200 ms. I tried using Accessors.jl to update the fields of my immutable GridKeys by just introducing a @reset macro, but this reduced tree construction performance by 1000x. Attempting to bolt an immutable version of the GridKeys to the TreeData structure saw a possible perf regression with 8x larger memory volume. Additionally, attempting to implement immutable gridkeys exposed several type bugs within `bounding_volume_hierarchy!` in which variables have questionable type stability which was hidden in the mutable version. Simply trying to anneal these instabilities is probably my best hope to improve performance by presenting traversal, though my sampling efforts revealed no such issue.
+
+I implemented immutable methods of resetting the entire gridkey ith its original values, minus the new value or two, and retested. THe build process for the experiment is on par with the base, but now experiment ttraversal is on par or worse than the base. THe problem is that my highest resolution tool, @btime, gives me such limited infomration about what's going on under the hood. Another problem may be the tree's linkage to the rest of the tree data. Maybe if I copy the tree outside of the struct, then I can win back perf that I had earlier? I could have messed up somehwere, and that error is generating additioanl work for the system. But also, I have run traversal with the base method many many times, and I have seen the value from @btime swing from 232 ms to 350 ms. This is ridiculous!
+
+How Julia treats the tree and the data structure that encapsulates it during traversal depends on how my code treats the data structure over its entire lifetime. So whenever I have a section that treats the grid keys mutably, it will affect total treatment of the TreeData struct? Well Im not sure. After fixing this throughout, I got a run with expt traversal about 20% better, but on a second run the perf was the same.
+
+
+The performances are so variable because of code correctness, the expt and real neighbor traverse methods are not producing the same results, therefore their tests are not comparable.
 ### towards the best CPU multi-threaded method
 1. @btime of 100 leaves and 1000 runs, we get `211.220 ms (17356 allocations: 14.04 MiB)`, which is a better result at about half the allocations than using Threads.@threads. Gap widens even further when we reload Julia with 8 instead of 4 threads.
 2. Using Base.Threads.@spawn, what is the crossover point of multithreaded tree construction running faster than single threaded? Approximately 1000 leaves, but currently nothing is parallel about our Parallel Ready BVH method and naive pairlist doesnt have such parallel optimizations either.
@@ -1283,3 +1295,14 @@ function mortoncodes!(L, quantized, morton_length, morton_type)
 end
 ```
 ### new and improved, using magic values
+
+
+
+## 27 February, 2025 - BVH is actually still broken
+It turns out that while my 'test suite' affirms that the naive and bvh neighbor list methods can return the same neighbors for their particular search, in context search is absolutely broken. This was discovered when I was preparing performance testing between the mutable data structs bvh, the immutable, naive neighbor search, and CellListMap.jl neighbor search. Given the same data set of 1000 my position points, naive and CellistMap.jl's `neighborlist()` function return 54 pairs within a search distance of 0.03. While my bvh methods return a variable 4 or 7 neighbors with different identified pairs, and sometimes identified pairs that do not appear in the other neighbor search methods. Whoops!
+
+The use of ```Threads.atomic_fence()``` fails to rescue this problem. Perhaps deparallelizing traversal will reveal a memory safety issue? Nope! In the test suite, we test all to all neighbors. Does accuracy improve from scaling up the search or bounding volume distances? Yes! increasing the 'bounding_distance' parameter to some value less than `1.0` has a variable chance of rescuing full bvh functionality, while 1.0 appears to work regardless of the critical distance. However, such wide bounding volumes should kill performance, should it not? This is hard to test because less bounding_distance results in fewer neighbors, which reduces execution time without indicating much in tree construction or traversal.
+
+I am wondering if this issue arises from how bounding volumes are calculated with respect to the 'noisy' positions of our particles. The sum bounding volumes of all of a LBVH's leaf nodes should cover the entire scene; however, when the bounding volumes of the leaves are centered on noisy  atom positions and not centroids of axis aligned bounding boxes, we should end up with the exclusion of some volume of the scene. Perhaps this excluded space excludes neighbors when the bounding distance is too related to the the threshold distance. If this thought is correct, then generating AABBs that fairly bucket all of the particles without having (too many?) empty buckets should resolve this neighbor deficit issue.
+
+Well, we did correct one bug in the expansion of a given bounding volume, where we only expanded either the maximum or minimum of the bvh depending on whether the present tree child was a rightie or a leftie. This correction mildly improves the number of correctly identified neighbors when the bounding_distance is small. The effect diminishes as the area of the scene covered by the bounding_distance increases.

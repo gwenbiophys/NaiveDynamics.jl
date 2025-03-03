@@ -121,6 +121,21 @@ information based on other things the user input, like if single precision, then
 * [x] do mutation functions return a value? HOw does Base do it? --- in BVH
 
 
+### Version 0.00.4 - fixing broken bvh method
+* [] group atoms into leaves with user selectable count
+* [] Compression and binning optimizations from Howard et al. 2019?
+* [] test build_traverse_bvh() with multiple variations of all parameters
+* [] add control logic in BVH Spec construction when number of atoms per leaf does not cleanly divide with number of atoms
+* [] adjust tutorial and documentation for bvhspec changes
+* [] is it necessary to subtract the threshold distance from each posiont in modified strategy for leaf construction?
+
+
+* [] resolve mutable vs immutable tree data (and underlying data structures)
+
+#### bugfix
+* [x] build_traverse_bvh() may produce incorrect neighbor list when bounding_volume distance is less than entire scene area -- resolved by hacking an atom -> leaf clustering scheme
+
+
 
 
 ### Version 0.00.4 - feature extensions
