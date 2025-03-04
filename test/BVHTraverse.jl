@@ -167,31 +167,31 @@ position8 =[MVector{3, Float32}(0.1, 0.1, 0.1), MVector{3, Float32}(0.2, 0.2, 0.
             MVector{3, Float32}(0.1111, 0.4, 0.31), MVector{3, Float32}(0.234, 0.29, 0.2), 
             MVector{3, Float32}(0.11346, 0.918, 0.1276), MVector{3, Float32}(0.061, 0.76, 0.989)
 ]
-bvhspec8 = SpheresBVHSpecs(; bounding_distance=10.0,
-                            neighbor_distance=10.0, 
-                            leaves_count=length(position8),
-                            floattype=Float32 
+bvhspec8 = SpheresBVHSpecs(; neighbor_distance=10.0,
+                                atom_count=length(position8),
+                                floattype=Float32, 
+                                atomsperleaf = 1 
 )
 treeData = TreeData(position8, bvhspec8)
 keys = treeData.tree
-
+mposition8 = treeData.position
 
 ##### functionality tests
 @testset "traversability" begin
 
 
-    # "was every leaf (except the last) given a skip rope value?"
+    # was every leaf (except the last) given a skip rope value?
     @test keys[8].skip == 0
     for each in 1:7
         @test keys[each].skip != 0
     end
 
-    # "can we repeatedly build traversable trees?"
+    # can we repeatedly build traversable trees?
     goodRuns = batch_build_traverse(100, position8, bvhspec8, myCollector8)
     @test goodRuns[1] == 100 
 
-    # "does every atom have at least 1 pair in an all-to-all search?"
-    list = neighbor_traverse(keys, position8, bvhspec8)
+    # does every atom have at least 1 pair in AllToAll search?
+    list = neighbor_traverse(keys, mposition8, bvhspec8)
     is_paired = [false for each in 1:8]
     #println(list)
     for each in eachindex(list)
@@ -201,8 +201,9 @@ keys = treeData.tree
     @test sum(is_paired) == 8
 
 
-    # "can bvh neighbor search return the same result as the naive method?"
+    # can bvh neighbor search return the same result as the AllToAll method?
     naivelist = threshold_pairs(unique_pairs(position8), bvhspec8.neighbor_distance)
+    sort!(list, by=x->x[2])
     sort!(list, by=x->x[1]) #naive method produces a list from least to greatest in the first position, 
                             # while bvh  neighbor list's order is wonky 
     @test list == naivelist
@@ -217,6 +218,76 @@ end
         end
     end
 end
+
+@testset "correctness vs naive pairlist" begin
+
+    # Does BVH produce the same pair list as AllToAll across a variety of search distances?
+    for d in 1:1:5
+        neighbor_distance=0.1 + d/5
+        f = jldopen("data/positions.jld2", "r")
+        myposition = deepcopy(read(f, "pos5000"))
+        close(f)
+        MVecposition = [MVector{3, Float32}(myposition[i]) for i in eachindex(myposition)]
+        spec = SpheresBVHSpecs(;    neighbor_distance=neighbor_distance, 
+                                    atom_count=length(myposition),
+                                    floattype=Float32, 
+                                    atomsperleaf = 1 
+        )
+        a = threshold_pairs(unique_pairs(MVecposition), spec.neighbor_distance)
+        b = build_traverse_bvh(MVecposition, spec)
+
+        sort!(a, by = x -> x[1])
+        sort!(b, by = x -> x[2])
+        sort!(b, by = x -> x[1])
+        @test a == b
+    end
+
+    # Does BVH produce the same pair list as AllToAll across a variety of atoms per leaf?
+    atomsperleaf = [1, 2, 4, 5, 10, 20, 1000]
+    for each in eachindex(atomsperleaf)
+
+        f = jldopen("data/positions.jld2", "r")
+        myposition = deepcopy(read(f, "pos5000"))
+        close(f)
+        MVecposition = [MVector{3, Float32}(myposition[i]) for i in eachindex(myposition)]
+        spec = SpheresBVHSpecs(;  neighbor_distance=0.1, 
+                                    atom_count=length(myposition),
+                                    floattype=Float32, 
+                                    atomsperleaf = atomsperleaf[each] 
+        )
+        a = threshold_pairs(unique_pairs(MVecposition), spec.neighbor_distance)
+        b = build_traverse_bvh(MVecposition, spec)
+
+        sort!(a, by = x -> x[1])
+        sort!(b, by = x -> x[2])
+        sort!(b, by = x -> x[1])
+        @test a == b
+    end
+
+    # Does BVH produce the same pairlist as AllToAll across a variety of position sets?
+    mypositions = ["pos10", "pos100", "pos1000", "pos2000", "pos3000", "pos20000"]
+    for each in eachindex(mypositions)
+
+        f = jldopen("data/positions.jld2", "r")
+        myposition = deepcopy(read(f, mypositions[each]))
+        close(f)
+        MVecposition = [MVector{3, Float32}(myposition[i]) for i in eachindex(myposition)]
+        spec = SpheresBVHSpecs(;  neighbor_distance=0.1,
+                                    atom_count=length(myposition),
+                                    floattype=Float32, 
+                                    atomsperleaf = 5 
+        )
+        a = threshold_pairs(unique_pairs(MVecposition), spec.neighbor_distance)
+        b = build_traverse_bvh(MVecposition, spec)
+
+        sort!(a, by = x -> x[1])
+        sort!(b, by = x -> x[2])
+        sort!(b, by = x -> x[1])
+        @test a == b
+    end
+
+end
+
     #DEPRECATED due to removing serial method
 # @testset "parallelization" begin
 # #TODO this test set is incomplete

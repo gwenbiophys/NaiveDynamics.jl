@@ -30,9 +30,9 @@ function simulate_noforces(; position, duration, thresh, usebtime=true )
     #this was ridiculous to debug. Even though I was closing the jld2 file BEFORE
     #sending it to this funciton, that IO data was still being overwritten.
 
-    bvhspec = SpheresBVHSpecs(; bounding_distance=thresh,
+    bvhspec = SpheresBVHSpecs(;
                                 neighbor_distance=thresh, 
-                                leaves_count=length(position),
+                                atom_count=length(position),
                                 floattype=Float32
     )
     simspec = SimSpec(; inttype=Int64,
@@ -63,7 +63,7 @@ function simulate_noforces(; position, duration, thresh, usebtime=true )
 end
 
 f = jldopen("data/positions/positions.jld2", "r")
-myposition = deepcopy(read(f, "pos5000"))
+myposition = deepcopy(read(f, "pos100"))
 close(f)
 
 #simulate_noforces(position=myposition, duration=2, thresh=0.03, usebtime=false)
@@ -84,12 +84,11 @@ clxn = collect_objects(clct; position=myposition)
 
 #this was ridiculous to debug. Even though I was closing the jld2 file BEFORE
 #sending it to this funciton, that IO data was still being overwritten.
-
-bvhspec = SpheresBVHSpecs(; bounding_distance=0.10, 
-                            neighbor_distance=0.95, 
-                            leaves_count=length(myposition),
+#pos100 breaks at nD 0.15 and atoms perleaf 4
+bvhspec = SpheresBVHSpecs(; neighbor_distance=0.1,
+                            atom_count=length(myposition),
                             floattype=Float32, 
-                            atomsperleaf = 4 
+                            atomsperleaf = 5 
 )
 simspec = SimSpec(; inttype=Int64,
                         floattype=Float32,
@@ -156,9 +155,8 @@ function profile_simulate_noforces(; position, duration, thresh, allocs=false,  
     #this was ridiculous to debug. Even though I was closing the jld2 file BEFORE
     #sending it to this funciton, that IO data was still being overwritten. Oh my fault, I didnt copy over, I only read directly
 
-    bvhspec = SpheresBVHSpecs(; bounding_distance=thresh, 
-                                neighbor_distance=thresh, 
-                                leaves_count=length(position),
+    bvhspec = SpheresBVHSpecs(; neighbor_distance=thresh, 
+                                atom_count=length(position),
                                 floattype=Float32 
     )
     simspec = SimSpec(; inttype=Int64,
@@ -252,7 +250,10 @@ function bvh_naive(position, spec, clct; usebtime=true)
         sort!(d, by = x -> x[1])
         #println(length(a), " ", length(b), " ", length(c), " ", length(d), " ")
         println(length(a), " ", length(b), " ", " ", length(d), " ")
-        println("The ultimate sucess, did I win?: ", a == b)
+        if a != b
+            println("BVH and AllToAll are unaligned. Try Again.")
+        end
+        #println("The ultimate sucess, did I win?: ", a == b)
         if length(a) < 55
             println(a)
             println()

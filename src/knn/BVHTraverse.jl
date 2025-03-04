@@ -30,29 +30,34 @@ export
 
 """
 struct SpheresBVHSpecs{T, K} 
-    bounding_distance::T
     neighbor_distance::T
+    atom_count::Int64
     leaves_count::Int64
     branches_count::Int64
+    atomsperleaf::Int64
 
 
-Instantiate a specification towards a BVH of sphere primitives. The ```bounding_distance``` is the size of bounding volumes enclosing leaves. 
-The ```neighbor_distance``` is the distance at which two leaves will be evaluated as neighbors when generating a neighbor list, using the 
-```proximity_test!```` function. The ```bins_count``` is the number of chunks each axis will be divided byin order convert particles from 
-real space to grid space. By default, ```bins_count = atoms count```. Though Howard et al., 2019 chose 1023 bins to fit each 
-grid axis within a UInt8, instead of here where the integer that fits a grid space axis has the same number of bits as the ```floattype```. 
+Instantiate a specification towards a BVH of sphere primitives. 
+The ```neighbor_distance``` is the distance at which two point primitives will be evaluated as neighbors when generating a neighbor list, using the 
+```proximity_test!```` function. The ```leaves_count``` is the number of leaves, determined as the ratio of ```atom_count``` and ```atomsperleaf```.
 """
 struct SpheresBVHSpecs{T, K} 
-    bounding_distance::T
     neighbor_distance::T
+    atom_count::Int64
     leaves_count::Int64
     branches_count::Int64
     atomsperleaf::Int64
 end
 
-function SpheresBVHSpecs(; bounding_distance, neighbor_distance, leaves_count, floattype, atomsperleaf )
+function SpheresBVHSpecs(; neighbor_distance, atom_count, floattype, atomsperleaf )
+
+
+    if rem(atom_count, atomsperleaf) != 0
+        error("Please use an 'atomsperleaf' that evenly divides into 'atom_count' in BVH Specification")
+    end
+    leaves_count = atom_count / atomsperleaf
     if leaves_count < 2
-        error("Please use more than one leaf")
+        error("Please use more than one leaf in BVH Specification")
     end
     branches_count = leaves_count - 1
 
@@ -60,11 +65,11 @@ function SpheresBVHSpecs(; bounding_distance, neighbor_distance, leaves_count, f
     if floattype==Float32
         morton_type = Int32
 
-        return SpheresBVHSpecs{floattype, morton_type}(bounding_distance, neighbor_distance, leaves_count, branches_count, atomsperleaf)
+        return SpheresBVHSpecs{floattype, morton_type}(neighbor_distance, atom_count, leaves_count, branches_count, atomsperleaf)
     elseif floattype==Float64
         morton_type = Int64
 
-        return SpheresBVHSpecs{floattype, morton_type}(bounding_distance,  neighbor_distance, leaves_count, branches_count, atomsperleaf)
+        return SpheresBVHSpecs{floattype, morton_type}(neighbor_distance, atom_count, leaves_count, branches_count, atomsperleaf)
     end
     
 end
@@ -103,7 +108,7 @@ end
 
 # eachh point primitive has an 'index' to its original index place in the position (force and velocity) array(s)
 ##TODO expt if this can be immutable
-mutable struct MortonCodedPrimitive{T, K}
+mutable struct PointPrimitive{T, K}
     index::K
     morton_code::K #TODO update naming so this becomes one word, maybe even just morton?
     position::SVector{3, T}
@@ -120,7 +125,7 @@ Generate a stackless bounding volume hierarchy stored in the `tree` field, while
 struct TreeData{T, K}
     tree::Vector{MGridKey{T, K}}
     #position::Vector{IndexSafePosition{T, K}}
-    position::Vector{MortonCodedPrimitive{T, K}}
+    position::Vector{PointPrimitive{T, K}}
     quantizedposition::Vector{MVector{3, K}}
     store::Vector{Base.Threads.Atomic{K}}
 end
@@ -194,14 +199,51 @@ end
 
 
 #TODO how can this work with stativ vectors instead, not for speed, just for Static vector unity
-function quantized_positions!(quantized::Vector{MVector{3, K}}, pos::Vector{IndexSafePosition{T,K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
+function quantized_positions!(quantized::Vector{MVector{3, K}}, pos::Vector{PointPrimitive{T,K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
     for dim in eachindex(quantized[1])
-        sort!(pos, by=x->x.vec[dim])
+        sort!(pos, by=x->x.position[dim])
         for each in eachindex(pos)
             quantized[pos[each].index][dim] = K(each)
         end
     end
+end
+
+#TODO make MGridKey function?
+function cluster_primitives(L::Vector{PointPrimitive{T, K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
+    #leaves = Vector{MGridKey{T, K}}(undef, spec.leaves_count)
+    leaves = [MGridKey{T,K}(0, 0, SVector{3, T}(0.0, 0.0, 0.0), SVector{3, T}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.leaves_count]
+    for each in eachindex(leaves)#firstindex(L):spec.atomsperleaf:lastindex(L)
+        #firs
+        #println("each $each")
+        #TODO fix this stuff
+        #rabbit = MGridKey{T,K}(0, 0, SVector{3, T}(0.0, 0.0, 0.0), SVector{3, T}(0.0, 0.0, 0.0), 0, 0)
+        bird = (each-1) * spec.atomsperleaf + 1
+        println("spec leaves ", spec.leaves_count)
+        println("bird $bird")
+        println("length L ", length(L))
+        leaves[each].min = L[bird].position .- spec.neighbor_distance
+        leaves[each].max = L[bird].position .+ spec.neighbor_distance
+
+        for i in 1:1:spec.atomsperleaf#spec.atomsperleaf-1:-1:1#0:1:spec.atomsperleaf - 1#+1 #this addition increases passes by 1, but i have no idea why
+            #println("i $i ")
+            a = (each-1)*spec.atomsperleaf  + i 
+
+            #println("a ", a)
+            leaves[each] = MGridKey{T,K}(L[each].index, 
+                                    L[each].morton_code, 
+                                    # min.(L[each].min, L[a].min), 
+                                    # max.(L[each].max, L[a].max),
+                                    min.(leaves[each].min, L[a].position .- spec.neighbor_distance),  # necessary to add neighbor distance when 1 atom per leaf
+                                    max.(leaves[each].max, L[a].position .+ spec.neighbor_distance),
+                                    0,
+                                    0
+            )
+        end
+
+    end
+
+    return leaves
 end
 
 #TODO should this be capitalized??? im waffling
@@ -252,19 +294,20 @@ end
 function TreeData(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
 
-    hackspec = SpheresBVHSpecs(; bounding_distance=spec.bounding_distance, 
-                                    neighbor_distance=spec.neighbor_distance, 
-                                    leaves_count=length(position) / spec.atomsperleaf,
-                                    floattype=Float32,
-                                    atomsperleaf = spec.atomsperleaf 
-    )
+    # hackspec = SpheresBVHSpecs(; bounding_distance=spec.bounding_distance, 
+    #                                 neighbor_distance=spec.neighbor_distance, 
+    #                                 leaves_count=length(position) / spec.atomsperleaf,
+    #                                 floattype=Float32,
+    #                                 atomsperleaf = spec.atomsperleaf 
+    # )
 
-    pos = [IndexSafePosition{T, K}(i, SVector{3, T}(position[i])) for i in eachindex(position)]
+    #pos = [IndexSafePosition{T, K}(i, SVector{3, T}(position[i])) for i in eachindex(position)]
     #println(isbits(pos))
+    L = [PointPrimitive{T,K}(i, 0, position[i]) for i in 1:spec.atom_count]
 
     quantized_xyz = [MVector{3, K}(0, 0, 0) for i in eachindex(position)]
 
-    quantized_positions!(quantized_xyz, pos, spec)
+    quantized_positions!(quantized_xyz, L, spec)
 
     # newL = @time [GridKey{T, K}(i, 0, 
     #         SVector{3, T}(position[i] .- spec.bounding_distance), SVector{3, T}(position[i] .+ spec.bounding_distance),
@@ -284,7 +327,7 @@ function TreeData(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
     #         SVector{3, T}(position[i] .- spec.neighbor_distance), SVector{3, T}(position[i] .+ spec.neighbor_distance),
     #         0, 0) for i in 1:spec.leaves_count
     # ]
-    L = [MortonCodedPrimitive{T,K}(i, 0, position[i]) for i in 1:spec.leaves_count]
+    
 
 
 
@@ -298,33 +341,34 @@ function TreeData(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
     #@btime sort_mortoncodes!($newL, $spec)
 
     #store = [Base.Threads.Atomic{K}(0) for i in 1:spec.branches_count]
-    store = [Base.Threads.Atomic{K}(0) for i in 1:hackspec.branches_count]
+    store = [Base.Threads.Atomic{K}(0) for i in 1:spec.branches_count]
     #lenL = length(L)
-    hackL = Vector{MGridKey{T, K}}(undef, 0)
-    for each in firstindex(L):hackspec.atomsperleaf:lastindex(L)
-        #firs
-        #println("each $each")
-        #TODO fix this stuff
-        rabbit = MGridKey{T,K}(0, 0, SVector{3, T}(0.0, 0.0, 0.0), SVector{3, T}(0.0, 0.0, 0.0), 0, 0)
-        for i in 0:1:hackspec.atomsperleaf-1
-            #println("i $i ")
-            a = each+i
-            if a > length(L)
-                break
-            end
-            #println("a ", a)
-            rabbit = MGridKey{T,K}(L[each].index, 
-                                    L[each].morton_code, 
-                                    # min.(L[each].min, L[a].min), 
-                                    # max.(L[each].max, L[a].max),
-                                    min.(L[each].position .- spec.neighbor_distance, L[a].position .- spec.neighbor_distance),  # necessary to add neighbor distance when 1 atom per leaf
-                                    max.(L[each].position .+ spec.neighbor_distance, L[a].position .+ spec.neighbor_distance),
-                                    0,
-                                    0
-            )
-        end
-        push!(hackL, rabbit)
-    end
+    #hackL = Vector{MGridKey{T, K}}(undef, 0)
+    hackL = cluster_primitives(L, spec)
+    # for each in firstindex(L):spec.atomsperleaf:lastindex(L)
+    #     #firs
+    #     #println("each $each")
+    #     #TODO fix this stuff
+    #     rabbit = MGridKey{T,K}(0, 0, SVector{3, T}(0.0, 0.0, 0.0), SVector{3, T}(0.0, 0.0, 0.0), 0, 0)
+    #     for i in 0:1:spec.atomsperleaf-1
+    #         #println("i $i ")
+    #         a = each+i
+    #         if a > length(L)
+    #             break
+    #         end
+    #         #println("a ", a)
+    #         rabbit = MGridKey{T,K}(L[each].index, 
+    #                                 L[each].morton_code, 
+    #                                 # min.(L[each].min, L[a].min), 
+    #                                 # max.(L[each].max, L[a].max),
+    #                                 min.(L[each].position .- spec.neighbor_distance, L[a].position .- spec.neighbor_distance),  # necessary to add neighbor distance when 1 atom per leaf
+    #                                 max.(L[each].position .+ spec.neighbor_distance, L[a].position .+ spec.neighbor_distance),
+    #                                 0,
+    #                                 0
+    #         )
+    #     end
+    #     push!(hackL, rabbit)
+    # end
 
 
     # I = [MGridKey{T, K}(0, 0, SVector{3, T}(0.0, 0.0, 0.0), SVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
@@ -336,11 +380,11 @@ function TreeData(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
     # return TreeData{T, K}(L, pos, quantized_xyz, store)
 
 
-    hackI = [MGridKey{T, K}(0, 0, SVector{3, T}(0.0, 0.0, 0.0), SVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:hackspec.branches_count]
+    hackI = [MGridKey{T, K}(0, 0, SVector{3, T}(0.0, 0.0, 0.0), SVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
     
     append!(hackL, hackI)
 
-    bounding_volume_hierarchy!(hackL, store, hackspec)
+    bounding_volume_hierarchy!(hackL, store, spec)
 
     return TreeData{T, K}(hackL, L, quantized_xyz, store)
 end
@@ -350,7 +394,7 @@ end
 function TreeData!(treeData::TreeData{T, K}, position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
     for i in eachindex(position)
-        treeData.position[i] = IndexSafePosition{T,K}(i, SVector{3, T}(position[i]))
+        treeData.position[i] = PointPrimitive{T,K}(i, 0, SVector{3, T}(position[i]))
         #copyto!(treeData.position[i].vec, position[i])
     end
 
@@ -360,11 +404,11 @@ function TreeData!(treeData::TreeData{T, K}, position::Vec3D{T}, spec::SpheresBV
     #update leaf boundaries based on new positions
     #this has worse allocation performance than the expanded version without syntactic sugar???
     for each in 1:spec.leaves_count
-        treeData.tree[each].min = SVector{3, T}(position[each] .- spec.bounding_distance)
+        treeData.tree[each].min = SVector{3, T}(position[each] .- spec.neighbor_distance)
 
     end
     for each in 1:spec.leaves_count
-        treeData.tree[each].max = SVector{3, T}(position[each] .+ spec.bounding_distance) #.= or = ?
+        treeData.tree[each].max = SVector{3, T}(position[each] .+ spec.neighbor_distance) #.= or = ?
 
     end
     # realign leaf boundaries with indices to the atom positions that they represent
@@ -713,7 +757,7 @@ function exptbounding_volume_hierarchy!(keys::Vector{GridKey{T,K}}, store, spec:
 end
 
 ###### Phase 3: traversal
-function proximity_test!(neighbors::Vector{Tuple{K, K, T}},  query_index::K, currentKey::K, positions::Vector{MortonCodedPrimitive{T,K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
+function proximity_test!(neighbors::Vector{Tuple{K, K, T}},  query_index::K, currentKey::K, positions::Vector{PointPrimitive{T,K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
     
     # eliminate redundant pairings when qi == cK 
     #AND when [qi = a, cK = b] with [qi = b, cK = a] appear in the same pairs list array
@@ -735,11 +779,11 @@ function proximity_test!(neighbors::Vector{Tuple{K, K, T}},  query_index::K, cur
     #     println("Yees")
     #     println(currentKey)
     # end
-    for i in 1:1:spec.atomsperleaf
+    for i in 1:1:spec.atomsperleaf #- 1
         #localquery = query_index + i #-1 or smth. #TODO should be query index or current key? what part did i bung uyp here??
         #println(i)
         
-        leafsatoms = (currentKey-1) * spec.atomsperleaf + i
+        leafsatoms = (currentKey-1) * spec.atomsperleaf  + i 
         # if positions[query_index].index ==6 #&& positions[leafsatoms].index ==8
         #     println("query_index $query_index ")
         #     println("currentKey $currentKey ")
@@ -750,6 +794,13 @@ function proximity_test!(neighbors::Vector{Tuple{K, K, T}},  query_index::K, cur
         #     println("query_index $query_index ")
         #     println("currentKey $currentKey ")
         #     println("leafsatoms $leafsatoms ")
+        #     println()
+        # end
+        # if positions[query_index].index == 94  & positions[leafsatoms].index > 98
+        #     println("query_index $query_index ")
+        #     println("currentKey $currentKey ")
+        #     println("leafsatoms $leafsatoms ")
+        #     #println("leafatoms index ", positions[leafsatoms].index)
         #     println()
         # end
 
@@ -785,20 +836,19 @@ end
     return prod(keys[currentKey].min .< positions[query_index] .< keys[currentKey].max) 
 end
 
-function neighbor_traverse(keys::Vector{MGridKey{T,K}}, positions::Vector{MortonCodedPrimitive{T,K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
+function neighbor_traverse(keys::Vector{MGridKey{T,K}}, positions::Vector{PointPrimitive{T,K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
     # threads = K(Threads.nthreads())
 
     # #TODO isn't this structure extremely unfriendly to growing the individual elements at different times to different extents?
     # #and what prevents death by thread racing??? certainly, nothing that i have consciously wrote
     # # ----- not sure, having this as a vector of references seemed to diminish performance
-    # neighbor_vec = [Vector{Tuple{K, K, SVector{3, T}, T}}(undef, 0) for i in 1:threads]
+    # #neighbor_vec = [Vector{Tuple{K, K, SVector{3, T}, T}}(undef, 0) for i in 1:threads]
+    # neighbor_vec = [Vector{Tuple{K, K, T}}(undef, 0) for i in 1:threads]
 
 
-    # # clamp traversal to 1 index before the last leaf because if every other leaf has been considered, 
-    # # then the last leaf does not need to be reconsidered for a neighbor pair
     # Threads.@threads for chunk in 1:threads
-    #     for query_index in K(chunk):threads:K(length(positions)-1)#range(start=K(1), stop=K(spec.branches_count))
+    #     for query_index in K(chunk):threads:K(length(positions))#range(start=K(1), stop=K(spec.branches_count))
     #         currentKey = branch_index(1, spec)
 
     #         while currentKey != 0 # currentKey is the sentinel, end traversal of the given query
@@ -856,7 +906,7 @@ function neighbor_traverse(keys::Vector{MGridKey{T,K}}, positions::Vector{Morton
             #     println("Yees")
             #     println(currentKey)
             # end
-            # if positions[query_index].index ==3 #&& positions[leafsatoms].index ==8
+            # if positions[query_index].index ==4 #&& positions[leafsatoms].index ==8
             #     println("query_index $query_index ")
             #     println("currentKey $currentKey ")
             #     #println("leafsatoms $leafsatoms ")
@@ -956,14 +1006,14 @@ end
 Build and then traverse a BVH, returning only a neighbor list
 """
 function build_traverse_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
-        hackspec = SpheresBVHSpecs(; bounding_distance=spec.bounding_distance, 
-                                        neighbor_distance=spec.neighbor_distance, 
-                                        leaves_count=length(position) / spec.atomsperleaf,
-                                        floattype=Float32,
-                                        atomsperleaf = spec.atomsperleaf 
-    )
+    #     hackspec = SpheresBVHSpecs(;  
+    #                                     neighbor_distance=spec.neighbor_distance, 
+    #                                     atom_count=length(position),
+    #                                     floattype=Float32,
+    #                                     atomsperleaf = spec.atomsperleaf 
+    # )
     treeData = TreeData(position, spec)
-    neighbors = neighbor_traverse(treeData.tree, treeData.position, hackspec)
+    neighbors = neighbor_traverse(treeData.tree, treeData.position, spec)
     return neighbors
 end
 

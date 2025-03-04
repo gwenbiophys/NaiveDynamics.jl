@@ -122,12 +122,12 @@ information based on other things the user input, like if single precision, then
 
 
 ### Version 0.00.4 - fixing broken bvh method
-* [] group atoms into leaves with user selectable count
+* [x] group atoms into leaves with user selectable count
 * [] Compression and binning optimizations from Howard et al. 2019?
-* [] test build_traverse_bvh() with multiple variations of all parameters
-* [] add control logic in BVH Spec construction when number of atoms per leaf does not cleanly divide with number of atoms
-* [] adjust tutorial and documentation for bvhspec changes
-* [] is it necessary to subtract the threshold distance from each posiont in modified strategy for leaf construction?
+* [x] test build_traverse_bvh() with multiple variations of all parameters
+* [x] add control logic in BVH Spec construction when number of atoms per leaf does not cleanly divide with number of atoms
+* [x] adjust tutorial and documentation for bvhspec changes
+* [x] is it necessary to subtract the threshold distance from each posiont in modified strategy for leaf construction?
 
 
 * [] resolve mutable vs immutable tree data (and underlying data structures)
