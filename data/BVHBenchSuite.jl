@@ -63,7 +63,7 @@ function simulate_noforces(; position, duration, thresh, usebtime=true )
 end
 
 f = jldopen("data/positions/positions.jld2", "r")
-myposition = deepcopy(read(f, "pos100"))
+myposition = deepcopy(read(f, "pos5000"))
 close(f)
 
 #simulate_noforces(position=myposition, duration=2, thresh=0.03, usebtime=false)
@@ -211,18 +211,33 @@ function bvh_naive(position, spec, clct; usebtime=true)
         d = @btime neighborlist($position, $spec.neighbor_distance)
 
         sort!(a, by = x -> x[1])
+        sort!(b, by = x -> x[2])
         sort!(b, by = x -> x[1])
+        sort!(c, by = x -> x[2])
         sort!(c, by = x -> x[1])
         sort!(d, by = x -> x[1])
         println(length(a), " ", length(b), " ", length(c), " ", length(d), " ")
+        #println(length(a), " ", length(b), " ", " ", length(d), " ")
+        if a != b
+            println("BVH and AllToAll are unaligned. Try Again.")
+        end
+        if a != c
+            println("exptBVH and AllToAll are unaligned. Try Again.")
+        end
 
-        if length(a) < 55
+        if c != b
+            println("exptBVH and mutable BVH are unaligned. What's happening?")
+        end
+        #println("The ultimate sucess, did I win?: ", a == b)
+        if length(a) < 5
             println(a)
+            println()
             println(b)
+
+            println()
             println(c)
             println(d)
         end
-
     else
         # println("    naive:")
         # #a = @time threshold_pairs(unique_pairs(position), spec.neighbor_distance)
@@ -237,8 +252,8 @@ function bvh_naive(position, spec, clct; usebtime=true)
         println("    bvh:")
         b = @time build_traverse_bvh(position, spec)
         
-        #println("    expt_bvh:")
-        #c = @time exptbuild_traverse_bvh(position, spec)
+        println("    expt_bvh:")
+        c = @time exptbuild_traverse_bvh(position, spec)
 
         println(" CLM.jl:")
         d = @time neighborlist(position, spec.neighbor_distance)
@@ -246,26 +261,33 @@ function bvh_naive(position, spec, clct; usebtime=true)
         sort!(a, by = x -> x[1])
         sort!(b, by = x -> x[2])
         sort!(b, by = x -> x[1])
-        #sort!(c, by = x -> x[1])
+        sort!(c, by = x -> x[2])
+        sort!(c, by = x -> x[1])
         sort!(d, by = x -> x[1])
-        #println(length(a), " ", length(b), " ", length(c), " ", length(d), " ")
-        println(length(a), " ", length(b), " ", " ", length(d), " ")
+        println(length(a), " ", length(b), " ", length(c), " ", length(d), " ")
+        #println(length(a), " ", length(b), " ", " ", length(d), " ")
         if a != b
             println("BVH and AllToAll are unaligned. Try Again.")
         end
-        #println("The ultimate sucess, did I win?: ", a == b)
-        if length(a) < 55
+        if a != c
+            println("exptBVH and AllToAll are unaligned. Try Again.")
+        end
+
+        if c != b
+            println("exptBVH and mutable BVH are unaligned. What's happening?")
+        end
+        if length(a) < 5
             println(a)
             println()
             println(b)
 
             println()
-            #println(c)
+            println(c)
             println(d)
         end
     end
 end
-bvh_naive(myposition, bvhspec, clct; usebtime=false)
+bvh_naive(myposition, bvhspec, clct; usebtime=true)
 # naive:
 # 449.664 ms (100 allocations: 897.85 MiB)
 #   bvh:
@@ -367,6 +389,25 @@ function exptbuildtraverse(myposition, bvhspec)
 
     return nothing
 end
+
+
+function leafclustering(myposition)
+    clusters = [1, 2, 4, 5, 10]
+    for each in eachindex(clusters)
+        bvhspec = SpheresBVHSpecs(; neighbor_distance=0.01,
+                                    atom_count=length(myposition),
+                                    floattype=Float32, 
+                                    atomsperleaf = clusters[each] 
+        )
+        println("now with ", clusters[each])
+        @btime build_traverse_bvh(myposition, bvhspec)
+    end
+    return nothing
+
+end
+
+#leafclustering(myposition)
+
 #exptbuildtraverse(myposition, bvhspec)
 #expttree = @time exptTreeData(myposition, bvhspec)
 #b = @code_lowered expt_neighbor_traverse(expttree.tree, myposition, bvhspec)

@@ -123,14 +123,11 @@ information based on other things the user input, like if single precision, then
 
 ### Version 0.00.4 - fixing broken bvh method
 * [x] group atoms into leaves with user selectable count
-* [] Compression and binning optimizations from Howard et al. 2019?
 * [x] test build_traverse_bvh() with multiple variations of all parameters
 * [x] add control logic in BVH Spec construction when number of atoms per leaf does not cleanly divide with number of atoms
 * [x] adjust tutorial and documentation for bvhspec changes
-* [x] is it necessary to subtract the threshold distance from each posiont in modified strategy for leaf construction?
+* [x] is it necessary to subtract the threshold distance from each posiont in modified strategy for leaf construction? -- yes, and it may be necessary to re-add the bounding_volume parameter later on to better support multi step use of a tree struct
 
-
-* [] resolve mutable vs immutable tree data (and underlying data structures)
 
 #### bugfix
 * [x] build_traverse_bvh() may produce incorrect neighbor list when bounding_volume distance is less than entire scene area -- resolved by hacking an atom -> leaf clustering scheme

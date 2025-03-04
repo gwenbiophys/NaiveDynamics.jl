@@ -1,7 +1,7 @@
 name = "NaiveDynamics"
 uuid = "ef6c0610-87db-4406-b8dc-01afecc28d92"
 authors = ["Gwen "]
-version = "0.0.3"
+version = "0.0.4"
 
 [deps]
 Accessors = "7d9f7c33-5ae7-4f3b-8dc6-eff91059b697"

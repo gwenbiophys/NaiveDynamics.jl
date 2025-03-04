@@ -11,19 +11,23 @@ In order to generate a neighbor list using BVH traversal, we must
 Here in Julia the full process is as follows:
 
 ```julia
+using NaiveDynamics
+using JLD2
+
 f = jldopen("data/positions/positions.jld2", "r")
 myposition = deepcopy(read(f, "pos5000"))
 close(f)
 
-bvhspec = SpheresBVHSpecs(; neighbor_distance=0.2, 
+spec = SpheresBVHSpecs(; neighbor_distance=0.2, 
                             atom_count=length(myposition),
                             floattype=Float32,
                             atomsperleaf=4 
 )
 
+
 treeData = TreeData(myposition, spec)
 
-my_neighbor_list =  neighbor_traverse(treeData.tree, myposition, spec)
+my_neighbor_list =  neighbor_traverse(treeData.tree, treeData.position, spec)
 ```
 
 In the first three lines, we used JLD2.jl to open a file of pregenerated positions stored in the data folder of NaiveDynamics. We selected `pos5000` from the file, indicating a vector of 5000 mutable vectors, which are each 3 Float32's long. 
@@ -32,4 +36,4 @@ The `neighbor_distance` is the maximum distance at which two points are consider
 
 With a specification and an array of positions, we construct a bvh, along with related reusable data. 
 
-Finally, neighbor traverse will test the overlap of each element of the `myposition` vector in a time efficient way, using the BVH constructed before, and return a list of neighbors. This list is a tuple with 3 components: index to first element of `myposition`, index to second element, and the Euclidean distance between them.
+Finally, neighbor traverse will test the overlap of each element of the `myposition` vector --which has been transformed into the position field of the ```TreeData``` structure-- in a time efficient way, using the BVH constructed before, and return a list of neighbors. This list is a tuple with 3 components: index to first element of `myposition`, index to second element, and the Euclidean distance between them.

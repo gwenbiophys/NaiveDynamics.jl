@@ -7,10 +7,10 @@
 
 A very Naive Project to follow and study the design of molecular dynamics simulations and high octane algorithms.
 
-As of 9 January, 2025:
+As of 3 March, 2025:
 * unitless velocity verlet simulation 
 * no-identity point-particles
 * partially complete coulomb and Lennard-Jones force models
 * an eerily unhelpful velocity rescaler
 * ability to video record simulation
-* bvh traversal for neighbor search (CPU parallel)
+* bvh traversal for neighbor search (CPU parallel) -- it actually works now !
