@@ -219,9 +219,9 @@ function cluster_primitives(L::Vector{PointPrimitive{T, K}}, spec::SpheresBVHSpe
         #TODO fix this stuff
         #rabbit = MGridKey{T,K}(0, 0, SVector{3, T}(0.0, 0.0, 0.0), SVector{3, T}(0.0, 0.0, 0.0), 0, 0)
         bird = (each-1) * spec.atomsperleaf + 1
-        println("spec leaves ", spec.leaves_count)
-        println("bird $bird")
-        println("length L ", length(L))
+        # println("spec leaves ", spec.leaves_count)
+        # println("bird $bird")
+        # println("length L ", length(L))
         leaves[each].min = L[bird].position .- spec.neighbor_distance
         leaves[each].max = L[bird].position .+ spec.neighbor_distance
 
@@ -838,95 +838,95 @@ end
 
 function neighbor_traverse(keys::Vector{MGridKey{T,K}}, positions::Vector{PointPrimitive{T,K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
-    # threads = K(Threads.nthreads())
+    threads = K(Threads.nthreads())
 
-    # #TODO isn't this structure extremely unfriendly to growing the individual elements at different times to different extents?
-    # #and what prevents death by thread racing??? certainly, nothing that i have consciously wrote
-    # # ----- not sure, having this as a vector of references seemed to diminish performance
-    # #neighbor_vec = [Vector{Tuple{K, K, SVector{3, T}, T}}(undef, 0) for i in 1:threads]
-    # neighbor_vec = [Vector{Tuple{K, K, T}}(undef, 0) for i in 1:threads]
-
-
-    # Threads.@threads for chunk in 1:threads
-    #     for query_index in K(chunk):threads:K(length(positions))#range(start=K(1), stop=K(spec.branches_count))
-    #         currentKey = branch_index(1, spec)
-
-    #         while currentKey != 0 # currentKey is the sentinel, end traversal of the given query
-    #             # does query at all overlap with the volume of currentKey
-    #             overlap = overlap_test(keys, currentKey, query_index, positions, spec)
+    #TODO isn't this structure extremely unfriendly to growing the individual elements at different times to different extents?
+    #and what prevents death by thread racing??? certainly, nothing that i have consciously wrote
+    # ----- not sure, having this as a vector of references seemed to diminish performance
+    #neighbor_vec = [Vector{Tuple{K, K, SVector{3, T}, T}}(undef, 0) for i in 1:threads]
+    neighbor_vec = [Vector{Tuple{K, K, T}}(undef, 0) for i in 1:threads]
 
 
+    Threads.@threads for chunk in 1:threads
+        for query_index in K(chunk):threads:K(length(positions))#range(start=K(1), stop=K(spec.branches_count))
+            currentKey = branch_index(1, spec)
+
+            while currentKey != 0 # currentKey is the sentinel, end traversal of the given query
+                # does query at all overlap with the volume of currentKey
+                overlap = overlap_test(keys, currentKey, query_index, positions, spec)
 
 
 
-    #             if overlap > 0
-    #                 if keys[currentKey].left == 0 # currentKey is a leaf node
-    #                     proximity_test!(neighbor_vec[chunk], query_index, currentKey, positions, spec)
-    #                     currentKey = keys[currentKey].skip
-    #                 else #currentKey is a branch node, traverse to the left
-    #                     currentKey = keys[currentKey].left
-    #                 end
-    #             else #query is not contained, can cut off traversal on the 'lefts' sequencef
-    #                 currentKey = keys[currentKey].skip
-    #             end
 
-    #         end
-    #     end
-    # end
-    # neighbors = neighbor_vec[1]
-    # for each in 2:1:threads
-    #     append!(neighbors, neighbor_vec[each] )
-    # end
+
+                if overlap > 0
+                    if keys[currentKey].left == 0 # currentKey is a leaf node
+                        proximity_test!(neighbor_vec[chunk], query_index, currentKey, positions, spec)
+                        currentKey = keys[currentKey].skip
+                    else #currentKey is a branch node, traverse to the left
+                        currentKey = keys[currentKey].left
+                    end
+                else #query is not contained, can cut off traversal on the 'lefts' sequencef
+                    currentKey = keys[currentKey].skip
+                end
+
+            end
+        end
+    end
+    neighbors = neighbor_vec[1]
+    for each in 2:1:threads
+        append!(neighbors, neighbor_vec[each] )
+    end
 
     #neighbors = [Tuple{K, K, SVector{3, T}, T}(undef)]
 
 
     #neighbors = Vector{Tuple{K, K, SVector{3, T}, T}}(undef, 0)
-    neighbors = Vector{Tuple{K, K, T}}(undef, 0)
-    # for each in eachindex(keys)
-    #     println(keys[each])
+    # neighbors = Vector{Tuple{K, K, T}}(undef, 0)
+    # # for each in eachindex(keys)
+    # #     println(keys[each])
+    # # end
+
+    # #single thread
+    # # for each in eachindex(positions)
+    # #     println(positions[each])
+    # # end
+
+    # for query_index in K(1):K(length(positions))#range(start=K(1), stop=K(spec.branches_count))
+    #     currentKey = branch_index(1, spec)
+
+
+    #     while currentKey != 0 # currentKey is the sentinel, end traversal of the given query
+    #         # does query at all overlap with the volume of currentKey
+    #         overlap = overlap_test(keys, currentKey, query_index, positions, spec)
+
+
+
+    #         # if query_index==3
+    #         #     println("Yees")
+    #         #     println(currentKey)
+    #         # end
+    #         # if positions[query_index].index ==4 #&& positions[leafsatoms].index ==8
+    #         #     println("query_index $query_index ")
+    #         #     println("currentKey $currentKey ")
+    #         #     #println("leafsatoms $leafsatoms ")
+    #         #     println()
+    #         # end
+
+    #         if overlap > 0
+    #             #println(keys[currentKey].left)
+    #             if keys[currentKey].left == K(0) # currentKey is a leaf node
+    #                 proximity_test!(neighbors, query_index, currentKey, positions, spec)
+    #                 #proximity_test!(neighbors, query_index, keys[currentKey].index, positions, spec)
+    #                 currentKey = keys[currentKey].skip
+    #             else #currentKey is a branch node, traverse to the left
+    #                 currentKey = keys[currentKey].left
+    #             end
+    #         else #query is not contained, can cut off traversal on the 'lefts' sequencef
+    #             currentKey = keys[currentKey].skip
+    #         end
+    #     end
     # end
-
-    #single thread
-    # for each in eachindex(positions)
-    #     println(positions[each])
-    # end
-
-    for query_index in K(1):K(length(positions))#range(start=K(1), stop=K(spec.branches_count))
-        currentKey = branch_index(1, spec)
-
-
-        while currentKey != 0 # currentKey is the sentinel, end traversal of the given query
-            # does query at all overlap with the volume of currentKey
-            overlap = overlap_test(keys, currentKey, query_index, positions, spec)
-
-
-
-            # if query_index==3
-            #     println("Yees")
-            #     println(currentKey)
-            # end
-            # if positions[query_index].index ==4 #&& positions[leafsatoms].index ==8
-            #     println("query_index $query_index ")
-            #     println("currentKey $currentKey ")
-            #     #println("leafsatoms $leafsatoms ")
-            #     println()
-            # end
-
-            if overlap > 0
-                #println(keys[currentKey].left)
-                if keys[currentKey].left == K(0) # currentKey is a leaf node
-                    proximity_test!(neighbors, query_index, currentKey, positions, spec)
-                    #proximity_test!(neighbors, query_index, keys[currentKey].index, positions, spec)
-                    currentKey = keys[currentKey].skip
-                else #currentKey is a branch node, traverse to the left
-                    currentKey = keys[currentKey].left
-                end
-            else #query is not contained, can cut off traversal on the 'lefts' sequencef
-                currentKey = keys[currentKey].skip
-            end
-        end
-    end
 
     return neighbors
 end

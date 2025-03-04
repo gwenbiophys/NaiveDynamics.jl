@@ -223,7 +223,7 @@ end
 
     # Does BVH produce the same pair list as AllToAll across a variety of search distances?
     for d in 1:1:5
-        neighbor_distance=0.1 + d/5
+        neighbor_distance=0.00001 * (10^d)
         f = jldopen("data/positions.jld2", "r")
         myposition = deepcopy(read(f, "pos5000"))
         close(f)
