@@ -195,7 +195,7 @@ function bvh_naive(position, spec, clct; usebtime=true)
 
     MVecposition = [MVector{3, Float32}(position[i]) for i in eachindex(position)]
     if usebtime
-        if length(position) < 10001
+        if length(position) < 10#10001
             println("  naive:")
             @btime threshold_pairs(unique_pairs($MVecposition), $spec.neighbor_distance)
         end
@@ -319,17 +319,25 @@ end
 function profile_build_traverse( runs, position, bvhspec, clct; allocs=false, allocrate=0.0001)
 
     if allocs
+        # @profview_allocs for i in 1:runs
+        #     build_traverse_bvh(position, bvhspec)
+        # end
         @profview_allocs for i in 1:runs
-            build_traverse_bvh(position, bvhspec)
+            exptbuild_traverse_bvh(position, bvhspec)
         end
     else
         @profview for i in 1:runs
             build_traverse_bvh(position, bvhspec)
         end
+        @profview for i in 1:runs
+            exptbuild_traverse_bvh(position, bvhspec)
+        end
     end
 end
+#exptbuild_traverse_bvh(myposition, bvhspec)
+#build_traverse_bvh(myposition, bvhspec)
 
-#profile_build_traverse(20, myposition, bvhspec, clct)
+#profile_build_traverse(40, myposition, bvhspec, clct; allocs=true, allocrate = 1.0)
 #From the perspective of the prime thread/the thread which does all of the work
 # we spend about 67% performing parallel traversal, 
 #about 15% managing the multithreading (most of this time is spend waiting), 

@@ -140,6 +140,13 @@ struct exptTreeData{T, K}
     store::Vector{Base.Threads.Atomic{K}}
 
 end
+struct newexptTreeData{T, K}
+    tree::Ref{Vector{GridKey{T, K}}}
+    position::Ref{Vector{IPointPrimitive{T, K}}}
+    quantizedposition::Ref{Vector{MVector{3, K}}}
+    store::Ref{Vector{Base.Threads.Atomic{K}}}
+
+end
 
 """
     mortoncodes!(L, quantized_aabbs, spec::SpheresBVHSpecs{T, K}) where {T, K} )
@@ -317,7 +324,13 @@ function exptTreeData(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T,
 
     sort_mortoncodes!(pos, spec)
 
-    store = [Base.Threads.Atomic{K}(0) for i in 1:spec.branches_count]
+    #1 alloc per item in this generator expression
+    store = [Threads.Atomic{K}(0) for i in 1:spec.branches_count]
+    # @time store = [K(0) for i in 1:spec.branches_count]
+    # @time for each in eachindex(store)
+    #     store[each] = Threads.Atomic{K}(store[each])
+    # end
+
 
     L = exptcluster_primitives(pos, spec)
 
@@ -332,8 +345,7 @@ function exptTreeData(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T,
     exptbounding_volume_hierarchy!(L, store, spec)
 
 
-
-    return exptTreeData{T, K}(L, pos, quantized_xyz, store)
+    return tuple(L, pos, quantized_xyz, store)
 end
 function TreeData(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
@@ -358,7 +370,8 @@ function TreeData(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
     bounding_volume_hierarchy!(hackL, store, spec)
 
-    return TreeData{T, K}(hackL, L, quantized_xyz, store)
+    #return @time TreeData{T, K}(hackL, L, quantized_xyz, store)
+    return tuple(hackL, L, quantized_xyz, store)
 end
 
 
@@ -735,7 +748,7 @@ end
 ###### Phase 3: traversal
 function proximity_test!(neighbors::Vector{Tuple{K, K, T}},  query_index::K, currentKey::K, positions, spec::SpheresBVHSpecs{T, K}) where {T, K}
     
-    for i in 1:1:spec.atomsperleaf
+    @inbounds for i in 1:1:spec.atomsperleaf
 
         leafsatoms = (currentKey-1) * spec.atomsperleaf  + i 
 
@@ -756,13 +769,14 @@ function proximity_test!(neighbors::Vector{Tuple{K, K, T}},  query_index::K, cur
 
     return neighbors
 end
-@inline function overlap_test(keys, currentKey, query_index, positions, spec::SpheresBVHSpecs{T, K}) where {T, K}
+function overlap_test(keys, currentKey, query_index, positions, spec::SpheresBVHSpecs{T, K}) where {T, K}
     return sum(keys[currentKey].min .< positions[query_index].position .< keys[currentKey].max)
 end
 
-@inline function newoverlap_test(keys::Vector{GridKey{T,K}}, currentKey::K, query_index::K, positions, spec::SpheresBVHSpecs{T, K}) where {T, K}
+function newoverlap_test(keys::Vector{GridKey{T,K}}, currentKey::K, query_index::K, positions, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
-    return prod(keys[currentKey].min .< positions[query_index] .< keys[currentKey].max) 
+    #return prod(keys[currentKey].min .< positions[query_index] .< keys[currentKey].max) 
+    return keys[currentKey].min[1] < positions[query_index].position[1] < keys[currentKey].max[1] & keys[currentKey].min[2] < positions[query_index].position[2] < keys[currentKey].max[3] & keys[currentKey].min[3] < positions[query_index].position[3] < keys[currentKey].max[3]
 end
 
 function neighbor_traverse(keys::Vector{MGridKey{T,K}}, positions::Vector{PointPrimitive{T,K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
@@ -788,7 +802,7 @@ function neighbor_traverse(keys::Vector{MGridKey{T,K}}, positions::Vector{PointP
 
 
 
-                if overlap > 0
+                if overlap == 3
                     if keys[currentKey].left == 0 # currentKey is a leaf node
                         proximity_test!(neighbor_vec[chunk], query_index, currentKey, positions, spec)
                         currentKey = keys[currentKey].skip
@@ -842,7 +856,7 @@ function neighbor_traverse(keys::Vector{MGridKey{T,K}}, positions::Vector{PointP
     #         #     println()
     #         # end
 
-    #         if overlap > 0
+    #         if overlap == 3
     #             #println(keys[currentKey].left)
     #             if keys[currentKey].left == K(0) # currentKey is a leaf node
     #                 proximity_test!(neighbors, query_index, currentKey, positions, spec)
@@ -878,18 +892,19 @@ function expt_neighbor_traverse(keys::Vector{GridKey{T,K}}, positions::Vector{IP
 
 
     Threads.@threads for chunk in 1:threads
-        for query_index in K(chunk):threads:K(length(positions))
+        @inbounds for query_index in K(chunk):threads:K(length(positions))
             currentKey = branch_index(1, spec)
 
             while currentKey != 0 # currentKey is the sentinel, end traversal of the given query
                 # does query at all overlap with the volume of currentKey
+                #overlap = overlap_test(keys, currentKey, query_index, positions, spec)
+                #overlap = sum(keys[currentKey].min .< positions[query_index].position .< keys[currentKey].max)
                 overlap = overlap_test(keys, currentKey, query_index, positions, spec)
 
 
 
 
-
-                if overlap > 0
+                if overlap == 3
                     if keys[currentKey].left == 0 # currentKey is a leaf node
                         proximity_test!(neighbor_vec[chunk], query_index, currentKey, positions, spec)
                         currentKey = keys[currentKey].skip
@@ -918,11 +933,13 @@ Build and then traverse a BVH, returning only a neighbor list
 """
 function build_traverse_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
     treeData = TreeData(position, spec)
-    neighbors = neighbor_traverse(treeData.tree, treeData.position, spec)
-    return neighbors
+    #neighbors = neighbor_traverse(treeData.tree, treeData.position, spec)
+    #return neighbors
+    return neighbor_traverse(treeData[1], treeData[2], spec)
 end
 
 function exptbuild_traverse_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
     treeData = exptTreeData(position, spec)
-    return expt_neighbor_traverse(treeData.tree, treeData.position, spec)
+    #return expt_neighbor_traverse(treeData.tree, treeData.position, spec)
+    return expt_neighbor_traverse(treeData[1], treeData[2], spec)
 end
