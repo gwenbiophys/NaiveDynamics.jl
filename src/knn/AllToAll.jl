@@ -5,7 +5,10 @@ export
     new_threshold_pairs
 
 @inline function pairslist_interior(each, a::Vec3D{T}, list) where T
-
+    #TODO
+    # here we have a counting vector to analyze how many samples are within threshold.
+    # change API so threshold pairs is a single fxn that returns a tuple of the unique pairs, threshold pairs, and the threshold count
+    # or have group of arrays and make the threshold pairs array of arraays directly, like in bvh neighbor listing
     i = list[each][1]
     j = list[each][2]
     dxyz = SVector(a[i] .- a[j])

@@ -120,7 +120,7 @@ function batch_build_traverse(runs::Int, position::Vec3D{T}, spec::SpheresBVHSpe
     selfishTrees = 0
     badTrees = 0
     treeData = TreeData(position, spec)
-    result = is_traversable(treeData.tree, spec)
+    result = is_traversable(treeData[1], spec)
     if result[1]
         goodTrees += 1
     elseif result[2] == "Self-referential"
@@ -137,7 +137,7 @@ function batch_build_traverse(runs::Int, position::Vec3D{T}, spec::SpheresBVHSpe
         # append!(keys, I)
         # update_stackless_bvh!(keys, store, spec)
         TreeData!(treeData, position, spec)
-        result = is_traversable(treeData.tree, spec)
+        result = is_traversable(treeData[1], spec)
         if result[1]
             goodTrees += 1
         elseif result[2] == "Self-referential"
@@ -173,8 +173,8 @@ bvhspec8 = SpheresBVHSpecs(; neighbor_distance=10.0,
                                 atomsperleaf = 1 
 )
 treeData = TreeData(position8, bvhspec8)
-keys = treeData.tree
-mposition8 = treeData.position
+keys = treeData[1]
+mposition8 = treeData[2]
 
 ##### functionality tests
 @testset "traversability" begin

@@ -81,8 +81,8 @@ end
 #TODO does this need to be mutable? Can we improve perf by restructuring to be immutable
 # can index of the original atom be stored in a companion array? would this matter?
 struct GridKey{T, K}
-    index::K
-    morton_code::K
+    #index::K
+    #morton_code::K
     min::SVector{3, T}
     max::SVector{3, T}
     left::K
@@ -96,6 +96,8 @@ mutable struct MGridKey{T, K}
     left::K
     skip::K
 end
+
+#TODO deprecated in name of other methods
 struct XYZVectors{type}
     x::Vector{type}
     y::Vector{type}
@@ -118,6 +120,8 @@ struct IPointPrimitive{T, K}
     morton_code::K #TODO update naming so this becomes one word, maybe even just morton?
     position::SVector{3, T}
 end
+
+#TODO deprecated in the name of tuple
 """
     struct TreeData{T, K}
         tree::Vector{GridKey{T, K}}
@@ -156,6 +160,8 @@ to generate morton codes for each GridKey.
 
 For a discussion into how this function works, see 11 January, 2025 in devdiary, approx. L1245.
 """
+
+#TODO remove L notation, is confusing and incorrect
 function exptmortoncodes!(L, quantized, spec::SpheresBVHSpecs{T, K}) where {T, K} 
     #TODO implement for morton_type::Int32, and Int64 as the magic numbers change
     #TODO is it possible to avoid the magic not values? so that this runs on selective promotion of zero to 1
@@ -276,13 +282,13 @@ end
 
 function exptcluster_primitives(L::Vector{IPointPrimitive{T, K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
-    leaves = [GridKey{T,K}(0, 0, SVector{3, T}(0.0, 0.0, 0.0), SVector{3, T}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.leaves_count]
+    leaves = [GridKey{T,K}(SVector{3, T}(0.0, 0.0, 0.0), SVector{3, T}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.leaves_count]
     for each in eachindex(leaves)
 
         bird = (each-1) * spec.atomsperleaf + 1
 
-        leaves[each] = GridKey{T,K}(L[each].index, 
-                                    L[each].morton_code, 
+        leaves[each] = GridKey{T,K}(#L[each].index, 
+                                    #L[each].morton_code, 
 
                                     L[bird].position .- spec.neighbor_distance,
                                     L[bird].position .+ spec.neighbor_distance,
@@ -295,8 +301,8 @@ function exptcluster_primitives(L::Vector{IPointPrimitive{T, K}}, spec::SpheresB
             a = (each-1)*spec.atomsperleaf  + i 
 
 
-            leaves[each] = GridKey{T,K}(L[each].index, 
-                                    L[each].morton_code, 
+            leaves[each] = GridKey{T,K}(#L[each].index, 
+                                    #L[each].morton_code, 
 
                                     min.(leaves[each].min, L[a].position .- spec.neighbor_distance), 
                                     max.(leaves[each].max, L[a].position .+ spec.neighbor_distance),
@@ -325,8 +331,8 @@ function exptTreeData(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T,
     sort_mortoncodes!(pos, spec)
 
     #1 alloc per item in this generator expression
-    store = [Threads.Atomic{K}(0) for i in 1:spec.branches_count]
-    # @time store = [K(0) for i in 1:spec.branches_count]
+    #store = [Threads.Atomic{K}(0) for i in 1:spec.branches_count]
+    store = [K(0) for i in 1:spec.branches_count]
     # @time for each in eachindex(store)
     #     store[each] = Threads.Atomic{K}(store[each])
     # end
@@ -337,12 +343,12 @@ function exptTreeData(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T,
 
 
 
-    I = [GridKey{T, K}(0, 0, SVector{3, T}(0.0, 0.0, 0.0), SVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
+    I = [GridKey{T, K}(SVector{3, T}(0.0, 0.0, 0.0), SVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
     
     append!(L, I)
 
 
-    exptbounding_volume_hierarchy!(L, store, spec)
+    exptbounding_volume_hierarchy!(L, store, spec, pos)
 
 
     return tuple(L, pos, quantized_xyz, store)
@@ -434,7 +440,6 @@ end
 
 ###### Phase 2: tree construction
 
-
 function delta(i, L, spec::SpheresBVHSpecs{T,K}) where {T, K}
 
     # maintain numinternal nodes as length(L)-1 for now bc i dont think itll make a difference
@@ -448,6 +453,26 @@ function delta(i, L, spec::SpheresBVHSpecs{T,K}) where {T, K}
 
 
     
+    return x + (x == K(0)) * (typemin(K) + (K(i) ⊻ K(i+1))) - K(1)
+
+
+end
+function exptdelta(i, L, spec::SpheresBVHSpecs{T,K}, pos) where {T, K}
+
+    # maintain numinternal nodes as length(L)-1 for now bc i dont think itll make a difference
+    if  i >= spec.leaves_count || i < 1 #|| j > length(L) || j < 1 # i dont know if the same operation should be done to i, but idk how else to fix
+        return typemax(K)
+    end
+
+    # XOR the two numbers to get a number with bits set where a and b differ
+    # transcribed from ArborX directly, treeconstruction
+    #x = xor(L[i].morton_code, L[i+1].morton_code)
+    atom_i = 1 + (i-1)*spec.atomsperleaf
+    atom_i_and1 = 1 + (i)*spec.atomsperleaf
+    x = xor(pos[atom_i].morton_code, pos[atom_i_and1].morton_code)
+
+
+    #TODO is it supposed  to be i or ai here?    
     return x + (x == K(0)) * (typemin(K) + (K(i) ⊻ K(i+1))) - K(1)
 
 
@@ -596,11 +621,11 @@ function bounding_volume_hierarchy!(keys, store, spec::SpheresBVHSpecs{T, K}) wh
 
 end
 
-function exptbvh_interior!(keys, store::Vector{Base.Threads.Atomic{K}}, i, nL, nI, spec::SpheresBVHSpecs{T, K}) where {T, K}
+function exptbvh_interior!(keys, store, i, nL, nI, spec::SpheresBVHSpecs{T, K}, pos) where {T, K}
     rangel = i 
     ranger = i
-    dell = delta(rangel - 1, keys, spec)
-    delr = delta(ranger, keys, spec)
+    dell = exptdelta(rangel - 1, keys, spec, pos)
+    delr = exptdelta(ranger, keys, spec, pos)
     boundingmin = keys[i].min
     boundingmax = keys[i].max
 
@@ -612,22 +637,25 @@ function exptbvh_interior!(keys, store::Vector{Base.Threads.Atomic{K}}, i, nL, n
     if i == nL # 1-based indexing requires this to be nL, but 0-based would be number of internal nodes
         #keys[i].skip = K(0)
         zerskip = K(0)
-        keys[i] = GridKey{T,K}(keys[i].index, keys[i].morton_code, keys[i].min, keys[i].max, keys[i].left, zerskip)
+        #keys[i] = GridKey{T,K}(keys[i].index, keys[i].morton_code, keys[i].min, keys[i].max, keys[i].left, zerskip)
+        keys[i] = GridKey{T,K}(keys[i].min, keys[i].max, keys[i].left, zerskip)
     else
         # Does Leaf[i+1] have a more similar morton code to Leaf[i] or Leaf[i+2]?
         # If Leaf[i+1] and Leaf[i] are more similar,
         # Then Leaf[i+1] and Leaf[i] are the right and left children of the same internal node.
         ir = i + K(1)
 
-        if delr < delta(ir, keys, spec) # are i and i+1 siblings, or are i+1 and i+2 siblings?
+        if delr < exptdelta(ir, keys, spec, pos) # are i and i+1 siblings, or are i+1 and i+2 siblings?
             #keys[i].skip = ir
             zerskip = K(ir)
-            keys[i] = GridKey{T,K}(keys[i].index, keys[i].morton_code, keys[i].min, keys[i].max, keys[i].left, zerskip)
+            #keys[i] = GridKey{T,K}(keys[i].index, keys[i].morton_code, keys[i].min, keys[i].max, keys[i].left, zerskip)
+            keys[i] = GridKey{T,K}(keys[i].min, keys[i].max, keys[i].left, zerskip)
         else
             
             #keys[i].skip = branch_index(K(ir), spec)
             zerskip = branch_index(K(ir), spec)
-            keys[i] = GridKey{T,K}(keys[i].index, keys[i].morton_code, keys[i].min, keys[i].max, keys[i].left, zerskip)
+            #keys[i] = GridKey{T,K}(keys[i].index, keys[i].morton_code, keys[i].min, keys[i].max, keys[i].left, zerskip)
+            keys[i] = GridKey{T,K}(keys[i].min, keys[i].max, keys[i].left, zerskip)
             
         end
     end
@@ -638,15 +666,15 @@ function exptbvh_interior!(keys, store::Vector{Base.Threads.Atomic{K}}, i, nL, n
             leftChild = i
 
             split = ranger # split position between the range of keys covered by any given INode
-            ranger = Threads.atomic_cas!(store[split], K(0), rangel)
-
-
+            #ranger = Threads.atomic_cas!(store[split], K(0), rangel)
+            rangereval = Atomix.@atomicreplace store[split] K(0) => rangel
+            ranger = rangereval[1]
 
             if ranger == 0 
                 break # this is the first thread to have made it here, so it is culled
             end
 
-            delr = delta(ranger, keys, spec)
+            delr = exptdelta(ranger, keys, spec, pos)
 
 
             rightChild = split + 1
@@ -664,14 +692,17 @@ function exptbvh_interior!(keys, store::Vector{Base.Threads.Atomic{K}}, i, nL, n
         else
 
             split = rangel - 1
-            rangel = Threads.atomic_cas!(store[split], K(0), ranger) 
+            #rangel = Threads.atomic_cas!(store[split], K(0), ranger) 
+
+            rangeleval = Atomix.@atomicreplace store[split] K(0) => ranger
+            rangel = rangeleval[1]
 
 
             if rangel == 0 
                 break
             end
 
-            dell = delta(rangel-1, keys, spec)
+            dell = exptdelta(rangel-1, keys, spec, pos)
 
             leftChild = split
 
@@ -697,31 +728,34 @@ function exptbvh_interior!(keys, store::Vector{Base.Threads.Atomic{K}}, i, nL, n
         parentNode = branch_index(q, spec)
         #keys[parentNode].left = K(leftChild)
         pleftchild = leftChild
-        keys[parentNode] = GridKey{T,K}(keys[parentNode].index, keys[parentNode].morton_code, keys[parentNode].min, keys[parentNode].max, pleftchild, keys[parentNode].skip)
-
+        #keys[parentNode] = GridKey{T,K}(keys[parentNode].index, keys[parentNode].morton_code, keys[parentNode].min, keys[parentNode].max, pleftchild, keys[parentNode].skip)
+        keys[parentNode] = GridKey{T,K}(keys[parentNode].min, keys[parentNode].max, pleftchild, keys[parentNode].skip)
         
 
         if ranger == nL
             #keys[parentNode].skip = K(0)
             zerskip = K(0)
-            keys[parentNode] = GridKey{T,K}(keys[parentNode].index, keys[parentNode].morton_code, keys[parentNode].min, keys[parentNode].max, keys[parentNode].left, zerskip)
+            #keys[parentNode] = GridKey{T,K}(keys[parentNode].index, keys[parentNode].morton_code, keys[parentNode].min, keys[parentNode].max, keys[parentNode].left, zerskip)
+            keys[parentNode] = GridKey{T,K}(boundingmin, boundingmax, keys[parentNode].left, zerskip)
         else
             r = ranger + K(1)
-            if delr < delta(r, keys, spec)
+            if delr < exptdelta(r, keys, spec, pos)
                 #keys[parentNode].skip = r
-                keys[parentNode] = GridKey{T,K}(keys[parentNode].index, keys[parentNode].morton_code, keys[parentNode].min, keys[parentNode].max, keys[parentNode].left, r)
+                #keys[parentNode] = GridKey{T,K}(keys[parentNode].index, keys[parentNode].morton_code, keys[parentNode].min, keys[parentNode].max, keys[parentNode].left, r)
+                keys[parentNode] = GridKey{T,K}(boundingmin, boundingmax, keys[parentNode].left, r)
             else
                 #keys[parentNode].skip = branch_index(r, spec) 
                 r = branch_index(r, spec) 
-                keys[parentNode] = GridKey{T,K}(keys[parentNode].index, keys[parentNode].morton_code, keys[parentNode].min, keys[parentNode].max, keys[parentNode].left, r)
+                #keys[parentNode] = GridKey{T,K}(keys[parentNode].index, keys[parentNode].morton_code, keys[parentNode].min, keys[parentNode].max, keys[parentNode].left, r)
+                keys[parentNode] = GridKey{T,K}(boundingmin, boundingmax, keys[parentNode].left, r)
             end
         end
 
         # keys[parentNode].min = boundingmin
         # keys[parentNode].max = boundingmax
 
-        keys[parentNode] = GridKey{T,K}(keys[parentNode].index, keys[parentNode].morton_code, boundingmin, boundingmax, keys[parentNode].left, keys[parentNode].skip)
-        
+        #keys[parentNode] = GridKey{T,K}(keys[parentNode].index, keys[parentNode].morton_code, boundingmin, boundingmax, keys[parentNode].left, keys[parentNode].skip)
+        #keys[parentNode] = GridKey{T,K}(boundingmin, boundingmax, keys[parentNode].left, keys[parentNode].skip)
         i = branch_index(q, spec)
 
 
@@ -732,16 +766,16 @@ function exptbvh_interior!(keys, store::Vector{Base.Threads.Atomic{K}}, i, nL, n
 end
 
 
-function exptbounding_volume_hierarchy!(keys::Vector{GridKey{T,K}}, store, spec::SpheresBVHSpecs{T, K}) where {T, K}
+function exptbounding_volume_hierarchy!(keys::Vector{GridKey{T,K}}, store, spec::SpheresBVHSpecs{T, K}, pos) where {T, K}
 
     Threads.@threads for i in 1:spec.leaves_count #in perfect parallel
         i = K(i)
-        exptbvh_interior!(keys, store, i, spec.leaves_count, spec.branches_count, spec)
+        exptbvh_interior!(keys, store, i, spec.leaves_count, spec.branches_count, spec, pos)
     end
 
     min = SVector{3, T}(0.0, 0.0, 0.0)
     max = SVector{3, T}(1.0, 1.0, 1.0)
-    keys[branch_index(1, spec)] = GridKey{T,K}(keys[branch_index(1, spec)].index, keys[branch_index(1, spec)].morton_code, min, max, keys[branch_index(1, spec)].left, keys[branch_index(1, spec)].skip)
+    keys[branch_index(1, spec)] = GridKey{T,K}(min, max, keys[branch_index(1, spec)].left, keys[branch_index(1, spec)].skip)
 
 end
 
@@ -769,14 +803,45 @@ function proximity_test!(neighbors::Vector{Tuple{K, K, T}},  query_index::K, cur
 
     return neighbors
 end
-function overlap_test(keys, currentKey, query_index, positions, spec::SpheresBVHSpecs{T, K}) where {T, K}
-    return sum(keys[currentKey].min .< positions[query_index].position .< keys[currentKey].max)
+
+function newproximity_test!(neighbors::Vector{Tuple{K, K, T}},  query_index::K, currentKey::K, positions, spec::SpheresBVHSpecs{T, K}, squared_radius) where {T, K}
+    
+    @inbounds for i in 1:1:spec.atomsperleaf
+
+        leafsatoms = (currentKey-1) * spec.atomsperleaf  + i 
+
+        if positions[query_index].index < positions[leafsatoms].index 
+
+            dxyz2 = sum( (positions[query_index].position - positions[leafsatoms].position) .^ 2 )
+
+            # only push! new pairs that are close together 
+            if dxyz2 < squared_radius
+
+                
+                #d2 = sqrt( sum(dxyz .^ 2))
+                d2 = sqrt( dxyz2 )
+                #push!(neighbors, tuple(positions[query_index].index, positions[leafsatoms].index, dxyz, d2))
+                push!(neighbors, tuple(positions[query_index].index, positions[leafsatoms].index, d2))
+            end
+
+        end
+    end
+
+    return neighbors
+end
+@inline function overlap_test(keys, currentKey, query_index, positions, spec::SpheresBVHSpecs{T, K}) where {T, K}
+    return @inbounds sum(keys[currentKey].min .< positions[query_index].position .< keys[currentKey].max)
 end
 
 function newoverlap_test(keys::Vector{GridKey{T,K}}, currentKey::K, query_index::K, positions, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
     #return prod(keys[currentKey].min .< positions[query_index] .< keys[currentKey].max) 
-    return keys[currentKey].min[1] < positions[query_index].position[1] < keys[currentKey].max[1] & keys[currentKey].min[2] < positions[query_index].position[2] < keys[currentKey].max[3] & keys[currentKey].min[3] < positions[query_index].position[3] < keys[currentKey].max[3]
+    #return keys[currentKey].min[1] < positions[query_index].position[1] < keys[currentKey].max[1] && keys[currentKey].min[2] < positions[query_index].position[2] < keys[currentKey].max[2] && keys[currentKey].min[3] < positions[query_index].position[3] < keys[currentKey].max[3]
+    
+    #Howard et al 2019, but i fail to see how this could be more work efficient
+    # x = positions[query_index].position
+    # y = min.(max.(positions[query_index].position, keys[currentKey].min), keys[currentKey].max)
+    # return sum(y .^ 2 ) - sum(x .^ 2) < spec.neighbor_distance
 end
 
 function neighbor_traverse(keys::Vector{MGridKey{T,K}}, positions::Vector{PointPrimitive{T,K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
@@ -889,6 +954,7 @@ function expt_neighbor_traverse(keys::Vector{GridKey{T,K}}, positions::Vector{IP
     # ----- not sure, having this as a vector of references seemed to diminish performance
     #neighbor_vec = [Vector{Tuple{K, K, SVector{3, T}, T}}(undef, 0) for i in 1:threads]
     neighbor_vec = [Vector{Tuple{K, K, T}}(undef, 0) for i in 1:threads]
+    squared_radius = (spec.neighbor_distance) ^ 2
 
 
     Threads.@threads for chunk in 1:threads
@@ -897,16 +963,19 @@ function expt_neighbor_traverse(keys::Vector{GridKey{T,K}}, positions::Vector{IP
 
             while currentKey != 0 # currentKey is the sentinel, end traversal of the given query
                 # does query at all overlap with the volume of currentKey
-                #overlap = overlap_test(keys, currentKey, query_index, positions, spec)
-                #overlap = sum(keys[currentKey].min .< positions[query_index].position .< keys[currentKey].max)
                 overlap = overlap_test(keys, currentKey, query_index, positions, spec)
-
+                # overlap = overlap_test(keys, currentKey, query_index, positions, spec)
+                #overlap = sum(keys[currentKey].min .< positions[query_index].position .< keys[currentKey].max)
+                # overlap = @btime overlap_test($keys, $currentKey, $query_index, $positions, $spec)
+                # overlap = @btime newoverlap_test($keys, $currentKey, $query_index, $positions, $spec)
+                # return
 
 
 
                 if overlap == 3
                     if keys[currentKey].left == 0 # currentKey is a leaf node
-                        proximity_test!(neighbor_vec[chunk], query_index, currentKey, positions, spec)
+                        newproximity_test!(neighbor_vec[chunk], query_index, currentKey, positions, spec, squared_radius)
+                        #proximity_test!(neighbor_vec[chunk], query_index, currentKey, positions, spec)
                         currentKey = keys[currentKey].skip
                     else #currentKey is a branch node, traverse to the left
                         currentKey = keys[currentKey].left
@@ -918,12 +987,12 @@ function expt_neighbor_traverse(keys::Vector{GridKey{T,K}}, positions::Vector{IP
             end
         end
     end
-    neighbors = neighbor_vec[1]
+    #neighbors = neighbor_vec[1]
     for each in 2:1:threads
-        append!(neighbors, neighbor_vec[each] )
+        append!(neighbor_vec[1], neighbor_vec[each] )
     end
 
-    return neighbors
+    return neighbor_vec[1]
 end
 
 ###### Phase 4: put it all together

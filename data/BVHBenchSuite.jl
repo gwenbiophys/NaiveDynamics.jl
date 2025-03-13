@@ -287,16 +287,61 @@ function bvh_naive(position, spec, clct; usebtime=true)
         end
     end
 end
-bvh_naive(myposition, bvhspec, clct; usebtime=true)
-# naive:
-# 449.664 ms (100 allocations: 897.85 MiB)
-#   bvh:
-# 139.689 ms (15245 allocations: 10.50 MiB)
+#bvh_naive(myposition, bvhspec, clct; usebtime=true)
 
-# 67.926 μs (0 allocations: 0 bytes)
-# 67.436 μs (1 allocation: 16 bytes)
-# 29.407 μs (0 allocations: 0 bytes)
-# 29.448 μs (0 allocations: 0 bytes)
+
+function bvh_v_CLM(position)
+    println("NEIGHBOR DISTANCE SEARCH")
+    distvec = [0.01, 0.02, 0.03, 0.04, 0.05, 0.1, 0.3, 0.5, 0.7, 1.0]
+    for dist in eachindex(distvec)
+        println("the distance is: ", distvec[dist])
+        spec = SpheresBVHSpecs(; neighbor_distance=distvec[dist],
+                                atom_count=length(position),
+                                floattype=Float32, 
+                                atomsperleaf = 5 
+        )
+        MVecposition = [MVector{3, Float32}(position[i]) for i in eachindex(position)]
+
+        if length(position) < 1001#10001
+            println("  naive:")
+            @btime threshold_pairs(unique_pairs($MVecposition), $spec.neighbor_distance)
+        end
+        a = threshold_pairs(unique_pairs(MVecposition), spec.neighbor_distance)
+
+        
+        println("    expt_bvh:")
+        c = @btime exptbuild_traverse_bvh($position, $spec)
+
+        println(" CLM.jl:")
+        d = @btime neighborlist($position, $spec.neighbor_distance)
+
+        sort!(a, by = x -> x[1])
+        sort!(c, by = x -> x[2])
+        sort!(c, by = x -> x[1])
+        sort!(d, by = x -> x[1])
+        println(length(a), " ", length(c), " ", length(d), " ")
+        #println(length(a), " ", length(b), " ", " ", length(d), " ")
+
+        if a != c
+            println("exptBVH and AllToAll are unaligned. Try Again.")
+        end
+
+
+        #println("The ultimate sucess, did I win?: ", a == b)
+        if length(a) < 5
+            println(a)
+            println()
+
+
+            println()
+            println(c)
+            println(d)
+        end
+    end
+
+end
+bvh_v_CLM(myposition)
+
 
 
 function bbuild_traverse(position, spec, clct; usebtime=true)
@@ -322,13 +367,15 @@ function profile_build_traverse( runs, position, bvhspec, clct; allocs=false, al
         # @profview_allocs for i in 1:runs
         #     build_traverse_bvh(position, bvhspec)
         # end
-        @profview_allocs for i in 1:runs
-            exptbuild_traverse_bvh(position, bvhspec)
-        end
+        # @profview_allocs for i in 1:runs
+        #     exptbuild_traverse_bvh(position, bvhspec)
+        # end
+        @profview_allocs build_traverse_bvh(position, bvhspec) sample_rate = 1
+        @profview_allocs exptbuild_traverse_bvh(position, bvhspec) sample_rate = 1
     else
-        @profview for i in 1:runs
-            build_traverse_bvh(position, bvhspec)
-        end
+        # @profview for i in 1:runs
+        #     build_traverse_bvh(position, bvhspec)
+        # end
         @profview for i in 1:runs
             exptbuild_traverse_bvh(position, bvhspec)
         end
@@ -337,7 +384,7 @@ end
 #exptbuild_traverse_bvh(myposition, bvhspec)
 #build_traverse_bvh(myposition, bvhspec)
 
-#profile_build_traverse(40, myposition, bvhspec, clct; allocs=true, allocrate = 1.0)
+#profile_build_traverse(400, myposition, bvhspec, clct; allocs=true, allocrate = 1.0)
 #From the perspective of the prime thread/the thread which does all of the work
 # we spend about 67% performing parallel traversal, 
 #about 15% managing the multithreading (most of this time is spend waiting), 

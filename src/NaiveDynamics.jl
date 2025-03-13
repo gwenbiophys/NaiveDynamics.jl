@@ -13,6 +13,7 @@ using StructArrays
 #using NearestNeighbors
 using SortingAlgorithms
 using Accessors
+using Atomix
 #using Polyester
 #using KernelAbstractions
 #using AMDGPU

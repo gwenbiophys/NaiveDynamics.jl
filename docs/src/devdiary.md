@@ -1316,4 +1316,31 @@ Time perf wise, we don't hold a candle to CellListMap.jl unless the search area 
 
 I am sort of at a loss on how to improve performance. Potentially, our method will scale across many cores better than CLM.jl, as our '95%' of the work can be run in perfect parallel, but the memory accesses in this perfect parallelism are very very lumpy. I don't understand how SIMD could help overlap testing, as I generally see it as a second set of parallelism but with fixed, low level functions, rather than just adding @threads before a for loop. Perhaps there is a creative reimagining to the overlap test that requires some study. Oh wait, each thread has a work load, so why can't it just SIMD across multiple work groups, evaluating the same part of each, one step at a time?
 
-1. Trivial optimization: only proximity test when overlap test ==3 In this way overlap test could be rephrased and possibly made quicker? 
+1. Trivial optimization: only proximity test when overlap test ==3 In this way overlap test could be rephrased and possibly made quicker? More of a bugfix than anything!
+2. Trivial optimization: compare the squared distance against the squared threshold distance, instead of forcing a square root calculation everytime
+3. Trivial optimization: introduce Atomix.jl to allow for atomically guarded operations on elements of arrays. Reduces allocations by avoiding ```[Threads.Atomic{K}(0) for i in 1:spec.branches_count]```. Does not turn the needle on performance at all, but allows my method to identify 46 474 valid neighbors with only 223 allocations.
+4. Potentially more complicated optimization: compressing the BVH structure, array of GridKeys
+    - with a small change to bvh construction, we were able to remove the index to source atom and the morton code from the GridKey struct, and instead call upon the morton code from the vector of PointPrimitives
+    - Howard 2019 further compresses the bvh structure by converting the lower and upper boundaries of their aabbs to integers and decompress them, on demand, into a Vec3 of floats
+
+So far, my compression only reduces the gridkey size to 32 bytes, down from 40, and I am incapable of judging the effect with my benchmarking and profiling tools. If we implement the boundary compress and expand, then we will reduce gridkey size to 16 bytes, which may help somewhat with memory access. However, I do not know the factors limiting the perf of my implementation. So the memory performance 'improvement' of having tiny tree nodes may be overwhelmed by the additional workload, though I am somewhat confident magic numbers and about 6 operations could expand an integer into a `Vec3{float}`.
+
+## 13 March, 2025 - WOW CellListMap.jl has hands
+I ran a range of search tests over most of my position data, and BVH can only best CLM.jl in 3 places, about <= 100 atoms, extremely large, and extremely small search distances. BVH wins in allocations and memory volume almost everywhere (1 test instance had CLM slightly ahead), but the wall time performance is miles away. Additionally, my AllToAll method has a severe bug/inoptimization, as BVH usually wins, even with 1.0 search distances.
+
+
+What's more, in my testing, BVH is up to 42x slower than CLM (20 000 atoms, search distance 0.05, and 5 atomsperleaf) while being about 2x faster at best (100 atoms, search 0.1, 5 atomsperelaf). The perf characteristics of CLM are strange and very impressive! For my hobby use, BVH can be helpful as it remains stable at 'any' search distance, whereas CLM crashes Code at 0.001 or less. But we are at a crossroads where getindex appears to take more profiling time than the arithmetic operations themselves. Microoptimizations may improve performance some more, but I fail to see how I can improve average performance by 20x to catch up with CLM.
+
+Moving forward, we have a few angles to pursue:
+1. Clean up BVH API and docs to remove mutable methods and experimental labels. Repair TreeData! method.
+2. Add morton magic number methods for Int16 (suitable for up to 32 000 atoms) and Int64. Add in the method behind the silliness on the devdiary.
+3. Allow GridKey left and skip to compress down to Int16, with auto selection of the type depending on the sum of leaves and branches (if that works well, otherwise just Int16 mode when mortons could be a different int type)
+4. Research SIMD methods and report on how they work broadly, and how they could or could not apply to BVH overlap and proximity testing.
+5. Implement HOward et al. 2019's BVH compression and expansion methods. Test to see if we could push compression to the limit, an Int32 and 2 Int16s for an 8 byte GridKey struct and just reconstitute upper bound from the stored lower bound on demand. 
+6. KernelAbstractions implementation of BVH
+
+
+
+
+
+7. Something other than BVH neighbor search!
