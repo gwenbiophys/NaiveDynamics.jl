@@ -8,6 +8,10 @@ using JLD2
 using StaticArrays
 
 using CellListMap
+#using LinuxPerf
+#using IntelITT
+
+#using SIMD
 
 
 #### no forces simulation
@@ -62,7 +66,7 @@ function simulate_noforces(; position, duration, thresh, usebtime=true )
     return nothing
 end
 
-f = jldopen("data/positions/positions.jld2", "r")
+f = jldopen("assets/positions/positions.jld2", "r")
 myposition = deepcopy(read(f, "pos5000"))
 close(f)
 
@@ -186,10 +190,12 @@ function profile_simulate_noforces(; position, duration, thresh, allocs=false,  
 
     return nothing
 end
-
-#profile_simulate_noforces(position=myposition, duration=200, thresh=0.03, allocs=false, allocrate=0.001)
-
-
+# peakflops()
+# #profile_simulate_noforces(position=myposition, duration=200, thresh=0.03, allocs=false, allocrate=0.001)
+# IntelITT.@collect begin
+#     exptbuild_traverse_bvh(myposition, bvhspec)
+# end
+# d =  neighborlist(myposition, bvhspec.neighbor_distance)
 
 function bvh_naive(position, spec, clct; usebtime=true)
 
@@ -200,6 +206,13 @@ function bvh_naive(position, spec, clct; usebtime=true)
             @btime threshold_pairs(unique_pairs($MVecposition), $spec.neighbor_distance)
         end
         a = threshold_pairs(unique_pairs(MVecposition), spec.neighbor_distance)
+
+        # println(" simdbvh:")
+        # b = @btime simdbuild_traverse_bvh($position, $spec)
+        
+
+        # println(" testsimdbvh:")
+        # e = @btime testsimdbuild_traverse_bvh($position, $spec)
 
         println("    bvh:")
         b = @btime build_traverse_bvh($position, $spec)
@@ -213,10 +226,12 @@ function bvh_naive(position, spec, clct; usebtime=true)
         sort!(a, by = x -> x[1])
         sort!(b, by = x -> x[2])
         sort!(b, by = x -> x[1])
+        # sort!(e, by = x -> x[2])
+        # sort!(e, by = x -> x[1])
         sort!(c, by = x -> x[2])
         sort!(c, by = x -> x[1])
         sort!(d, by = x -> x[1])
-        println(length(a), " ", length(b), " ", length(c), " ", length(d), " ")
+        println(length(a), " ", length(b), " ", length(c), " ", length(d))#, " ", length(e))
         #println(length(a), " ", length(b), " ", " ", length(d), " ")
         if a != b
             println("BVH and AllToAll are unaligned. Try Again.")
@@ -255,16 +270,16 @@ function bvh_naive(position, spec, clct; usebtime=true)
         println("    expt_bvh:")
         c = @time exptbuild_traverse_bvh(position, spec)
 
-        println(" CLM.jl:")
-        d = @time neighborlist(position, spec.neighbor_distance)
+        # println(" CLM.jl:")
+        # d = @time neighborlist(position, spec.neighbor_distance)
 
         sort!(a, by = x -> x[1])
         sort!(b, by = x -> x[2])
         sort!(b, by = x -> x[1])
         sort!(c, by = x -> x[2])
         sort!(c, by = x -> x[1])
-        sort!(d, by = x -> x[1])
-        println(length(a), " ", length(b), " ", length(c), " ", length(d), " ")
+        #sort!(d, by = x -> x[1])
+        println(length(a), " ", length(b), " ", length(c), " ")#, length(d), " ")
         #println(length(a), " ", length(b), " ", " ", length(d), " ")
         if a != b
             println("BVH and AllToAll are unaligned. Try Again.")
@@ -287,7 +302,7 @@ function bvh_naive(position, spec, clct; usebtime=true)
         end
     end
 end
-#bvh_naive(myposition, bvhspec, clct; usebtime=true)
+bvh_naive(myposition, bvhspec, clct; usebtime=true)
 
 
 function bvh_v_CLM(position)
@@ -340,7 +355,7 @@ function bvh_v_CLM(position)
     end
 
 end
-bvh_v_CLM(myposition)
+#bvh_v_CLM(myposition)
 
 
 
@@ -372,18 +387,29 @@ function profile_build_traverse( runs, position, bvhspec, clct; allocs=false, al
         # end
         @profview_allocs build_traverse_bvh(position, bvhspec) sample_rate = 1
         @profview_allocs exptbuild_traverse_bvh(position, bvhspec) sample_rate = 1
+        #@profview_allocs simdbuild_traverse_bvh(position, bvhspec) sample_rate = 1
     else
-        # @profview for i in 1:runs
-        #     build_traverse_bvh(position, bvhspec)
-        # end
+        @profview for i in 1:runs
+            build_traverse_bvh(position, bvhspec)
+        end
         @profview for i in 1:runs
             exptbuild_traverse_bvh(position, bvhspec)
         end
+        # @profview for i in 1:runs
+        #     simdbuild_traverse_bvh(position, bvhspec)
+        # end
+        # @profview for i in 1:runs
+        #     testsimdbuild_traverse_bvh(position, bvhspec)
+        # end
+        # @profview for i in 1:runs
+        #     neighborlist(position, bvhspec.neighbor_distance)
+        # end
     end
 end
 #exptbuild_traverse_bvh(myposition, bvhspec)
 #build_traverse_bvh(myposition, bvhspec)
 
+#profile_build_traverse(600, myposition, bvhspec, clct; allocs=false, allocrate = 1.0)
 #profile_build_traverse(400, myposition, bvhspec, clct; allocs=true, allocrate = 1.0)
 #From the perspective of the prime thread/the thread which does all of the work
 # we spend about 67% performing parallel traversal, 

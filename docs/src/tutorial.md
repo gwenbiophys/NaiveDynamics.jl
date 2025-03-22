@@ -14,7 +14,7 @@ Here in Julia the full process is as follows:
 using NaiveDynamics
 using JLD2
 
-f = jldopen("data/positions/positions.jld2", "r")
+f = jldopen("assets/positions/positions.jld2", "r")
 myposition = deepcopy(read(f, "pos5000"))
 close(f)
 

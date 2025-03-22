@@ -1,9 +1,5 @@
 # Development Directions
    
-## Absurd and Obscene Feature Requests
-* [] BVH traversal animation as described in Dev Diary, '8 Dec'
-* [] Modified `simulate()` run that auto selects algorithms based on user-selectable performance or precision. Algorithms ideally fitting data, but not in a machine learning kind of way. Maybe only applicable to neighbor list algorithms. . .
-* [] Multithreading with distributed data that does not have to be reallocated except for chaning data circumstances. Heck, this bullet point should instead be "Determine how redundant allocations are made in opening threads for a single function call and then closing them only to reopen them 1 or 2 function calls later, or if the compiler optimizes this seemingly silly behavior away".
 
 ## Roadmap
 ### Version 0.00.1 - the very beginning
@@ -185,7 +181,7 @@ information based on other things the user input, like if single precision, then
       * [] new boundary function
       * [] update simulate! suite to use static array syntax (i.e. no for looping, just simple broadcast syntax from Julia)
       * [] update force / rescaling methods
-      * [] update methods under knn
+      * [] update methods under assets
       * [] EACH SECTION MODIFIED MUST RECEIVE TESTS TO AFFIRM ITS OVERALL FUNCTIONALITY  -- SVectors require a different syntax than MVectors and this can be easily screwed up to perf loss and incorrectness
 
 
@@ -235,3 +231,6 @@ Version
 * [] can we integrate ArborX to here, and thus test in a similar environment?
 * [] 2DPlot to copmare when naive is as good as better and worse than bvh, with axes of atoms count, threshold distance. Color from blue to read is a ratio of who won and by how much, with white being even ground, where each data point is a @benchmark median run? It would be pretty nice too if we had an entire function that could be rerun with one click. It would make for an awesome welcome sign on the REPO
 * [] particles naturally forming into fixed arrangements, like a salt crystal
+* [] BVH traversal animation as described in Dev Diary, '8 Dec'
+* [] Modified `simulate()` run that auto selects algorithms based on user-selectable performance or precision. Algorithms ideally fitting data, but not in a machine learning kind of way. Maybe only applicable to neighbor list algorithms. . .
+* [] Multithreading with distributed data that does not have to be reallocated except for chaning data circumstances. Heck, this bullet point should instead be "Determine how redundant allocations are made in opening threads for a single function call and then closing them only to reopen them 1 or 2 function calls later, or if the compiler optimizes this seemingly silly behavior away".

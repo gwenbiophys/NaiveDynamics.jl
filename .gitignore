@@ -28,3 +28,7 @@ Manifest.toml
 
 # why store mp4s on github that don't sit in the docs?
 data/newhope.mp4
+
+
+#jld2 files because only I 'know' what is in them
+*.jld2

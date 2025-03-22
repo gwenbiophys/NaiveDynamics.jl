@@ -7,14 +7,15 @@ using BenchmarkTools
 #using NamedArrays
 using StaticArrays
 using Distributions
+#using Distances
 #using Revise
-using StructArrays
+#using StructArrays
 #using CellListMap
 #using NearestNeighbors
-using SortingAlgorithms
-using Accessors
+#using SortingAlgorithms
+#using Accessors
 using Atomix
-#using Polyester
+using Polyester
 #using KernelAbstractions
 #using AMDGPU
 #using CUDA
@@ -23,12 +24,10 @@ using Atomix
 
 
 include("MDInput.jl")
-
-include("BaseExtensions.jl")
-#include("knn/NeighborSearch.jl")
-include("knn/BVHTraverse.jl")
+#include("Neighbors/NeighborSearch.jl")
+include("Neighbors/BVHTraverse.jl")
 include("PkgExtensions.jl")
-include("knn/AllToAll.jl")
+include("Neighbors/AllToAll.jl")
 include("Forces.jl")
 include("Simulator.jl")
 
