@@ -1,14 +1,12 @@
 ###### Bottom-up/parallel construction of linear bounding volume hierarchies with stackless traversal
-# as described by Andrey Prokopenko and Damien Lebrun-Gradie
-# https://arxiv.org/abs/2402.00665
-# and as implemented by them in ArborX
-# https://github.com/arborx/ArborX
+# as described in https://arxiv.org/abs/2402.00665
+# and implemented in https://github.com/arborx/ArborX
 
 
 # For tree generation, I tried to follow ArborX's implementation as closely as possible.
 # Beyond that, I've made it up as I went along.
 
-# GridKey compression into bin coordinates was implemented as described in Howard et al. 2019
+# GridKey compression into bin coordinates was implemented as described in:
 #https://doi.org/10.1016/j.commatsci.2019.04.004
 
 
@@ -37,8 +35,9 @@ export
     exptcluster_primitives,
     exptbounding_volume_hierarchy!,
     binwidth, 
-    positionToInt,
-    intToPosition
+    quantized_positions!,
+    cluster_primitives,
+    delta
 
 """
 struct SpheresBVHSpecs{T, K} 
@@ -55,10 +54,10 @@ The ```neighbor_distance``` is the distance at which two point primitives will b
 """
 struct SpheresBVHSpecs{T, K} 
     neighbor_distance::T
-    atom_count::Int64
-    leaves_count::Int64
-    branches_count::Int64
-    atomsperleaf::Int64
+    atom_count::K
+    leaves_count::K
+    branches_count::K
+    atomsperleaf::K
 end
 
 function SpheresBVHSpecs(; neighbor_distance, atom_count, floattype, atomsperleaf )
@@ -100,7 +99,7 @@ struct GridKey{T, K}
     left::K
     skip::K
 end
-struct exptGridKey{T, K}
+struct exptGridKey{K}
     min::Int32 #in a float64 scenario, Int64 would not capture anywhere near the ratio of significance that Int32 can capture from 3 float32s
     max::Int32
     left::K
@@ -391,7 +390,7 @@ function exptTreeData(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T,
 
 
     I = [GridKey{T, K}(SVector{3, T}(0.0, 0.0, 0.0), SVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
-    #I = [exptGridKey{T, K}(0, 0, 0, 0) for i in 1:spec.branches_count]
+    #I = [exptGridKey{K}(0, 0, 0, 0) for i in 1:spec.branches_count]
     
     append!(L, I)
 
@@ -399,7 +398,7 @@ function exptTreeData(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T,
     
     bounding_volume_hierarchy!(L, store, spec, pos)
     
-    compressedL = [exptGridKey{T, K}(compress_position(L[i].min, RoundDown), compress_position(L[i].max, RoundUp), L[i].left, L[i].skip) for i in eachindex(L)]
+    compressedL = [exptGridKey{K}(compress_position(L[i].min, RoundDown), compress_position(L[i].max, RoundUp), L[i].left, L[i].skip) for i in eachindex(L)]
 
     # for i in eachindex(L)
     #     println("min ", L[i].min)
@@ -509,7 +508,7 @@ end
 
 ###### Phase 2: tree construction
 
-function delta(i, L, spec::SpheresBVHSpecs{T,K}) where {T, K}
+function delta(i, pos, spec::SpheresBVHSpecs{T,K}) where {T, K}
 
     # maintain numinternal nodes as length(L)-1 for now bc i dont think itll make a difference
     if  i >= spec.leaves_count || i < 1 #|| j > length(L) || j < 1 # i dont know if the same operation should be done to i, but idk how else to fix
@@ -668,18 +667,18 @@ Base.@propagate_inbounds function bvh_interior!(keys, store, i, nL, nI, spec::Sp
         if ranger == nL
             #keys[parentNode].skip = K(0)
             zerskip = K(0)
-            #keys[parentNode] = GridKey{T,K}(keys[parentNode].index, keys[parentNode].morton_code, keys[parentNode].min, keys[parentNode].max, keys[parentNode].left, zerskip)
+            #keys[parentNode] = GridKey{T,K}(keys[parentNode].min, keys[parentNode].max, keys[parentNode].left, zerskip)
             keys[parentNode] = GridKey{T,K}(boundingmin, boundingmax, keys[parentNode].left, zerskip)
         else
             r = ranger + K(1)
             if delr < exptdelta(r, keys, spec, pos)
                 #keys[parentNode].skip = r
-                #keys[parentNode] = GridKey{T,K}(keys[parentNode].index, keys[parentNode].morton_code, keys[parentNode].min, keys[parentNode].max, keys[parentNode].left, r)
+                #keys[parentNode] = GridKey{T,K}(keys[parentNode].min, keys[parentNode].max, keys[parentNode].left, r)
                 keys[parentNode] = GridKey{T,K}(boundingmin, boundingmax, keys[parentNode].left, r)
             else
                 #keys[parentNode].skip = branch_index(r, spec) 
                 r = branch_index(r, spec) 
-                #keys[parentNode] = GridKey{T,K}(keys[parentNode].index, keys[parentNode].morton_code, keys[parentNode].min, keys[parentNode].max, keys[parentNode].left, r)
+                #keys[parentNode] = GridKey{T,K}(keys[parentNode].min, keys[parentNode].max, keys[parentNode].left, r)
                 keys[parentNode] = GridKey{T,K}(boundingmin, boundingmax, keys[parentNode].left, r)
             end
         end
@@ -900,22 +899,34 @@ Base.@propagate_inbounds function proximity_test!(neighbors::Vector{Tuple{K, K, 
 
     return neighbors
 end
-Base.@propagate_inbounds function overlap_test(keys, currentKey, query_index, positions, spec::SpheresBVHSpecs{T, K}) where {T, K}
-    return all(keys[currentKey].min .< positions[query_index].position .< keys[currentKey].max)
+Base.@propagate_inbounds function overlap_test(myKey, myPos, spec::SpheresBVHSpecs{T, K}) where {T, K}
+    return all(myKey.min .< myPos.position .< myKey.max)
 
 end
 
-Base.@propagate_inbounds function exptoverlap_test(keys, currentKey, query_index, positions, spec::SpheresBVHSpecs{T, K}) where {T, K}
+Base.@propagate_inbounds function exptoverlap_test(keys, currentKey, query_index, positions, spec::SpheresBVHSpecs{T, K}, squared_radius) where {T, K}
     #does this incure double getindex? could the cost be removed by tupling up the two friends?
     a = expand_integer(keys[currentKey].min)
     b = expand_integer(keys[currentKey].max)
 
     x = positions[query_index].position
-    y = min.(max.(positions[query_index].position, a), b)
-    return abs(sum(y .^ 2 ) - sum(x .^ 2)) < spec.neighbor_distance^2 #+ T(0.1)
-
+    # xmin = x .- spec.neighbor_distance
+    # xmax = x .+ spec.neighbor_distance
+    y = min.(max.(x, a), b)
+    #result =  sqrt(abs(sum(y .^ 2 ) - sum(x .^ 2))) < spec.neighbor_distance #+ T(0.1)
+    result =  abs(sum( (y-x) .^ 2 )) < squared_radius #+ T(0.1)
+    #return all(a .> xmin) | all(xmin .< b) | all(a .> xmax .+ spec.neighbor_distance .< b)
+    return result
+    #return trueresult
     #return all(a .< positions[query_index].position .< b)
 
+end
+
+Base.@propagate_inbounds function altoverlap_test(keys, currentKey, query_index, positions, spec::SpheresBVHSpecs{T, K}) where {T, K}
+
+    a = expand_integer(keys[currentKey].min)
+    b = expand_integer(keys[currentKey].max)
+    return all(a .< positions[query_index].position .< b)
 end
 
 Base.@propagate_inbounds function neighbor_traverse(keys::Vector{GridKey{T,K}}, positions::Vector{IPointPrimitive{T,K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
@@ -939,7 +950,9 @@ Base.@propagate_inbounds function neighbor_traverse(keys::Vector{GridKey{T,K}}, 
 
             while currentKey != 0 # currentKey is the sentinel, end traversal of the given query
                 # does query at all overlap with the volume of currentKey
-                overlap = @inbounds overlap_test(keys, currentKey, query_index, positions, spec)
+                myKey = keys[currentKey]
+                myPos = positions[query_index]
+                overlap = @inbounds overlap_test(myKey, myPos, spec)
                 # overlap = overlap_test(keys, currentKey, query_index, positions, spec)
                 #overlap = sum(keys[currentKey].min .< positions[query_index].position .< keys[currentKey].max)
                 # overlap = @btime overlap_test($keys, $currentKey, $query_index, $positions, $spec)
@@ -948,7 +961,7 @@ Base.@propagate_inbounds function neighbor_traverse(keys::Vector{GridKey{T,K}}, 
 
                 if overlap
 
-                    if keys[currentKey].left == 0 # currentKey is a leaf node
+                    if myKey.left == 0 # currentKey is a leaf node
 
                         # i like the new method better, but i cannot for the life of me tell if one is better than the other. 
                         #when i repeat the same eval on the same data a million times, i see about a 10% improvement, but the behavior is def broken
@@ -958,15 +971,15 @@ Base.@propagate_inbounds function neighbor_traverse(keys::Vector{GridKey{T,K}}, 
                         high = currentKey * spec.atomsperleaf
                         slice = @view positions[low:high]
                         
-                        @inbounds proximity_test!(neighbor_vec[chunk], positions[query_index], slice,  spec, squared_radius)
+                        @inbounds proximity_test!(neighbor_vec[chunk], myPos, slice,  spec, squared_radius)
 
                         #proximity_test!(neighbor_vec[chunk], query_index, currentKey, positions, spec)
-                        currentKey = keys[currentKey].skip
+                        currentKey = myKey.skip
                     else #currentKey is a branch node, traverse to the left
-                        currentKey = keys[currentKey].left
+                        currentKey = myKey.left
                     end
                 else #query is not contained, can cut off traversal on the 'lefts' sequencef
-                    currentKey = keys[currentKey].skip
+                    currentKey = myKey.skip
                 end
 
             end
@@ -1029,7 +1042,7 @@ function parallel_neighbor_buffer(spec::SpheresBVHSpecs{T, K}) where {T, K}
     return [Vector{Tuple{K, K, T}}(undef, 0) for i in 1:Threads.nthreads()]
 end
 
-Base.@propagate_inbounds function expt_neighbor_traverse(keys::Vector{exptGridKey{T,K}}, positions::Vector{IPointPrimitive{T,K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
+Base.@propagate_inbounds function expt_neighbor_traverse(keys::Vector{exptGridKey{K}}, positions::Vector{IPointPrimitive{T,K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
     #neighbor_vec = parallel_neighbor_buffer(spec)
     
@@ -1043,15 +1056,22 @@ Base.@propagate_inbounds function expt_neighbor_traverse(keys::Vector{exptGridKe
     #neighbor_vec = Vector{Vector{Tuple{K, K, T}}}(undef, Threads.nthreads())
     squared_radius = (spec.neighbor_distance) ^ 2
 
-
+    #nomen = [Int32(0) for i in 1:threads]
+    #yesmen = [Int32(0) for i in 1:threads]
     @batch for chunk in 1:threads
          for query_index in K(chunk):threads:K(length(positions))
             currentKey = branch_index(1, spec)
 
             while currentKey != 0 # currentKey is the sentinel, end traversal of the given query
                 # does query at all overlap with the volume of currentKey
-                overlap = @inbounds exptoverlap_test(keys, currentKey, query_index, positions, spec)
-                overlapb = @inbounds overlap_test(keys, currentKey, query_index, positions, spec)
+                overlap = @inbounds exptoverlap_test(keys, currentKey, query_index, positions, spec, squared_radius)
+
+                #trueresult = @inbounds altoverlap_test(keys, currentKey, query_index, positions, spec)
+                # if overlap != trueresult
+                #     nomen[chunk] += 1
+                # else
+                #     yesmen[chunk] += 1
+                # end
                 # overlap = overlap_test(keys, currentKey, query_index, positions, spec)
                 #overlap = sum(keys[currentKey].min .< positions[query_index].position .< keys[currentKey].max)
                 # overlap = @btime overlap_test($keys, $currentKey, $query_index, $positions, $spec)
@@ -1083,6 +1103,10 @@ Base.@propagate_inbounds function expt_neighbor_traverse(keys::Vector{exptGridKe
             end
         end
     end
+    # bad = sum(nomen)
+    # good = sum(yesmen)
+    # return println(bad, " ", good, " ", (bad-good) / good *100 )
+
     #return 
     #neighbors2 = neighbor_vec[1]
     for each in 2:1:threads

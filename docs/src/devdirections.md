@@ -132,6 +132,7 @@ information based on other things the user input, like if single precision, then
 
 
 ### Version 0.00.5 - feature extensions
+* [] add a force clamp that allows for 2 particles to become covalently bonded???? could be fun !
 * [] fix velocity verlet to prevent velocity from depreciating for no reason. most likely, the velocity values are being overwritten by intermediates, which are based on forces. as forces tend to zero, so shall intermediates and velocities. or the force is just whacked up. not sure!
 * [] Fix position recording so that the simulation can be logged for a user specified number of runs
 * [] add ```simulate!()``` resolution so that the system can log the last few steps, if the last step does not trigger a logging of the chunk

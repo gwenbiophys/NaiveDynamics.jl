@@ -13,6 +13,10 @@ using CellListMap
 
 #using SIMD
 
+using CUDA
+using KernelAbstractions
+using Adapt
+
 
 #### no forces simulation
 function simulate_noforces(; position, duration, thresh, usebtime=true )
@@ -67,7 +71,7 @@ function simulate_noforces(; position, duration, thresh, usebtime=true )
 end
 
 f = jldopen("assets/positions/positions.jld2", "r")
-myposition = deepcopy(read(f, "pos5000"))
+myposition = deepcopy(read(f, "pos1000"))
 close(f)
 
 #simulate_noforces(position=myposition, duration=2, thresh=0.03, usebtime=false)
@@ -92,7 +96,7 @@ clxn = collect_objects(clct; position=myposition)
 bvhspec = SpheresBVHSpecs(; neighbor_distance=0.1,
                             atom_count=length(myposition),
                             floattype=Float32, 
-                            atomsperleaf = 5 
+                            atomsperleaf = 2 
 )
 simspec = SimSpec(; inttype=Int64,
                         floattype=Float32,
@@ -104,7 +108,30 @@ simspec = SimSpec(; inttype=Int64,
                         threshold=0.03
 )
 
+#apple = @time unique_pairs(myposition)
+#println(length(apple), " ",  sizeof(apple))
+const backend = CUDABackend()
+#println(typeof(backend))
+# a = NaiveDynamics.gpubvh_neighborlist(backend, myposition, bvhspec)
+# #println(a[1])
+# # b = TreeData(myposition, bvhspec)
+# c = build_traverse_bvh(myposition, bvhspec)
+# println(length(a[1]), " ", length(c))
+# sort!(a[1], by = x -> x[2])
+# sort!(a[1], by = x -> x[1])
+# sort!(c, by = x -> x[2])
+# sort!(c, by = x -> x[1])
+# println(a[1])
+# println(c)
+# # a = @btime NaiveDynamics.gpubvh_neighborlist($backend, $myposition, $bvhspec)
+# # b = @btime TreeData($myposition, $bvhspec)
+# tree = b[1]
 
+# println()
+# for each in eachindex(tree)
+#     #println(each, " ", tree[each].left, " ", tree[each].skip )
+#     println(tree[each])
+# end
 
 
 #simulate_noforces(atoms=1024, duration=10, thresh=0.03, usebtime=true)
@@ -217,8 +244,10 @@ function bvh_naive(position, spec, clct; usebtime=true)
         println("    bvh:")
         b = @btime build_traverse_bvh($position, $spec)
         
-        println("    expt_bvh:")
-        c = @btime exptbuild_traverse_bvh($position, $spec)
+        println("    gpu_bvh:")
+        #c = @btime exptbuild_traverse_bvh($position, $spec)
+        whole = @btime NaiveDynamics.gpubvh_neighborlist($backend, $myposition, $bvhspec)
+        c=whole[1]
 
         println(" CLM.jl:")
         d = @btime neighborlist($position, $spec.neighbor_distance)
@@ -386,14 +415,18 @@ function profile_build_traverse( runs, position, bvhspec, clct; allocs=false, al
         #     exptbuild_traverse_bvh(position, bvhspec)
         # end
         @profview_allocs build_traverse_bvh(position, bvhspec) sample_rate = 1
-        @profview_allocs exptbuild_traverse_bvh(position, bvhspec) sample_rate = 1
+        #@profview_allocs exptbuild_traverse_bvh(position, bvhspec) sample_rate = 1
+        @profview_allocs NaiveDynamics.gpubvh_neighborlist(backend, myposition, bvhspec)
         #@profview_allocs simdbuild_traverse_bvh(position, bvhspec) sample_rate = 1
     else
         @profview for i in 1:runs
             build_traverse_bvh(position, bvhspec)
         end
+        # @profview for i in 1:runs
+        #     exptbuild_traverse_bvh(position, bvhspec)
+        # end
         @profview for i in 1:runs
-            exptbuild_traverse_bvh(position, bvhspec)
+            NaiveDynamics.gpubvh_neighborlist(backend, myposition, bvhspec)
         end
         # @profview for i in 1:runs
         #     simdbuild_traverse_bvh(position, bvhspec)
@@ -409,8 +442,8 @@ end
 #exptbuild_traverse_bvh(myposition, bvhspec)
 #build_traverse_bvh(myposition, bvhspec)
 
-#profile_build_traverse(600, myposition, bvhspec, clct; allocs=false, allocrate = 1.0)
-#profile_build_traverse(400, myposition, bvhspec, clct; allocs=true, allocrate = 1.0)
+profile_build_traverse(600, myposition, bvhspec, clct; allocs=false, allocrate = 1.0)
+profile_build_traverse(400, myposition, bvhspec, clct; allocs=true, allocrate = 1.0)
 #From the perspective of the prime thread/the thread which does all of the work
 # we spend about 67% performing parallel traversal, 
 #about 15% managing the multithreading (most of this time is spend waiting), 
