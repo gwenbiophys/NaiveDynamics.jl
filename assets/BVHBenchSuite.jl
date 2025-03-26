@@ -13,9 +13,10 @@ using CellListMap
 
 #using SIMD
 
-using CUDA
-using KernelAbstractions
-using Adapt
+#using CUDA
+#using KernelAbstractions
+#using Adapt
+#const backend = CUDABackend()
 
 
 #### no forces simulation
@@ -71,7 +72,7 @@ function simulate_noforces(; position, duration, thresh, usebtime=true )
 end
 
 f = jldopen("assets/positions/positions.jld2", "r")
-myposition = deepcopy(read(f, "pos1000"))
+myposition = deepcopy(read(f, "pos5000"))
 close(f)
 
 #simulate_noforces(position=myposition, duration=2, thresh=0.03, usebtime=false)
@@ -96,7 +97,7 @@ clxn = collect_objects(clct; position=myposition)
 bvhspec = SpheresBVHSpecs(; neighbor_distance=0.1,
                             atom_count=length(myposition),
                             floattype=Float32, 
-                            atomsperleaf = 2 
+                            atomsperleaf = 5 
 )
 simspec = SimSpec(; inttype=Int64,
                         floattype=Float32,
@@ -110,7 +111,7 @@ simspec = SimSpec(; inttype=Int64,
 
 #apple = @time unique_pairs(myposition)
 #println(length(apple), " ",  sizeof(apple))
-const backend = CUDABackend()
+
 #println(typeof(backend))
 # a = NaiveDynamics.gpubvh_neighborlist(backend, myposition, bvhspec)
 # #println(a[1])
@@ -243,11 +244,13 @@ function bvh_naive(position, spec, clct; usebtime=true)
 
         println("    bvh:")
         b = @btime build_traverse_bvh($position, $spec)
+        println("    short_bvh:")
+        c = @btime shortbuild_traverse_bvh($position, $spec)
         
-        println("    gpu_bvh:")
-        #c = @btime exptbuild_traverse_bvh($position, $spec)
-        whole = @btime NaiveDynamics.gpubvh_neighborlist($backend, $myposition, $bvhspec)
-        c=whole[1]
+        # println("    gpu_bvh:")
+        # #c = @btime exptbuild_traverse_bvh($position, $spec)
+        # whole = @btime NaiveDynamics.gpubvh_neighborlist($backend, $myposition, $bvhspec)
+        # c=whole[1]
 
         println(" CLM.jl:")
         d = @btime neighborlist($position, $spec.neighbor_distance)
@@ -280,6 +283,7 @@ function bvh_naive(position, spec, clct; usebtime=true)
 
             println()
             println(c)
+            println()
             println(d)
         end
     else
@@ -415,19 +419,23 @@ function profile_build_traverse( runs, position, bvhspec, clct; allocs=false, al
         #     exptbuild_traverse_bvh(position, bvhspec)
         # end
         @profview_allocs build_traverse_bvh(position, bvhspec) sample_rate = 1
+        @profview_allocs shortbuild_traverse_bvh(position, bvhspec) sample_rate = 1
         #@profview_allocs exptbuild_traverse_bvh(position, bvhspec) sample_rate = 1
-        @profview_allocs NaiveDynamics.gpubvh_neighborlist(backend, myposition, bvhspec)
+        #@profview_allocs NaiveDynamics.gpubvh_neighborlist(backend, myposition, bvhspec)
         #@profview_allocs simdbuild_traverse_bvh(position, bvhspec) sample_rate = 1
     else
         @profview for i in 1:runs
             build_traverse_bvh(position, bvhspec)
         end
+        @profview for i in 1:runs
+            shortbuild_traverse_bvh(position, bvhspec)
+        end
         # @profview for i in 1:runs
         #     exptbuild_traverse_bvh(position, bvhspec)
         # end
-        @profview for i in 1:runs
-            NaiveDynamics.gpubvh_neighborlist(backend, myposition, bvhspec)
-        end
+        # @profview for i in 1:runs
+        #     NaiveDynamics.gpubvh_neighborlist(backend, myposition, bvhspec)
+        # end
         # @profview for i in 1:runs
         #     simdbuild_traverse_bvh(position, bvhspec)
         # end

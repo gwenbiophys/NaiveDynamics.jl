@@ -1389,3 +1389,20 @@ I know future development will include analogous optimizations to those of RTNN,
 Propose that we could use reverse traversal to avoid as much traversal pointer chasing as possible, and pre-indicate which chunks of data we will *probably* need. This would mean parallel traversal at the leaf level, spawning new processes or threads or whatever to perform the relevant neighbor tests? In this way, a traversal thread will terminate by failing to pass an overlap test, and be committed to the sentinel node. This would work as an alternative to assigning 1 thread per atom that then spawns local work to address each leaf. I suppose it would be 2 parallel kernels, the first conditionally assigning more work to the second. 
 
 I worry about the utility of this idea.
+
+# 25 March, 2025 - developing our strategies
+
+## GPU side
+We have our construction and traversal algorithms for CPU, and pretty close for the GPU too. But now I think it is time to think about how we can advance them. The construction algorithm is proably just fine as is, but traversal treats our GPU as just a n-core CPU to process n point primitives. In 2010, Lauterbach et al. wrote
+        However, both of these characteristics imply that – un-
+        like CPUs – achieving high performance in a GPU-based
+        algorithms depends on two things: (1) Providing a sufficient
+        number of parallel tasks so that all the cores are utilized; (2)
+        Providing several times that number of tasks just so that eachc
+        core has enough work to perform while waiting for data from
+        relatively slow memory accesses.
+        
+## CPU side
+Another point is how wasteful our CPU work is. We must traverse from the root to loading in our comparison point primitives, to then reject more than half of the traversal paths because `i >= j`. We should be able to restructure the geometry of our traversal to account for `i < j` by construction, rather than by evaluation. Fortunately Prokopenko et al. 2024 (Advances in ArborX to support exascale applications) already have a solution here, in which traversal initiates at the leaf node containing the query particle, rather than at the root. Implementing this requires an expansion of evaluating `i < j` to `query_index < subject_index && query.index != subject.index`. In other words, we change our question from "is the index of atom i less than the index of atom j" to "is the query pointprimitive index less than the subject's AND is the index of atom i different than atom j's". We advance performance by a flat 2x while introducing a compilication, now atom index i is not fixed to spot `a` in the neighborlist tuple, `(a, b, distance)`. This mostly requires me to add an aditional scanning routine instead of asking Julia to solve it for me with `listA == listB`
+
+In line with my 'neat idea?', in 2012 Karras wrote a blog (Thinking Parallel, Part II: Tree Traversal on the GPU) describing simultaneous traversal, where the traversal path of a prior query processed by a thread may short circuit traversal for the next query.
