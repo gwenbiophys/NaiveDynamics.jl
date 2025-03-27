@@ -350,7 +350,7 @@ function simulate_bvh!(sys::GenericObjectCollection, spec::SimSpec, bvhspec::Sph
 
     for step_n in 1:spec.duration
 
-        pairslist = neighbor_traverse(treeData.tree, sys.position, bvhspec)
+        pairslist = shortneighbor_traverse(treeData[1], treeData[2], bvhspec)
 
         for i in eachindex(accels_t)
             accels_t[i] .= sys.force[i] ./ sys.mass[i]

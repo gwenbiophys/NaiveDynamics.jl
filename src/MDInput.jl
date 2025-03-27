@@ -102,29 +102,41 @@ function GenericRandomCollector(;
 end
 
 struct GenericStaticRandomCollector{T<:AbstractFloat} <: Collector
-    T
-    objectnumber::Integer
-    min_xDim::T
-    min_yDim::T
-    min_zDim::T
-    max_xDim::T
-    max_yDim::T
-    max_zDim::T
-    
-    
-    # i am uncertain if the 3D vector or the 1D vector will be easier. by i will go 1D
-    #minDimension::MVector{1, AbstractFloat}
-    #maxDimension::MVector{1, AbstractFloat}
-    #minDimension::MVector{3, AbstractFloat}
-    #maxDimension::MVector{3, AbstractFloat}
+    objectnumber::Int64
 
-    minspeed::T
-    maxspeed::T
+    
+
+    minDim::Tuple{T, T, T}
+    maxDim::Tuple{T, T, T}
+
+    temperature::T
+    randomvelocity::Bool
+
+    minmass::T
+    maxmass::T
     minimumdistance::T
+    mincharge::T
+    maxcharge::T
+    pregeneratedposition::Bool
 end
-#function generate_randomcollector(objectcount, min_xDim, min_yDim, min_zDim, max_xDim, max_yDim, max_zDim, minspeed, maxspeed)
-    #return GenericRandomCollector(objectcount, SA[min_xDim, min_yDim, min_zDim], SA[max_xDim, max_yDim, max_zDim,], minspeed, maxspeed)
-#end
+
+function GenericStaticRandomCollector(;
+                                floattype=float32,
+                                objectnumber,
+                                minDim,
+                                maxDim,
+                                temperature,
+                                randomvelocity,
+                                minmass,
+                                maxmass,
+                                minimumdistance,
+                                mincharge,
+                                maxcharge,
+                                pregeneratedposition=false
+                                    )
+    return GenericRandomCollector{floattype}(objectnumber, minDim, maxDim, 
+            temperature, randomvelocity, minmass, maxmass, minimumdistance, mincharge, maxcharge, pregeneratedposition)
+end
 
 struct GenericZeroCollector <: Collector
     objectnumber::Integer
@@ -179,17 +191,12 @@ end
 function generate_positions(Collector::GenericStaticRandomCollector)
     # TODO maybe jsut close these in. for development i built a function outside of this file and then
     # fitted the function here, calling on the stack of equal signs. but a quick copy paste could make it briefer
-    min_xDim = Collector.min_xDim
-    min_yDim = Collector.min_yDim
-    min_zDim = Collector.min_zDim
-    max_xDim = Collector.max_xDim
-    max_yDim = Collector.max_yDim
-    max_zDim = Collector.max_zDim
+
     objectcount = Collector.objectnumber
 
-    xDimRange = Uniform(min_xDim, max_xDim)
-    yDimRange = Uniform(min_yDim, max_yDim)
-    zDimRange = Uniform(min_zDim, max_zDim)
+    xDimRange = Uniform(Collector.minDim[1], Collector.maxDim[1])
+    yDimRange = Uniform(Collector.minDim[2], Collector.maxDim[2])
+    zDimRange = Uniform(Collector.minDim[3], Collector.maxDim[3])
 
     x = rand(xDimRange, objectcount)
     y = rand(yDimRange, objectcount)
@@ -329,6 +336,7 @@ function collect_objects(Collector::GenericRandomCollector{T}; position=nothing)
 
 
     # TODO update the Collector Series so that the user can input names and masses and radii.
+    #second TODO only eval this for if position is not noothing
     if Collector.pregeneratedposition
         simCollection = GenericObjectCollection{T}(
         fill(step_n, objectcount),

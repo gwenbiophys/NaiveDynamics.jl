@@ -20,9 +20,9 @@ using CellListMap
 
 
 #### no forces simulation
-function simulate_noforces(; position, duration, thresh, usebtime=true )
+function simulate_noforces(; atoms, duration, thresh, usebtime=true )
     clct = GenericRandomCollector(; floattype=Float32,
-                                        objectnumber=length(position),
+                                        objectnumber=atoms,
                                         minDim=tuple(0.0, 0.0, 0.0),
                                         maxDim=tuple(1.0, 1.0, 1.0),
                                         temperature=0.01,
@@ -32,17 +32,18 @@ function simulate_noforces(; position, duration, thresh, usebtime=true )
                                         minimumdistance=0.0001,
                                         mincharge=-1f-9,
                                         maxcharge=1f-9,
-                                        pregeneratedposition=true
+                                        pregeneratedposition=false
     )
-    clxn = collect_objects(clct, position=position)
+    clxn = collect_objects(clct)
 
     #this was ridiculous to debug. Even though I was closing the jld2 file BEFORE
     #sending it to this funciton, that IO data was still being overwritten.
 
     bvhspec = SpheresBVHSpecs(;
                                 neighbor_distance=thresh, 
-                                atom_count=length(position),
-                                floattype=Float32
+                                atom_count=atoms,
+                                floattype=Float32,
+                                atomsperleaf = 4
     )
     simspec = SimSpec(; inttype=Int64,
                         floattype=Float32,
@@ -76,20 +77,20 @@ myposition = deepcopy(read(f, "pos5000"))
 close(f)
 
 #simulate_noforces(position=myposition, duration=2, thresh=0.03, usebtime=false)
-clct = GenericRandomCollector(; floattype=Float32,
-                            objectnumber=length(myposition),
-                            minDim=tuple(0.0, 0.0, 0.0),
-                            maxDim=tuple(1.0, 1.0, 1.0),
-                            temperature=0.01,
-                            randomvelocity=false,
-                            minmass=1.0,
-                            maxmass=5.0,
-                            minimumdistance=0.0001,
-                            mincharge=-1f-9,
-                            maxcharge=1f-9,
-                            pregeneratedposition=true
-)
-clxn = collect_objects(clct; position=myposition)
+# clct = GenericRandomCollector(; floattype=Float32,
+#                             objectnumber=length(myposition),
+#                             minDim=tuple(0.0, 0.0, 0.0),
+#                             maxDim=tuple(1.0, 1.0, 1.0),
+#                             temperature=0.01,
+#                             randomvelocity=false,
+#                             minmass=1.0,
+#                             maxmass=5.0,
+#                             minimumdistance=0.0001,
+#                             mincharge=-1f-9,
+#                             maxcharge=1f-9,
+#                             pregeneratedposition=true
+# )
+#clxn = collect_objects(clct; position=myposition)
 
 #this was ridiculous to debug. Even though I was closing the jld2 file BEFORE
 #sending it to this funciton, that IO data was still being overwritten.
@@ -135,8 +136,8 @@ simspec = SimSpec(; inttype=Int64,
 # end
 
 
-#simulate_noforces(atoms=1024, duration=10, thresh=0.03, usebtime=true)
-#Note: These tests are not validated to be consistent, but will hopefulyl show a promising progression through the work
+#simulate_noforces( atoms=1024, duration=10, thresh=0.03, usebtime=true)
+#Note: These tests are not validated to be consistent or accurately performed, but will hopefulyl show a promising progression through the work
 #perm
 # 1024 atoms, 10 duration, 0.03 thresh
 # 108.138 ms (17683 allocations: 49.85 MiB)
@@ -165,6 +166,12 @@ simspec = SimSpec(; inttype=Int64,
 #   parallel bvh:
 # 20.867 ms (21761 allocations: 1.75 MiB)
 
+#     March25th
+#   1024 atoms, 10 duration, 0.03 thresh
+#     naive:
+#   51.594 ms (18025 allocations: 26.15 MiB)
+#     bvh:
+#   5.010 ms (17820 allocations: 1.73 MiB)
 
 
 
@@ -189,7 +196,8 @@ function profile_simulate_noforces(; position, duration, thresh, allocs=false,  
 
     bvhspec = SpheresBVHSpecs(; neighbor_distance=thresh, 
                                 atom_count=length(position),
-                                floattype=Float32 
+                                floattype=Float32,
+                                atomsperleaf=5 
     )
     simspec = SimSpec(; inttype=Int64,
                             floattype=Float32,
@@ -219,22 +227,27 @@ function profile_simulate_noforces(; position, duration, thresh, allocs=false,  
     return nothing
 end
 # peakflops()
-# #profile_simulate_noforces(position=myposition, duration=200, thresh=0.03, allocs=false, allocrate=0.001)
+#profile_simulate_noforces(position=myposition, duration=200, thresh=0.03, allocs=true, allocrate=1)
 # IntelITT.@collect begin
 #     exptbuild_traverse_bvh(myposition, bvhspec)
 # end
 # d =  neighborlist(myposition, bvhspec.neighbor_distance)
 
-function bvh_naive(position, spec, clct; usebtime=true)
-
+function bvh_naive(position, spec; usebtime=true)
+    # spec = SpheresBVHSpecs(; neighbor_distance=0.1,
+    # atom_count=length(myposition),
+    # floattype=Float32, 
+    # atomsperleaf = 500 
+    # )
     MVecposition = [MVector{3, Float32}(position[i]) for i in eachindex(position)]
     if usebtime
         if length(position) < 10#10001
             println("  naive:")
             @btime threshold_pairs(unique_pairs($MVecposition), $spec.neighbor_distance)
         end
-        a = threshold_pairs(unique_pairs(MVecposition), spec.neighbor_distance)
-
+        if length(position) < 50001
+            a = threshold_pairs(unique_pairs(MVecposition), spec.neighbor_distance)
+        end
         # println(" simdbvh:")
         # b = @btime simdbuild_traverse_bvh($position, $spec)
         
@@ -244,9 +257,12 @@ function bvh_naive(position, spec, clct; usebtime=true)
 
         println("    bvh:")
         b = @btime build_traverse_bvh($position, $spec)
-        println("    short_bvh:")
-        c = @btime shortbuild_traverse_bvh($position, $spec)
+        println("    leaf_bvh:")
+        c = @btime leafbuild_traverse_bvh($position, $spec)
         
+        #     println("    expt_bvh:")
+        # c = @btime exptbuild_traverse_bvh($position, $spec)
+
         # println("    gpu_bvh:")
         # #c = @btime exptbuild_traverse_bvh($position, $spec)
         # whole = @btime NaiveDynamics.gpubvh_neighborlist($backend, $myposition, $bvhspec)
@@ -255,26 +271,66 @@ function bvh_naive(position, spec, clct; usebtime=true)
         println(" CLM.jl:")
         d = @btime neighborlist($position, $spec.neighbor_distance)
 
-        sort!(a, by = x -> x[1])
-        sort!(b, by = x -> x[2])
-        sort!(b, by = x -> x[1])
-        # sort!(e, by = x -> x[2])
-        # sort!(e, by = x -> x[1])
-        sort!(c, by = x -> x[2])
-        sort!(c, by = x -> x[1])
-        sort!(d, by = x -> x[1])
-        println(length(a), " ", length(b), " ", length(c), " ", length(d))#, " ", length(e))
-        #println(length(a), " ", length(b), " ", " ", length(d), " ")
-        if a != b
-            println("BVH and AllToAll are unaligned. Try Again.")
-        end
-        if a != c
-            println("exptBVH and AllToAll are unaligned. Try Again.")
+        sort!(a, by = x -> x[3])
+        sort!(b, by = x -> x[3])
+        sort!(c, by = x -> x[3])
+        sort!(d, by = x -> x[3])
+
+        bvh_length = length(b)
+        counter=0
+        naivecounter=0
+        for i in eachindex(b)
+            if b[i][3] == c[i][3]
+                counter+=1
+            end
         end
 
-        if c != b
-            println("exptBVH and mutable BVH are unaligned. What's happening?")
+        for i in eachindex(b)
+            if a[i][3] == c[i][3]
+                naivecounter+=1
+            end
         end
+        # sort!(a, by = x -> x[1])
+        # sort!(b, by = x -> x[2])
+        # sort!(b, by = x -> x[1])
+        # # sort!(e, by = x -> x[2])
+        # # sort!(e, by = x -> x[1])
+        # sort!(c, by = x -> x[2])
+        # sort!(c, by = x -> x[1])
+        # sort!(d, by = x -> x[1])
+        println(length(a), " ", length(b), " ", length(c), " ", length(d))#, " ", length(e))
+        #println(length(a), " ", length(b), " ", " ", length(d), " ")
+
+        # #lol i mean ig
+        # for i in eachindex(b)
+        #     for a in eachindex(c)
+        #         if b[i][3] == c[a][3]
+        #             if b[i][1] == c[a][1] | b[i][1] == c[a][2]
+        #                 if b[i][2] == c[a][1] | b[i][2] == c[a][2]
+        #                     counter+=1
+        #                 end
+        #             end
+        #         end
+        #     end
+        # end
+        if counter != bvh_length
+            println("BVH and leafBVH are unaligned, got $counter, needed $bvh_length")
+        end
+        if naivecounter != bvh_length
+            println("Naive and leafBVH are unaligned, got $counter, needed $bvh_length")
+        end
+
+
+        # if a != b
+        #     println("BVH and AllToAll are unaligned. Try Again.")
+        # end
+        # if a != c
+        #     println("exptBVH and AllToAll are unaligned. Try Again.")
+        # end
+
+        # if c != b
+        #     println("exptBVH and mutable BVH are unaligned. What's happening?")
+        # end
         #println("The ultimate sucess, did I win?: ", a == b)
         if length(a) < 5
             println(a)
@@ -335,7 +391,8 @@ function bvh_naive(position, spec, clct; usebtime=true)
         end
     end
 end
-bvh_naive(myposition, bvhspec, clct; usebtime=true)
+bvh_naive(myposition, bvhspec; usebtime=true)
+
 
 
 function bvh_v_CLM(position)
@@ -409,7 +466,7 @@ function bbuild_traverse(position, spec, clct; usebtime=true)
     return nothing
 end
 
-function profile_build_traverse( runs, position, bvhspec, clct; allocs=false, allocrate=0.0001)
+function profile_build_traverse( runs, position, bvhspec; allocs=false, allocrate=0.0001)
 
     if allocs
         # @profview_allocs for i in 1:runs
@@ -419,7 +476,7 @@ function profile_build_traverse( runs, position, bvhspec, clct; allocs=false, al
         #     exptbuild_traverse_bvh(position, bvhspec)
         # end
         @profview_allocs build_traverse_bvh(position, bvhspec) sample_rate = 1
-        @profview_allocs shortbuild_traverse_bvh(position, bvhspec) sample_rate = 1
+        @profview_allocs leafbuild_traverse_bvh(position, bvhspec) sample_rate = 1
         #@profview_allocs exptbuild_traverse_bvh(position, bvhspec) sample_rate = 1
         #@profview_allocs NaiveDynamics.gpubvh_neighborlist(backend, myposition, bvhspec)
         #@profview_allocs simdbuild_traverse_bvh(position, bvhspec) sample_rate = 1
@@ -428,7 +485,7 @@ function profile_build_traverse( runs, position, bvhspec, clct; allocs=false, al
             build_traverse_bvh(position, bvhspec)
         end
         @profview for i in 1:runs
-            shortbuild_traverse_bvh(position, bvhspec)
+            leafbuild_traverse_bvh(position, bvhspec)
         end
         # @profview for i in 1:runs
         #     exptbuild_traverse_bvh(position, bvhspec)
@@ -450,8 +507,8 @@ end
 #exptbuild_traverse_bvh(myposition, bvhspec)
 #build_traverse_bvh(myposition, bvhspec)
 
-profile_build_traverse(600, myposition, bvhspec, clct; allocs=false, allocrate = 1.0)
-profile_build_traverse(400, myposition, bvhspec, clct; allocs=true, allocrate = 1.0)
+#profile_build_traverse(600, myposition, bvhspec; allocs=false, allocrate = 1.0)
+#profile_build_traverse(400, myposition, bvhspec; allocs=true, allocrate = 1.0)
 #From the perspective of the prime thread/the thread which does all of the work
 # we spend about 67% performing parallel traversal, 
 #about 15% managing the multithreading (most of this time is spend waiting), 
@@ -514,7 +571,7 @@ end
 
 
 function leafclustering(myposition)
-    clusters = [1, 2, 4, 5, 10]
+    clusters = [1, 4, 5, 10, 100, 500]
     for each in eachindex(clusters)
         bvhspec = SpheresBVHSpecs(; neighbor_distance=0.01,
                                     atom_count=length(myposition),
@@ -522,9 +579,18 @@ function leafclustering(myposition)
                                     atomsperleaf = clusters[each] 
         )
         println("now with ", clusters[each])
-        @btime build_traverse_bvh(myposition, bvhspec)
+        b = @btime leafbuild_traverse_bvh($myposition, $bvhspec)
+
+        # @profview for i in 1:1000
+        #     leafbuild_traverse_bvh(myposition, bvhspec)
+        # end
+       @profview_allocs leafbuild_traverse_bvh(myposition, bvhspec) sample_rate = 1.0
+       sort!(b, by = x -> x[3])
+       sort!(a, by = x -> x[3])
+       println(a==b)
+
     end
-    return nothing
+    return 
 
 end
 

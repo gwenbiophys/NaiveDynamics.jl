@@ -27,7 +27,7 @@ export
     neighbor_traverse,
     expt_neighbor_traverse,
     build_traverse_bvh,
-    shortbuild_traverse_bvh,
+    leafbuild_traverse_bvh,
     exptbuild_traverse_bvh,
     mortoncodes!,
     IPointPrimitive,
@@ -223,19 +223,39 @@ function mortoncodes!(L, quantized, spec::SpheresBVHSpecs{T, K}) where {T, K}
     magic_values = SVector{3, Int32}(153391689, 306783378, 613566756)
     magic_not_values = SVector{3, Int32}(-153391690, -306783379, -613566757 )
 
-    for each in eachindex(quantized)
-        # set morton code to zero allows for data reuse
-        input= K(0)
+    # for each in eachindex(quantized)
+    #     # set morton code to zero allows for data reuse
+    #     input= K(0)
 
-        for dim in eachindex(quantized[1])
-            yin = quantized[each][dim] & magic_values[dim]
-            yang = quantized[each][dim] | magic_not_values[dim]
-            yinyang = yin & yang
-            input |= yinyang
+    #     for dim in eachindex(quantized[1])
+    #         yin = quantized[each][dim] & magic_values[dim]
+    #         yang = quantized[each][dim] | magic_not_values[dim]
+    #         yinyang = yin & yang
+    #         input |= yinyang
 
+    #     end
+
+    #     L[each] = IPointPrimitive{T,K}(L[each].index, input, L[each].position)
+    # end
+
+    if K == Int32
+    
+        for each in eachindex(quantized)
+            # set morton code to zero allows for data reuse
+            input= K(0)
+    
+            for dim in eachindex(quantized[1])
+                yin = round(Int32, quantized[each][dim] / binwidth, RoundDown) & magic_values[dim]
+                yang = round(Int32, quantized[each][dim] / binwidth, RoundDown) | magic_not_values[dim]
+                yinyang = yin & yang
+                input |= yinyang
+    
+            end
+    
+            L[each] = IPointPrimitive{T,K}(L[each].index, input, L[each].position)
         end
-
-        L[each] = IPointPrimitive{T,K}(L[each].index, input, L[each].position)
+    else
+        error("K-type integer is not implemented")
     end
 end
 function sort_mortoncodes!(L, spec::SpheresBVHSpecs{T, K}) where {T, K}
@@ -316,6 +336,41 @@ function cluster_primitives(L::Vector{IPointPrimitive{T, K}}, spec::SpheresBVHSp
 
                                     min.(leaves[each].min, L[a].position .- spec.neighbor_distance), 
                                     max.(leaves[each].max, L[a].position .+ spec.neighbor_distance),
+                                    0,
+                                    0
+            )
+        end
+
+    end
+
+    return leaves
+end
+function leafcluster_primitives(L::Vector{IPointPrimitive{T, K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
+
+    leaves = [GridKey{T,K}(SVector{3, T}(0.0, 0.0, 0.0), SVector{3, T}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.leaves_count]
+    for each in eachindex(leaves)
+
+        bird = (each-1) * spec.atomsperleaf + 1
+
+        leaves[each] = GridKey{T,K}(#L[each].index, 
+                                    #L[each].morton_code, 
+
+                                    L[bird].position .- spec.neighbor_distance/2,
+                                    L[bird].position .+ spec.neighbor_distance/2,
+                                    0,
+                                    0
+        )
+
+        for i in 1:1:spec.atomsperleaf
+
+            a = (each-1)*spec.atomsperleaf  + i 
+
+
+            leaves[each] = GridKey{T,K}(#L[each].index, 
+                                    #L[each].morton_code, 
+
+                                    min.(leaves[each].min, L[a].position .- spec.neighbor_distance/2), 
+                                    max.(leaves[each].max, L[a].position .+ spec.neighbor_distance/2),
                                     0,
                                     0
             )
@@ -418,11 +473,11 @@ function TreeData(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
     pos = [IPointPrimitive{T,K}(i, 0, position[i]) for i in 1:spec.atom_count]
 
-    quantized_xyz = [SVector{3, K}(0, 0, 0) for i in eachindex(position)] 
+    #quantized_xyz = [SVector{3, K}(0, 0, 0) for i in eachindex(position)] 
 
-    quantized_positions!(quantized_xyz, pos, spec)
+    # quantized_positions!(quantized_xyz, pos, spec)
 
-    mortoncodes!(pos, quantized_xyz, spec)
+    mortoncodes!(pos, position, spec)
 
     sort_mortoncodes!(pos, spec)
 
@@ -447,64 +502,102 @@ function TreeData(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
     bounding_volume_hierarchy!(L, store, spec, pos)
 
 
-    return tuple(L, pos, quantized_xyz, store)
+    #return tuple(L, pos, quantized_xyz, store)
+    return tuple(L, pos, store)
+end
+function leafTreeData(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
+
+    pos = [IPointPrimitive{T,K}(i, 0, position[i]) for i in 1:spec.atom_count]
+
+    quantized_xyz = [SVector{3, K}(0, 0, 0) for i in eachindex(position)] 
+
+    # quantized_positions!(quantized_xyz, pos, spec)
+
+    # mortoncodes!(pos, quantized_xyz, spec)
+    mortoncodes!(pos, position, spec)
+
+    sort_mortoncodes!(pos, spec)
+
+    #1 alloc per item in this generator expression
+    #store = [Threads.Atomic{K}(0) for i in 1:spec.branches_count]
+    store = [K(0) for i in 1:spec.branches_count]
+    # @time for each in eachindex(store)
+    #     store[each] = Threads.Atomic{K}(store[each])
+    # end
+
+
+    L = leafcluster_primitives(pos, spec)
+
+
+
+
+    I = [GridKey{T, K}(SVector{3, T}(0.0, 0.0, 0.0), SVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
+    
+    append!(L, I)
+
+
+    bounding_volume_hierarchy!(L, store, spec, pos)
+
+
+    #return tuple(L, pos, quantized_xyz, store)
+    return tuple(L, pos, store)
 end
 
 
 
 function TreeData!(treeData, position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
-
+#TODO use local variables or Ntuples to make the names less annoying, please thank you
     for i in eachindex(position)
-        treeData.position[i] = PointPrimitive{T,K}(i, 0, SVector{3, T}(position[i]))
+        treeData[2][i] = IPointPrimitive{T,K}(i, 0, SVector{3, T}(position[i]))
         #copyto!(treeData.position[i].vec, position[i])
     end
 
-    quantized_positions!(treeData.quantizedposition, treeData.position, spec)
+    quantized_positions!(treeData[3], treeData[2], spec)
 
+    #TODO i forget if doing this in several small loops is better than the one big loop. probably better small
 
     #update leaf boundaries based on new positions
     #this has worse allocation performance than the expanded version without syntactic sugar???
     for each in 1:spec.leaves_count
-        treeData.tree[each].min = SVector{3, T}(position[each] .- spec.neighbor_distance)
-
+        #treeData.tree[each].min = SVector{3, T}(position[each] .- spec.neighbor_distance)
+        treeData[1][each] = GridKey{T, K}(SVector{3, T}(position[each] .- spec.neighbor_distance), SVector{3, T}(position[each] .- spec.neighbor_distance), treeData[1][each].left, treeData[1][each].skip )
     end
-    for each in 1:spec.leaves_count
-        treeData.tree[each].max = SVector{3, T}(position[each] .+ spec.neighbor_distance) #.= or = ?
+    # for each in 1:spec.leaves_count
+    #     treeData.tree[each].max = SVector{3, T}(position[each] .+ spec.neighbor_distance) #.= or = ?
 
-    end
+    # end
     # realign leaf boundaries with indices to the atom positions that they represent
-    for each in 1:spec.leaves_count
-        treeData.tree[each].index = each
-    end
     
     # have to reset to zero because ( I believe) zero values are not set
     # instead are unchanged from initialization
     # thus, we have to reset here
-    for each in eachindex(treeData.tree) 
-        treeData.tree[each].left = 0
-        treeData.tree[each].skip = 0
+    for each in eachindex(treeData[1]) 
+        treeData[1][each] = GridKey{T, K}(treeData[1][each].min, treeData[1][each].min, 0, 0 )
+        #treeData[1][each]
     end
 
-    mortoncodes!(treeData.tree, treeData.quantizedposition, spec)
+    #mortoncodes!(treeData.tree, treeData.quantizedposition, spec)
+    mortoncodes!(treeData[2], treeData[3], spec)
+    # leaves = treeData.tree[1:spec.leaves_count]
+    # sort!(leaves, by = x -> x.morton_code)
+    # treeData.tree[1:spec.leaves_count] = leaves #lmfao
 
-    leaves = treeData.tree[1:spec.leaves_count]
-    sort!(leaves, by = x -> x.morton_code)
-    treeData.tree[1:spec.leaves_count] = leaves #lmfao
-
-
+    sort_mortoncodes!(treeData[2], spec)
 
     #reset boundaries
     for each in spec.leaves_count+1:1:spec.leaves_count+spec.branches_count
-        treeData.tree[each].min = SVector{3, T}(0.0, 0.0, 0.0)
-        treeData.tree[each].max = SVector{3, T}(0.0, 0.0, 0.0)
+        treeData[1][each] = GridKey{T, K}(SVector{3, T}(0.0, 0.0, 0.0), SVector{3, T}(0.0, 0.0, 0.0), treeData[1][each].left, treeData[1][each].skip )
+        # treeData.tree[each].min = SVector{3, T}(0.0, 0.0, 0.0)
+        # treeData.tree[each].max = SVector{3, T}(0.0, 0.0, 0.0)
     end
 
     #reset store, have to dereference as they are atomic values
-    for each in eachindex(treeData.store)
-        treeData.store[each][] = K(0)
+    # but with atomix, hahah nah
+    for each in eachindex(treeData[4])
+        treeData[4][each] = K(0)
     end
 
-    #bounding_volume_hierarchy!(treeData.tree, treeData.store, spec)
+    bounding_volume_hierarchy!(treeData[1], treeData[4], spec, treeData[2])
     
 end
 
@@ -872,37 +965,41 @@ function exptbounding_volume_hierarchy!(keys::Vector{GridKey{T,K}}, store, spec:
 end
 
 ###### Phase 3: traversal
+Base.@propagate_inbounds function onecluster_proximitytest!(neighbors::Vector{Tuple{K, K, T}}, cluster,  spec::SpheresBVHSpecs{T, K}, squared_radius) where {T, K}
 
-
-Base.@propagate_inbounds function proximity_test!(neighbors::Vector{Tuple{K, K, T}},  query::IPointPrimitive{T,K}, subjects, spec::SpheresBVHSpecs{T, K}, squared_radius) where {T, K}
-    #a2 = query.position .^ 2
-    for each in eachindex(subjects)
-
-
-        if query.index < subjects[each].index
-            #dxyz2 = sum(a2 - 2 .* query.position .* subjects[each].position + (subjects[each].position .^ 2))
-            dxyz2 = sum( (query.position - subjects[each].position) .^ 2 )
-
-            #not demonstrably faster 3/15/2025
-            #dxyz2 = sqeuclidean(positions[query_index].position, positions[leafsatoms].position) 
-
-            # only push! new pairs that are close together 
+    # TODO what is the best shaping of this shifted matrix for Julia performance?
+    for i in 1:spec.atomsperleaf-1
+        for j in i+1:spec.atomsperleaf
+            dxyz2 = sum( (cluster[i].position - cluster[j].position) .^2 )
             if dxyz2 < squared_radius
+                d2 = sqrt(dxyz2)
 
-                
-
-                d2 = sqrt( dxyz2 )
-                #push!(neighbors, tuple(positions[query_index].index, positions[leafsatoms].index, dxyz, d2))
-                push!(neighbors, tuple(query.index, subjects[each].index, d2))
+                # maybe instead of push this makes a cluster of pairings or some comprehension, and then we make and append a vector below??
+                # intuition says compiler would give better performance IF push asnd maybe ifdxyz2 were not here
+                push!(neighbors, (cluster[i].index, cluster[j].index, d2))
             end
+        end
 
+    end
+    #append!(neighbors, [tuple(i,j,DistFxn(iterators)) for iter in iterator if dist < threshold])
+    return neighbors
+
+end
+
+Base.@propagate_inbounds function twocluster_proximitytest!(neighbors::Vector{Tuple{K, K, T}}, clusterA, clusterB, spec::SpheresBVHSpecs{T, K}, squared_radius) where {T, K}
+    for i in eachindex(clusterA)
+        for j in eachindex(clusterB)
+            dxyz2 = sum( (clusterA[i].position - clusterB[j].position) .^2 )
+            if dxyz2 < squared_radius
+                d2 = sqrt(dxyz2)
+                push!(neighbors, (clusterA[i].index, clusterB[j].index, d2))
+            end
         end
     end
-
     return neighbors
 end
 
-Base.@propagate_inbounds function shortproximity_test!(neighbors::Vector{Tuple{K, K, T}},  query::IPointPrimitive{T,K}, subjects, spec::SpheresBVHSpecs{T, K}, squared_radius, query_index, low) where {T, K}
+Base.@propagate_inbounds function proximity_test!(neighbors::Vector{Tuple{K, K, T}},  query::IPointPrimitive{T,K}, subjects, spec::SpheresBVHSpecs{T, K}, squared_radius, query_index, low) where {T, K}
     #a2 = query.position .^ 2
     for each in eachindex(subjects)
 
@@ -933,8 +1030,15 @@ Base.@propagate_inbounds function shortproximity_test!(neighbors::Vector{Tuple{K
     return neighbors
 end
 
+#TODO rename for reader comp.
 Base.@propagate_inbounds function overlap_test(myKey, myPos, spec::SpheresBVHSpecs{T, K}) where {T, K}
     return all(myKey.min .< myPos.position .< myKey.max)
+
+end
+
+Base.@propagate_inbounds function aabb_overlap_test(keyA, keyB, spec::SpheresBVHSpecs{T, K}) where {T, K}
+    
+    return all( (keyA.min .< keyB.max) .& (keyA.max .> keyB.min) )
 
 end
 
@@ -944,13 +1048,13 @@ Base.@propagate_inbounds function exptoverlap_test(keys, currentKey, query_index
     b = expand_integer(keys[currentKey].max)
 
     x = positions[query_index].position
-    # xmin = x .- spec.neighbor_distance
-    # xmax = x .+ spec.neighbor_distance
-    y = min.(max.(x, a), b)
+    xmin = x .- spec.neighbor_distance
+    xmax = x .+ spec.neighbor_distance
+    #y = min.(max.(x, a), b)
     #result =  sqrt(abs(sum(y .^ 2 ) - sum(x .^ 2))) < spec.neighbor_distance #+ T(0.1)
-    result =  abs(sum( (y-x) .^ 2 )) < squared_radius #+ T(0.1)
-    #return all(a .> xmin) | all(xmin .< b) | all(a .> xmax .+ spec.neighbor_distance .< b)
-    return result
+ #   result =  abs(sum( (y-x) .^ 2 )) < squared_radius #+ T(0.1)
+    return all(a .> xmin) | all(xmin .< b) | all(a .> xmax .+ spec.neighbor_distance .< b)
+    #return result
     #return trueresult
     #return all(a .< positions[query_index].position .< b)
 
@@ -964,67 +1068,68 @@ Base.@propagate_inbounds function altoverlap_test(keys, currentKey, query_index,
 end
 
 Base.@propagate_inbounds function neighbor_traverse(keys::Vector{GridKey{T,K}}, positions::Vector{IPointPrimitive{T,K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
-
-    #neighbor_vec = parallel_neighbor_buffer(spec)
+#neighbor_vec = parallel_neighbor_buffer(spec)
     
-    threads = K(Threads.nthreads())
+threads = K(Threads.nthreads())
 
-    #TODO isn't this structure extremely unfriendly to growing the individual elements at different times to different extents?
-    #and what prevents death by thread racing??? certainly, nothing that i have consciously wrote
-    # ----- not sure, having this as a vector of references seemed to diminish performance
-    #neighbor_vec = [Vector{Tuple{K, K, SVector{3, T}, T}}(undef, 0) for i in 1:threads]
-    neighbor_vec = parallel_neighbor_buffer(spec)
-    #neighbor_vec = Vector{Vector{Tuple{K, K, T}}}(undef, Threads.nthreads())
-    squared_radius = (spec.neighbor_distance) ^ 2
+#TODO isn't this structure extremely unfriendly to growing the individual elements at different times to different extents?
+#and what prevents death by thread racing??? certainly, nothing that i have consciously wrote
+# ----- not sure, having this as a vector of references seemed to diminish performance
+#neighbor_vec = [Vector{Tuple{K, K, SVector{3, T}, T}}(undef, 0) for i in 1:threads]
+neighbor_vec = parallel_neighbor_buffer(spec)
+#neighbor_vec = Vector{Vector{Tuple{K, K, T}}}(undef, Threads.nthreads())
+squared_radius = (spec.neighbor_distance) ^ 2
+prior_leaf_start = 0
 
+@batch for chunk in 1:threads
+                                                            #falsely efficient, 
+                                                            #and what if we want to query 
+                                                            #only sum points, not all of them???
+     for query_index in K(chunk):threads:K(length(positions)-1)
+        currentKey = round(K, query_index / spec.atomsperleaf, RoundUp)
 
-    @batch for chunk in 1:threads
-         for query_index in K(chunk):threads:K(length(positions))
-            currentKey = branch_index(1, spec)
+        while currentKey != 0 # currentKey is the sentinel, end traversal of the given query
+            # does query at all overlap with the volume of currentKey
+            myKey = keys[currentKey]
+            myPos = positions[query_index]
+            overlap = @inbounds overlap_test(myKey, myPos, spec)
+            # overlap = overlap_test(keys, currentKey, query_index, positions, spec)
+            #overlap = sum(keys[currentKey].min .< positions[query_index].position .< keys[currentKey].max)
+            # overlap = @btime overlap_test($keys, $currentKey, $query_index, $positions, $spec)
+            # overlap = @btime newoverlap_test($keys, $currentKey, $query_index, $positions, $spec)
+            # return
 
-            while currentKey != 0 # currentKey is the sentinel, end traversal of the given query
-                # does query at all overlap with the volume of currentKey
-                queryKey = keys[currentKey]
-                queryPosition = positions[query_index]
-                myKey = keys[currentKey]
-                myPos = positions[query_index]
-                overlap = @inbounds overlap_test(myKey, myPos, spec)
-                # overlap = overlap_test(keys, currentKey, query_index, positions, spec)
-                #overlap = sum(keys[currentKey].min .< positions[query_index].position .< keys[currentKey].max)
-                # overlap = @btime overlap_test($keys, $currentKey, $query_index, $positions, $spec)
-                # overlap = @btime newoverlap_test($keys, $currentKey, $query_index, $positions, $spec)
-                # return
+            if overlap
 
-                if overlap
+                if myKey.left == 0 # currentKey is a leaf node
 
-                    if myKey.left == 0 # currentKey is a leaf node
+                    # i like the new method better, but i cannot for the life of me tell if one is better than the other. 
+                    #when i repeat the same eval on the same data a million times, i see about a 10% improvement, but the behavior is def broken
+                    # also, i like this new method better. Much prettier.
+                    #@inbounds newproximity_test!(neighbor_vec[chunk], query_index, currentKey, positions, spec, squared_radius)
+                    low = (currentKey-1) * spec.atomsperleaf + 1
+                    high = currentKey * spec.atomsperleaf
+                    slice = @view positions[low:high]
+                    
+                    @inbounds proximity_test!(neighbor_vec[chunk], myPos, slice,  spec, squared_radius, query_index, low)
 
-                        # i like the new method better, but i cannot for the life of me tell if one is better than the other. 
-                        #when i repeat the same eval on the same data a million times, i see about a 10% improvement, but the behavior is def broken
-                        # also, i like this new method better. Much prettier.
-                        #@inbounds newproximity_test!(neighbor_vec[chunk], query_index, currentKey, positions, spec, squared_radius)
-                        low = (currentKey-1) * spec.atomsperleaf + 1
-                        high = currentKey * spec.atomsperleaf
-                        slice = @view positions[low:high]
-                        
-                        @inbounds proximity_test!(neighbor_vec[chunk], myPos, slice,  spec, squared_radius)
-
-                        #proximity_test!(neighbor_vec[chunk], query_index, currentKey, positions, spec)
-                        currentKey = myKey.skip
-                    else #currentKey is a branch node, traverse to the left
-                        currentKey = myKey.left
-                    end
-                else #query is not contained, can cut off traversal on the 'lefts' sequencef
+                    #proximity_test!(neighbor_vec[chunk], query_index, currentKey, positions, spec)
                     currentKey = myKey.skip
+                else #currentKey is a branch node, traverse to the left
+                    currentKey = myKey.left
                 end
-
+            else #query is not contained, can cut off traversal on the 'lefts' sequencef
+                currentKey = myKey.skip
             end
+
         end
     end
-    return reduce(vcat, neighbor_vec)
+end
+return reduce(vcat, neighbor_vec)
     #neighbors2 = neighbor_vec[1]
     # for each in 2:1:threads
-    #     append!(neighbor_vec[1], neighbor_vec[each] )
+    #     append!(neighbor_vec[1], neighbbor_vec[chunk], query_index, currentKey, positions, spec)
+                        #currentKey = myKey.skior_vec[each] )
     # end
 
     # return neighbor_vec[1]
@@ -1073,7 +1178,7 @@ Base.@propagate_inbounds function neighbor_traverse(keys::Vector{GridKey{T,K}}, 
     #return neighbors
 end
 
-Base.@propagate_inbounds function shortneighbor_traverse(keys::Vector{GridKey{T,K}}, positions::Vector{IPointPrimitive{T,K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
+Base.@propagate_inbounds function leafneighbor_traverse(keys::Vector{GridKey{T,K}}, positions::Vector{IPointPrimitive{T,K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
     #neighbor_vec = parallel_neighbor_buffer(spec)
     
@@ -1087,16 +1192,36 @@ Base.@propagate_inbounds function shortneighbor_traverse(keys::Vector{GridKey{T,
     #neighbor_vec = Vector{Vector{Tuple{K, K, T}}}(undef, Threads.nthreads())
     squared_radius = (spec.neighbor_distance) ^ 2
     prior_leaf_start = 0
-
+#TODO make query_ into inquisitor, and target_ into quarry_ ??? lol
+#difficult because query_node is inquired upon, and becomes and inquisitor unto the following nodes
     @batch for chunk in 1:threads
-         for query_index in K(chunk):threads:K(length(positions)-1)
-            currentKey = round(K, query_index / spec.atomsperleaf, RoundUp)
+         for query_index in K(chunk):threads:K(spec.leaves_count)
+            ## the query is a fixed identity that will always be a leaf
+            query_leaf = keys[query_index]
+            
+            low = (query_index-1) * spec.atomsperleaf + 1
+            high = query_index * spec.atomsperleaf
+            #persistent set of pointprimitives for duration of traversal with query_leaf
+            #what if this were a staticarray?? huh, huh huhhhhhhh. dumb ideas
+            query_cluster = @view positions[low:high]
+            
+            ## the target is a changing identity that is either sentinel, internal, or leaf node
+            target_index = query_leaf.skip
 
-            while currentKey != 0 # currentKey is the sentinel, end traversal of the given query
+
+            @inbounds onecluster_proximitytest!(neighbor_vec[chunk], query_cluster, spec, squared_radius)
+            # well, this did not quuuite work
+            # query_cluster_a = @view positions[low:high-1]
+            # query_cluster_b = @view positions[low+1:high]
+            # @inbounds twocluster_proximitytest!(neighbor_vec[chunk], query_cluster_a, query_cluster_b,  spec, squared_radius)
+
+            while target_index != 0 # currentKey is the sentinel, end traversal of the given query
                 # does query at all overlap with the volume of currentKey
-                myKey = keys[currentKey]
-                myPos = positions[query_index]
-                overlap = @inbounds overlap_test(myKey, myPos, spec)
+                # myKey = keys[currentKey]
+                # myPos = positions[query_index]
+                target_node = keys[target_index]
+
+                overlap = @inbounds aabb_overlap_test(query_leaf, target_node, spec)
                 # overlap = overlap_test(keys, currentKey, query_index, positions, spec)
                 #overlap = sum(keys[currentKey].min .< positions[query_index].position .< keys[currentKey].max)
                 # overlap = @btime overlap_test($keys, $currentKey, $query_index, $positions, $spec)
@@ -1105,25 +1230,25 @@ Base.@propagate_inbounds function shortneighbor_traverse(keys::Vector{GridKey{T,
 
                 if overlap
 
-                    if myKey.left == 0 # currentKey is a leaf node
+                    if target_node.left == 0 # currentKey is a leaf node
 
                         # i like the new method better, but i cannot for the life of me tell if one is better than the other. 
                         #when i repeat the same eval on the same data a million times, i see about a 10% improvement, but the behavior is def broken
                         # also, i like this new method better. Much prettier.
                         #@inbounds newproximity_test!(neighbor_vec[chunk], query_index, currentKey, positions, spec, squared_radius)
-                        low = (currentKey-1) * spec.atomsperleaf + 1
-                        high = currentKey * spec.atomsperleaf
-                        slice = @view positions[low:high]
+                        low = (target_index-1) * spec.atomsperleaf + 1
+                        high = target_index * spec.atomsperleaf
+                        target_cluster = @view positions[low:high]
                         
-                        @inbounds shortproximity_test!(neighbor_vec[chunk], myPos, slice,  spec, squared_radius, query_index, low)
+                        @inbounds twocluster_proximitytest!(neighbor_vec[chunk], query_cluster, target_cluster,  spec, squared_radius)
 
                         #proximity_test!(neighbor_vec[chunk], query_index, currentKey, positions, spec)
-                        currentKey = myKey.skip
+                        target_index = target_node.skip
                     else #currentKey is a branch node, traverse to the left
-                        currentKey = myKey.left
+                        target_index = target_node.left
                     end
-                else #query is not contained, can cut off traversal on the 'lefts' sequencef
-                    currentKey = myKey.skip
+                else #query is not contained, can cut off traversal on this 'left' section of the tree
+                    target_index = target_node.skip
                 end
 
             end
@@ -1140,6 +1265,7 @@ Base.@propagate_inbounds function shortneighbor_traverse(keys::Vector{GridKey{T,
     # return neighbors
 end
 
+#TODO may be worth incorporating a heuristic to guess how many atoms will be for a size hint
 function parallel_neighbor_buffer(spec::SpheresBVHSpecs{T, K}) where {T, K}
     #return [Vector{Tuple{K, K, SVector{3, T}, T}}(undef, 0) for i in 1:Threads.nthreads()]
     return [Vector{Tuple{K, K, T}}(undef, 0) for i in 1:Threads.nthreads()]
@@ -1192,7 +1318,7 @@ Base.@propagate_inbounds function expt_neighbor_traverse(keys::Vector{exptGridKe
                         high = currentKey * spec.atomsperleaf
                         slice = @view positions[low:high]
                         
-                        @inbounds proximity_test!(neighbor_vec[chunk], positions[query_index], slice,  spec, squared_radius)
+                        #@inbounds proximity_test!(neighbor_vec[chunk], positions[query_index], slice,  spec, squared_radius)
 
                         #proximity_test!(neighbor_vec[chunk], query_index, currentKey, positions, spec)
                         currentKey = keys[currentKey].skip
@@ -1237,11 +1363,11 @@ function build_traverse_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) whe
     return @inbounds neighbor_traverse(treeData[1], treeData[2], spec)
 end
 
-function shortbuild_traverse_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
-    treeData = TreeData(position, spec)
+function leafbuild_traverse_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
+    treeData = leafTreeData(position, spec)
     #neighbors = neighbor_traverse(treeData.tree, treeData.position, spec)
     #return neighbors
-    return @inbounds shortneighbor_traverse(treeData[1], treeData[2], spec)
+    return @inbounds leafneighbor_traverse(treeData[1], treeData[2], spec)
 end
 
 function exptbuild_traverse_bvh(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
