@@ -1414,7 +1414,15 @@ We have our construction and traversal algorithms for CPU, and pretty close for 
 
 5. To take point 1 to the ultimate extent, I have implemented leaf traversal, in which we iterate over each leaf rather than the internal primitives, and perform aabb overlap tests using a query leaf. This minimizes traversal, and likely increases 'clearly unnecessary' distance checks. It also allows us to shrink the enclosing aabbs to 1/2 the search distance from the full search distance, as we are no longer testing point enclosure of a point in an aabb, and this hopefully ofsets some of the worse distance checks. Regardless, the performance improvement is only slight, versus pair traversal. Perhaps this can be optimized within the proximity test arithmetic, which is a double for loop over two primitive views. StructArrays it is then!
 
-6. There could be a future in which SIMD methods can be effective in proximitry testing, where we are selecting primitives per leaf based on filling vector widths. At minimum, the present SIMD implementation would be much assisted if struct arrays allows for clean data flow. At this point, there is no reason why IPointPrimitives are not struct arrays. The gridkeys potentially could remain as is, unless their left and skip values can be implicitly represented and separated out.
+6. There could be a future in which SIMD methods can be effective in proximitry testing, where we are selecting primitives per leaf based on filling vector widths. At minimum, the present SIMD implementation would be much assisted if struct arrays allows for clean data flow. At this point, there is no reason why IPointPrimitives are not struct arrays. The gridkeys potentially could remain as is, unless their left and skip values can be implicitly represented and separated out. Well just like last time, I am not ssmart enough to use StructArrays.jl, so i suppose I shall be switching to a simple struct of arrays.
+
+Especially considering that I did not use SIMD.jl properly, no usage of vload vstore or vgather to build the arrays up!!!!!! There is even vscatter to send an array to another array in various locations using a Vec input of indices. Goodness me, profiling about the assembly times for getting our fun arrays built up and complaining about how long it took, not realizing vload and vstore and the like take 1-3 nanoseconds for a 256 bit vector. 
+
+I did try getting over eager, seeing if I could use a sized vector to further accelerate my operation, but I think SizedVector has the same scaling issue as StaticArrays do as a whole: if large, go somewhere else. And SIMD.jl does not accept inputs of SizedArrays anyhow, so that is a no go there. Tho, depending on a gooood benchmark, we very well could replace twoleaf proximity test with a avx512-ready distance calculation. Ooooooh, it may be worth to generate a traversal edition of our primitive positions that comes pre vgathered(). I am not sure if it would help performance any, to pre-prepare, or run lazily when needed.
+
+
+7. CLM has a custom `push!` function which will push a new element to the neighbor list, unless it can replace a prior element. Really great data reuse policy! As well as a custom `reduce_lists` function for collecting each thread's neighbor list into a single list. I am somewhat lost on the method, as there is a bit of index magic happening. Two important details are that their neighbor list is a mutable structure with a length field and a vector of tuples field, and the collection is performed in a threaded fashion, presumably for maximum speed and perhaps even allowing for cache line sharing of the data, rather than having to send to and from memory. Accumulating the lengths of the threads' neighbor lists allows a straight shot resizing of the final list. And the next crucial point is broadcasted assignment of a view of the other vectors, rather than literally stapling the data together.
+
 
 
 ## uhmmmmmmmm WHAT
@@ -1431,3 +1439,132 @@ Another slighter interest is that memory performance is also somewhat uplifted:
 Perhaps some of the performance uplift comes from enabling the compiler to make better decisions about how many neighbors will be added to the neighbor list at any `proximity_test!()` evaluation. Let's see some profiles!
 
 For data sense, it appears the reduction comes simply from the shrinking of the gridkey vector, and my lazy method of appending the interal nodes to the leaf nodes after clustering primitives.
+
+
+## grand unified theory of SIMD traversal
+I believe it is possible to accelerate `twocluster_proximitytest!()` with SIMD operations
+
+Assuming 4 atoms per leaf:
+1. We convert IPointPrimitive to APointPrimitive, an array struct with fields or tuples containing X array, Y array, and the Z array.
+We count the unique pairs between leaf A and leaf B as `(# atomsperleaf) ^ 2`, giving 16 unique ways we have to align the nth dimension coordinates. Mutliply by 3 and that is 48 total Float32 values which can be represented by 3 512 bit SIMD vectors. We can perform SIMD calculations iterating over the tuple of x, y, and z position arrays.
+
+2. `vgather()` will assemble the values in as few as 10 nanoseconds per 512 bit vector
+```julia
+function gather_A(broplrs)
+    idxa = Vec((1,1,1,1, 2,2,2,2, 3,3,3,3, 4,4,4,4))
+    return vgather( broplrs, idxa)
+end
+
+function gather_B(broplrs)
+    idb = Vec((5,6,7,8, 5,6,7,8, 5,6,7,8, 5,6,7,8))
+    return vgather( broplrs, idb)
+end
+```
+(for some reason, it is much faster to define the vecs locally, rather than as global constants that are passed as arguments).
+
+Possibly we could use vload or some other method to accelerate the `gatherb` as it is a a Vec{4} load that is just repeated 4 times. Maybe LLVMcall could summon the corresponding instrinsic:
+`__m512 _mm512_broadcast_f32x4 (__m128 a)`
+which broadcasts the 128 bit vector, 'a', to fill up the 512 bit vector. But vgather that looks slightly redundant works just fine.
+
+3. accumulate the distance values using the forloop:
+```julia
+for i in eachindex(vec_tuple)
+    accessor += (vec_tuple_a[i] - vec_tuple_b[i]) ^ 2
+end
+```
+(optionally calculate square root here, and store component direction distances for a proper neighbor list)
+4. convert the accessor to a 16 part tuple and iterate over the tuple and push! valid results sequentially (optionally calculate square root here)
+I have not yet figured out a block method of appending to the neighbor list all of our valid pairs instead of pushing them one at a time, as the generic form:
+```julia
+append!(neighborlist, [pairs[i] for i in 1:total_threshold_pairs])
+```
+fully realizes the internal vector. Maybe I could do osmething sneaky with reusable vectors and vector views, but I haven't dreamed it up yet. And I am not even certain if variable sized `append!` would be better than individual `push!`, I know even less how this strategy would evolve with a reusable neighbor list structure.
+
+4. `onecluster_proximitytest!` should probably remain sequential, as it generates 18 Float32, which could maybe work in a weird twisted way, but it is especially silly.
+
+Another approach could be to double the number of atoms per leaf: Now we have `twocluster` solving 12 512 bit vectors, 4 per dimension, and `onecluster` solving 1 512 bit vector and 1 128 bit vector. Vector exchange! Sounds horrifying and stupid. I think I will stick with sequential. Maybe CPU vectors will keep getting wider? Provided I did the math right, AVX512 will cleanly solve at 1024 primtives per leaf, requiring a meager 98 208 512-bit vectors and encompassing 1 571 328 Float32s. 
+
+Though the `twocluster` would be facing 3 145 728 Float32 distributed into 196 608 512-bit vectors. Concerning, to say the least. But hey, now I at least now the method can scale, if any workload needs this bvh with millions of primitives.
+
+
+### let's get testing
+I prepared a series of minimum run time tests operating against two sets of 3D coordinates. I compared minimum run time on static vectors of length 3 with standard Julia /StaticArrays.jl syntax to a SIMD version converted a tuple of length 4 arrays, one array for each dimension. Here is what I found, and the operations utilized are located in the Mealprep script file.
+
+1. I did not prepare tests to evaluate the correctness of these results, they were meant to be napkin work, but I messsed up structuring the code many times, as hundreds of lines (of repetitive) code are somewhat different from napkin scrawl.
+
+2. Manually constructing my mixed vectors to efficiently represent the n^2 unique combinations between two leaves of primitives was much faster than using vgather with a particular index condition. In other words, `gather_A_direct()` executed in 1-5 ns, while `gathera()` executed in 10-40 ns.
+```julia
+Base.@propagate_inbounds function gather_A_direct(a)
+
+    x = a[1]
+    y = a[2]
+    z = a[3]
+
+    return (    Vec{16, Float32}((x[1],x[1],x[1],x[1], x[2],x[2],x[2],x[2], x[3],x[3],x[3],x[3], x[4],x[4],x[4],x[4])),
+                Vec{16, Float32}((y[1],y[1],y[1],y[1], y[2],y[2],y[2],y[2], y[3],y[3],y[3],y[3], y[4],y[4],y[4],y[4])),
+                Vec{16, Float32}((z[1],z[1],z[1],z[1], z[2],z[2],z[2],z[2], z[3],z[3],y[3],z[3], z[4],z[4],z[4],z[4]))
+    )   
+end
+```
+
+
+3. Utilizing a hybrid method in which distance is calculated with SIMD.jl and `vstore()` places these into an intermediate vector, and a scalar `push!()` adds valid neighbors to the neighbor list improved performance compared to the scalar method.
+```julia
+Base.@propagate_inbounds function scalar_distance(list, car, car2)
+    # car::SVector{3, Float32}(x, y, z)
+    for i in eachindex(car)
+        for j in eachindex(car2)
+            dxyz2 = sum( (car[i] - car2[j]) .^2 )
+            if dxyz2 < 0.5
+                d2 = sqrt(dxyz2)
+                push!(list, d2)
+            end
+        end
+    end
+    return list
+end
+```
+On my system, I typically saw @btime of 20 ns for SIMD vectors and ~35 ns for the above method. On my partner's system, I saw a wider variety of results, 16-25 ns for vector, and 20-40 ns for scalar. This method could be readily added to NaiveSIMD.
+
+
+4. But how far can we take it? I tested scalar and SIMD by rewriting values of a preallocated neighbor list. I also did not consider threshold conditions, which permitted full vectorization, applying `vstore()` directly to the neighbor list. On my system, I observed 4-9 ns for SIMD vectors and 25-30 ns for scalar. On my partner's system, 3.8-5 ns for vector and 20-25 ns for scalar. So, we can extremely quickly pack data into SIMD vectors and solve distance for all 16 unique pairs in `twocluster_proximitytest!`, and figuring out where this data should go will take longer than solving it. And I do anticipate this method automagically scaling when run on a CPU with 512 bit registers.
+
+
+### future outlook
+1. Curiously, I often, but not always found that clustering each dimension of the xyz vectors into blocks of `SVector{4, Float32}` improved performance, by as much as 5 ns out of 20-25 total. This possibly could help improve traversal performance, but should most definitely hurt tree construction performance, in addition to the reshaping `Array{SVec{3}}` into `Tuple{VectorX, VectorY, VectorZ}`. Future tests may consider examining this, but I advise against them. If this work is sooo performance limited by calculating and instantiating SIMD vectors, then a GPU would work better anyway
+
+2. Key to improving performance in improving the vector-ocity of our hybrid approach is finding some convention to allow for running `append!` with each of the threshold values. Alternatively, wew can discover a heuristic to preallocate values inthe neighbor list so we can have simply substitution. But I really don't know how to make the hybrid vector-scalar method fully or more vectorized, without just reframing the entire problem as one better solved by a GPU.
+```julia
+# prealloc::Vec{16, Float32}, filled with distance calculations
+# lastalloc::Vector{Float32}, a zero vector
+    counter = sum(prealloc < 0.5)
+    @inbounds vstore(prealloc, lastalloc, 1)
+    append!(list, SVector{counter, Float32}(lastalloc[i] for i in eachindex(lastalloc) if lastalloc[i] < 0.5))
+```
+this method works, but it has aggressive allocation behavior. Using the `append!()` syntax with a tuple generator expression instead of SVector does behave normally, but actually has worse performance than sequential `push!()`. I have yet to find a sane way reduce a vector of floats by comparison to a threshold value. 
+
+### fin
+My system suggests the potential for a < 30% perf improvement in `twocluster_proximitytest!()` for implementing the hybrid SIMD-scalar routine, shown below. I hope I can get as much of that as possible because I need every ounce to compete with CellListMap's prowess.
+
+```julia
+Base.@propagate_inbounds function twocluster_proximitytest!(neighborlist, clusterA, clusterB, prealloc, lastalloc)
+
+    vec_a = gather_A_direct(clusterA)
+    vec_b = gather_b_direct(clusterB)
+
+
+    for i in eachindex(vec_a)
+        prealloc += (vec_a[i] - vec_b[i]) ^ 2
+    end
+    prealloc = sqrt(prealloc)
+
+    vstore(prealloc, lastalloc, 1)
+    for i in eachindex(lastalloc)
+        if lastalloc[i] < 0.5 #threshold
+            push!(list, lastalloc[i])
+        end
+    end
+
+    return list
+end
+```

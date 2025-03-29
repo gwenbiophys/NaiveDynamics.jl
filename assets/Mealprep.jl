@@ -437,3 +437,355 @@ indy = [0 for each in eachindex(position)]
 # println()
 # println()
 # #x = @code_native @inbounds sum(min[3] .< pos[5] .< maxi[3])
+
+
+
+
+
+
+
+
+######## simd test for leaf traversal
+
+# using BenchmarkTools
+# using SIMD
+# using StaticArrays
+
+
+# Base.@propagate_inbounds function gathera_dir(a)
+
+#     x = a[1]
+#     y = a[2]
+#     z = a[3]
+
+#     return (    Vec{16, Float32}((x[1],x[1],x[1],x[1], x[2],x[2],x[2],x[2], x[3],x[3],x[3],x[3], x[4],x[4],x[4],x[4])),
+#                 Vec{16, Float32}((y[1],y[1],y[1],y[1], y[2],y[2],y[2],y[2], y[3],y[3],y[3],y[3], y[4],y[4],y[4],y[4])),
+#                 Vec{16, Float32}((z[1],z[1],z[1],z[1], z[2],z[2],z[2],z[2], z[3],z[3],y[3],z[3], z[4],z[4],z[4],z[4]))
+#     )   
+# end
+
+# Base.@propagate_inbounds function gatherb_dir(a)
+
+#     x = a[1]
+#     y = a[2]
+#     z = a[3]
+#     return (Vec{16, Float32}((x[1],x[2],x[3],x[4], x[1],x[2],x[3],x[4], x[1],x[2],x[3],x[4], x[1],x[2],x[3],x[4])),
+#             Vec{16, Float32}((y[1],y[2],y[3],y[4], y[1],y[2],y[3],y[4], y[1],y[2],y[3],y[4], y[1],y[2],y[3],y[4])),
+#             Vec{16, Float32}((z[1],z[2],z[3],z[4], z[1],z[2],z[3],z[4], z[1],z[2],z[3],z[4], z[1],z[2],z[3],z[4]))
+#     )
+
+# end
+
+# Base.@propagate_inbounds function typical_dist(list, car, car2)
+
+#     for i in eachindex(car)
+#         for j in eachindex(car2)
+#             dxyz2 = sum( (car[i] - car2[j]) .^2 )
+#             if dxyz2 < 0.5
+#                 d2 = sqrt(dxyz2)
+#                 push!(list, d2)
+#             end
+#         end
+#     end
+#     return list
+# end
+
+# Base.@propagate_inbounds function str_dist(list, bar, bar2, prealloc, lastalloc)
+
+#     abar = @inbounds gathera_dir(bar)
+#     bbar2 = @inbounds gatherb_dir(bar2)
+
+
+#     for i in eachindex(bar)
+#         @inbounds prealloc += (abar[i] - bbar2[i]) ^ 2
+#     end
+#     prealloc = sqrt(prealloc)
+
+#     @inbounds vstore(prealloc, lastalloc, 1)
+#     for i in eachindex(lastalloc)
+#         if lastalloc[i] < 0.5
+#             push!(list, lastalloc[i])
+
+#         end
+#     end
+
+#     return list
+# end
+# Base.@propagate_inbounds function str_dist_app(list, bar, bar2, prealloc, lastalloc)
+
+#     abar = @inbounds gathera_dir(bar)
+#     bbar2 = @inbounds gatherb_dir(bar2)
+
+
+#     for i in eachindex(bar)
+#         @inbounds prealloc += (abar[i] - bbar2[i]) ^ 2
+#     end
+#     prealloc = sqrt(prealloc)
+
+#     #counter = sum(prealloc < 0.5)
+#     @inbounds vstore(prealloc, lastalloc, 1)
+#     append!(list, (lastalloc[i] for i in eachindex(lastalloc) if lastalloc[i] < 0.5))
+#     # for i in eachindex(lastalloc)
+#     #     if lastalloc[i] < 0.5
+#     #         push!(list, lastalloc[i])
+
+#     #     end
+#     # end
+
+#     return list
+# end
+# Base.@propagate_inbounds function str_dist_fas(list, bar, bar2, prealloc, lastalloc)
+
+#     for i in eachindex(bar)
+
+#         @inbounds prealloc += (bar[i] - bar2[i]) ^ 2
+#     end
+#     prealloc = sqrt(prealloc)
+
+#     @inbounds vstore(prealloc, lastalloc, 1)
+#     for i in eachindex(lastalloc)
+#         if lastalloc[i] < 0.5
+#             push!(list, lastalloc[i])
+
+#         end
+#     end
+
+#     return list
+# end
+# Base.@propagate_inbounds function str_dist8(list, bar, bar2, prealloc, lastalloc)
+
+#     abar = @inbounds gathera8.(bar)
+#     bbar2 = @inbounds gatherb8.(bar2)
+
+#     for i in eachindex(bar)
+
+#         @inbounds prealloc += (abar[i] - bbar2[i]) ^ 2
+#     end
+#     prealloc = sqrt(prealloc)
+
+#     @inbounds vstore(prealloc, lastalloc, 1)
+#     for i in eachindex(lastalloc)
+#         if lastalloc[i] < 0.5
+#             push!(list, lastalloc[i])
+
+#         end
+#     end
+
+#     return list
+# end
+
+
+# Base.@propagate_inbounds function typical_dist!(list, car, car2)
+
+#     for i in eachindex(car)
+#         for j in eachindex(car2)
+#             dxyz2 = sum( (car[i] - car2[j]) .^2 )
+#             #if dxyz2 < 0.5
+#                 d2 = sqrt(dxyz2)
+#                 list[i] = d2
+#             #end
+#         end
+#     end
+#     return list
+# end
+
+# Base.@propagate_inbounds function typical_dist_no!(list, car, car2)
+#     n=0
+#     for i in eachindex(car)
+#         for j in eachindex(car2)
+
+#             d2 = sqrt(sum( (car[i] - car2[j]) .^2 ))
+#             n += 1
+#             #if dxyz2 < 0.5
+#                 #d2 = sqrt(dxyz2)
+#             list[n] = d2
+#         end
+#     end
+#     return list
+# end
+
+# #### this is completely busted
+# # Base.@propagate_inbounds function vector_typical_dist!(list, car, car2, prealloc)
+# #     #no idea if this is right
+# #     for i in eachindex(car)
+# #         for j in eachindex(car2)
+# #             prealloc += (car[i] - car2[j]) .^ 2
+# #         end
+# #         copyto!(list, sqrt.(prealloc))
+# #         prealloc = SVector{4, Float32}(0, 0, 0, 0)
+# #     end
+# #     #list .= sqrt.(prealloc)
+# #     #sanity check
+# #     #copyto!(list, sqrt.(prealloc))
+# #     # for i in eachindex(list)
+# #     #     list[i] = prealloc[i]
+# #     # end
+     
+# #     return list
+# # end
+
+
+# Base.@propagate_inbounds function str_dist!(list, bar, bar2, prealloc)
+
+#     abar = @inbounds gathera_dir(bar)
+#     bbar2 = @inbounds gatherb_dir(bar2)
+
+
+#     for i in eachindex(bar)
+#         @inbounds prealloc += (abar[i] - bbar2[i]) ^ 2
+#     end
+#     #prealloc = sqrt(prealloc)
+#         #this is not correct
+#     @inbounds vstore(sqrt(prealloc), list, 1)
+
+#     return list
+# end
+
+# Base.@propagate_inbounds function str_dist_fast!(list, bar, bar2, prealloc)
+
+#     for i in eachindex(bar)
+
+#         @inbounds prealloc += (bar[i] - bar2[i]) ^ 2
+#     end
+#     prealloc = sqrt(prealloc)
+
+#         #this is not correct
+#     @inbounds vstore(prealloc, list, 1)
+
+#     return list
+# end
+
+# n = 4
+# println("static arrays scalar $n")
+# lista = Vector{Float32}(undef, n)
+# car = [SVector{3, Float32}(rand(3)) for i in 1:n]
+# car2 =  [SVector{3, Float32}(rand(3)) for i in 1:n]
+# @btime @inbounds typical_dist($lista, $car, $car2)
+
+# println("SIMDvector $n lastalloc as array")
+# listb = Vector{Float32}(undef, n)
+# broplrss = ([car[i][1] for i in eachindex(car)], [car[i][2] for i in eachindex(car)], [car[i][3] for i in eachindex(car)])
+# broplrss2 = ([car2[i][1] for i in eachindex(car2)], [car2[i][2] for i in eachindex(car)], [car2[i][3] for i in eachindex(car)])
+# prealloc = Vec{16, Float32}((0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+# lastalloc = (zeros(Float32, 16))
+# @btime @inbounds str_dist($listb, $broplrss, $broplrss2, $prealloc, $lastalloc)
+
+# println("SIMDvector $n lastalloc as array with append")
+# listb = Vector{Float32}(undef, n)
+# broplrss = ([car[i][1] for i in eachindex(car)], [car[i][2] for i in eachindex(car)], [car[i][3] for i in eachindex(car)])
+# broplrss2 = ([car2[i][1] for i in eachindex(car2)], [car2[i][2] for i in eachindex(car)], [car2[i][3] for i in eachindex(car)])
+# prealloc = Vec{16, Float32}((0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+# lastalloc = (zeros(Float32, 16))
+# @btime @inbounds str_dist_app($listb, $broplrss, $broplrss2, $prealloc, $lastalloc)
+
+# # println("SIMDvector $n lastalloc as tuple")
+# # listb = Vector{Float32}(undef, n)
+# # broplrss = (rand(Float32, 4), rand(Float32, 4), rand(Float32, 4))
+# # broplrss2 = (rand(Float32, 4), rand(Float32, 4), rand(Float32, 4))
+# # prealloc = Vec{16, Float32}((0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+# # lastalloc = ((zeros(Float32, 16)))
+# # @btime @inbounds str_dist($listb, $broplrss, $broplrss2, $prealloc, $lastalloc)
+
+# # println("SIMDvector $n start from svectors")
+# # listb = Vector{Float32}(undef, n)
+# # broplrss = (SVector{4, Float32}(rand(Float32, 4)), SVector{4, Float32}(rand(Float32, 4)), SVector{4, Float32}(rand(Float32, 4)))
+# # broplrss2 = (SVector{4, Float32}(rand(Float32, 4)), SVector{4, Float32}(rand(Float32, 4)), SVector{4, Float32}(rand(Float32, 4)))
+# # prealloc = Vec{16, Float32}((0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+# # lastalloc = zeros(Float32, 16)
+# # @btime @inbounds str_dist($listb, $broplrss, $broplrss2, $prealloc, $lastalloc)
+
+# println()
+
+
+
+
+# println("static arrays scalar $n with list overwrite and no threshold")
+# lista = Float32[0.0 for i in 1:16]
+# car = [SVector{3, Float32}(rand(3)) for i in 1:n]
+# car2 =  [SVector{3, Float32}(rand(3)) for i in 1:n]
+# @btime @inbounds typical_dist!($lista, $car, $car2)
+
+# println("SIMDvector $n with list overwrite and internal gather, no threshold condition")
+# listb = Float32[0.0 for i in 1:16]
+# broplrss = (rand(Float32, 4), rand(Float32, 4), rand(Float32, 4))
+# broplrss2 = (rand(Float32, 4), rand(Float32, 4), rand(Float32, 4))
+# prealloc = Vec{16, Float32}((0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+# lastalloc = zeros(Float32, 16)
+# @btime @inbounds str_dist!($listb, $broplrss, $broplrss2, $prealloc)
+# println()
+
+
+# println("static arrays scalar with push $n")
+# lista = Vector{Float32}(undef, n)
+# car = [SVector{3, Float32}(rand(3)) for i in 1:n]
+# car2 =  [SVector{3, Float32}(rand(3)) for i in 1:n]
+# @btime @inbounds typical_dist($lista, $car, $car2)
+
+# println("SIMD prep with push $n")
+# listb = Vector{Float32}(undef, n)
+# broplrss = (rand(Float32, 4), rand(Float32, 4), rand(Float32, 4))
+# broplrss2 = (rand(Float32, 4), rand(Float32, 4), rand(Float32, 4))
+# println("external gather timing")
+# sirpr = @btime @inbounds gathera_dir($broplrss)
+# sirpr2 = @btime @inbounds gatherb_dir($broplrss2)
+# println("external gather timing from SVec{4, T} intead of Vector{T}")
+# broplrss = (SVector{4, Float32}(rand(Float32, 4)), SVector{4, Float32}(rand(Float32, 4)), SVector{4, Float32}(rand(Float32, 4)))
+# broplrss2 = (SVector{4, Float32}(rand(Float32, 4)), SVector{4, Float32}(rand(Float32, 4)), SVector{4, Float32}(rand(Float32, 4)))
+# p1 = @btime @inbounds gathera_dir($broplrss)
+# p2 = @btime @inbounds gatherb_dir($broplrss2)
+# prealloc = Vec{16, Float32}((0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+# lastalloc = zeros(Float32, 16)
+# @btime @inbounds str_dist_fas($listb, $sirpr, $sirpr2, $prealloc, $lastalloc)
+# println()
+
+
+# println("static arrays scalar $n with store and no threshold")
+# lista = Float32[0.0 for i in 1:16]
+# car = [SVector{3, Float32}(rand(3)) for i in 1:n]
+# car2 =  [SVector{3, Float32}(rand(3)) for i in 1:n]
+# @btime @inbounds typical_dist!($lista, $car, $car2)
+
+# println("SIMDvector $n with vstore and prestored input, no threshold condition")
+# listb = Float32[0.0 for i in 1:16]
+# broplrss = (rand(Float32, 4), rand(Float32, 4), rand(Float32, 4))
+# broplrss2 = (rand(Float32, 4), rand(Float32, 4), rand(Float32, 4))
+# sirpr = @btime @inbounds gathera_dir($broplrss)
+# sirpr2 = @btime @inbounds gatherb_dir($broplrss2)
+# prealloc = Vec{16, Float32}((0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+# lastalloc = zeros(Float32, 16)
+# @btime @inbounds str_dist_fast!($listb, $sirpr, $sirpr, $prealloc)
+# println()
+
+
+# #or i in 1:10
+#     n = 4
+#     println("static arrays scalar $n with list overwrite and no threshold condition")
+#     lista = Float32[0.0 for i in 1:16]
+#     car = [SVector{3, Float32}(rand(3)) for i in 1:n]
+#     car2 =  [SVector{3, Float32}(rand(3)) for i in 1:n]
+#     @btime @inbounds typical_dist_no!($lista, $car, $car2)
+#     # println("static arrays VECTORWIZE $n with list overwrite and no threshold conditino")
+#     # lista = Float32[0.0 for i in 1:16]
+#     # car = (SVector{4, Float32}(rand(Float32, 4)), SVector{4, Float32}(rand(Float32, 4)), SVector{4, Float32}(rand(Float32, 4)))
+#     # car2 = (SVector{4, Float32}(rand(Float32, 4)), SVector{4, Float32}(rand(Float32, 4)), SVector{4, Float32}(rand(Float32, 4)))
+#     # preallloc = SVector{4, Float32}(zeros(4))
+#     # listslice = @view lista[1:4]
+#     # @btime @inbounds vector_typical_dist!($lista, $car, $car2, $preallloc)
+
+#     println("SIMDvector $n with list overwrite and internal gather, no threshold condition, starting from SVector")
+#     listb = Float32[0.0 for i in 1:16]
+#     broplrss = (SVector{4, Float32}(rand(Float32, 4)), SVector{4, Float32}(rand(Float32, 4)), SVector{4, Float32}(rand(Float32, 4)))
+#     broplrss2 = (SVector{4, Float32}(rand(Float32, 4)), SVector{4, Float32}(rand(Float32, 4)), SVector{4, Float32}(rand(Float32, 4)))
+#     prealloc = Vec{16, Float32}((0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+#     lastalloc = zeros(Float32, 16)
+#     @btime @inbounds str_dist!($listb, $broplrss, $broplrss2, $prealloc)
+
+#     println("SIMDvector $n with list overwrite and internal gather, no threshold condition, starting from normal")
+#     listb = Float32[0.0 for i in 1:16]
+#     broplrss = (rand(Float32, 4), rand(Float32, 4), rand(Float32, 4))
+#     broplrss2 = (rand(Float32, 4), rand(Float32, 4), rand(Float32, 4))
+#     prealloc = Vec{16, Float32}((0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+#     lastalloc = zeros(Float32, 16)
+#     @btime @inbounds str_dist!($listb, $broplrss, $broplrss2, $prealloc)
+#     println()
+# #end

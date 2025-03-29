@@ -9,7 +9,7 @@ using StaticArrays
 using Distributions
 #using Distances
 #using Revise
-using StructArrays
+#using StructArrays
 #using CellListMap
 #using NearestNeighbors
 #using SortingAlgorithms

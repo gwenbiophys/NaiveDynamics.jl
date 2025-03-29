@@ -132,6 +132,18 @@ struct IPointPrimitive{T, K}
     position::SVector{3, T}
 end
 
+
+struct APointPrimitive{T, K}
+    index::Vector{K}
+    morton_code::Vector{K} #TODO update naming so this becomes one word, maybe even just morton?
+    position::Vector{SVector{3, T}}
+end
+struct SPointPrimitive{T, K, S}
+    index::SizedVector{S, K}
+    morton_code::SizedVector{S, K} #TODO update naming so this becomes one word, maybe even just morton?
+    position::SizedVector{S, SVector{3, T}}
+end
+
 #TODO deprecated in the name of tuple
 """
     struct TreeData{T, K}
@@ -252,7 +264,17 @@ function mortoncodes!(L, quantized, spec::SpheresBVHSpecs{T, K}) where {T, K}
     
             end
     
-            L[each] = IPointPrimitive{T,K}(L[each].index, input, L[each].position)
+            # this does not work because subarray has no field called 'index'
+            # println(typeof(L[each]))
+            #L[each] = IPointPrimitive{T,K}(L.index[each], input, L.position[each])
+
+            #this has......
+            #L[each] = IPointPrimitive{T,K}(L[each].index, input, L[each].position)
+
+
+            #IPointPrimitive is immutable so this doesnt work either
+            #fieldnames(L)
+            L.morton_code[each] = input
         end
     else
         error("K-type integer is not implemented")
@@ -310,7 +332,7 @@ function exptquantized_positions!(quantized::Vector{SVector{3, K}}, pos::Vector{
 end
 
 
-function cluster_primitives(L::Vector{IPointPrimitive{T, K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
+function cluster_primitives(L::APointPrimitive{T, K}, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
     leaves = [GridKey{T,K}(SVector{3, T}(0.0, 0.0, 0.0), SVector{3, T}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.leaves_count]
     for each in eachindex(leaves)
@@ -320,8 +342,8 @@ function cluster_primitives(L::Vector{IPointPrimitive{T, K}}, spec::SpheresBVHSp
         leaves[each] = GridKey{T,K}(#L[each].index, 
                                     #L[each].morton_code, 
 
-                                    L[bird].position .- spec.neighbor_distance,
-                                    L[bird].position .+ spec.neighbor_distance,
+                                    L.position[bird] .- spec.neighbor_distance,
+                                    L.position[bird] .+ spec.neighbor_distance,
                                     0,
                                     0
         )
@@ -334,8 +356,8 @@ function cluster_primitives(L::Vector{IPointPrimitive{T, K}}, spec::SpheresBVHSp
             leaves[each] = GridKey{T,K}(#L[each].index, 
                                     #L[each].morton_code, 
 
-                                    min.(leaves[each].min, L[a].position .- spec.neighbor_distance), 
-                                    max.(leaves[each].max, L[a].position .+ spec.neighbor_distance),
+                                    min.(leaves[each].min, L.position[a] .- spec.neighbor_distance), 
+                                    max.(leaves[each].max, L.position[a].+ spec.neighbor_distance),
                                     0,
                                     0
             )
@@ -345,18 +367,18 @@ function cluster_primitives(L::Vector{IPointPrimitive{T, K}}, spec::SpheresBVHSp
 
     return leaves
 end
-function leafcluster_primitives(L::Vector{IPointPrimitive{T, K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
+function leafcluster_primitives(L::APointPrimitive{T, K}, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
-    leaves = [GridKey{T,K}(SVector{3, T}(0.0, 0.0, 0.0), SVector{3, T}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.leaves_count]
-    for each in eachindex(leaves)
+    leaves = [GridKey{T,K}(SVector{3, T}(0.0, 0.0, 0.0), SVector{3, T}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.atom_count-1]
+    for each in 1:spec.leaves_count
 
         bird = (each-1) * spec.atomsperleaf + 1
 
         leaves[each] = GridKey{T,K}(#L[each].index, 
                                     #L[each].morton_code, 
 
-                                    L[bird].position .- spec.neighbor_distance/2,
-                                    L[bird].position .+ spec.neighbor_distance/2,
+                                    L.position[bird] .- spec.neighbor_distance/2,
+                                    L.position[bird] .+ spec.neighbor_distance/2,
                                     0,
                                     0
         )
@@ -369,8 +391,8 @@ function leafcluster_primitives(L::Vector{IPointPrimitive{T, K}}, spec::SpheresB
             leaves[each] = GridKey{T,K}(#L[each].index, 
                                     #L[each].morton_code, 
 
-                                    min.(leaves[each].min, L[a].position .- spec.neighbor_distance/2), 
-                                    max.(leaves[each].max, L[a].position .+ spec.neighbor_distance/2),
+                                    min.(leaves[each].min, L.position[a] .- spec.neighbor_distance/2), 
+                                    max.(leaves[each].max, L.position[a] .+ spec.neighbor_distance/2),
                                     0,
                                     0
             )
@@ -471,7 +493,10 @@ function exptTreeData(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T,
 end
 function TreeData(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
-    pos = [IPointPrimitive{T,K}(i, 0, position[i]) for i in 1:spec.atom_count]
+    pos = APointPrimitive{T,K}( [i for i in 1:spec.atom_count], 
+                                [0 for i in 1:spec.atom_count], 
+                                [position[i] for i in 1:spec.atom_count]
+    )
 
     #quantized_xyz = [SVector{3, K}(0, 0, 0) for i in eachindex(position)] 
 
@@ -479,7 +504,12 @@ function TreeData(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
     mortoncodes!(pos, position, spec)
 
-    sort_mortoncodes!(pos, spec)
+    #sort_mortoncodes!(pos, spec)
+    mortsort = sortperm(pos.morton_code)
+    permute!(pos.morton_code, mortsort)
+    permute!(pos.index, mortsort)
+    permute!(pos.position, mortsort)
+
 
     #1 alloc per item in this generator expression
     #store = [Threads.Atomic{K}(0) for i in 1:spec.branches_count]
@@ -503,21 +533,38 @@ function TreeData(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
 
     #return tuple(L, pos, quantized_xyz, store)
-    return tuple(L, pos, store)
+    return tuple(L, pos, mortsort, store)
 end
 function leafTreeData(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
-    pos = [IPointPrimitive{T,K}(i, 0, position[i]) for i in 1:spec.atom_count]
+    # pos = [IPointPrimitive{T,K}(i, 0, position[i]) for i in 1:spec.atom_count]
 
-    quantized_xyz = [SVector{3, K}(0, 0, 0) for i in eachindex(position)] 
+    # quantized_xyz = [SVector{3, K}(0, 0, 0) for i in eachindex(position)] 
+
+    # # quantized_positions!(quantized_xyz, pos, spec)
+
+    # # mortoncodes!(pos, quantized_xyz, spec)
+    # mortoncodes!(pos, position, spec)
+
+    # sort_mortoncodes!(pos, spec)
+
+
+    pos = APointPrimitive{T,K}( [i for i in 1:spec.atom_count], 
+    [0 for i in 1:spec.atom_count], 
+    [position[i] for i in 1:spec.atom_count]
+    )
+     
+    #quantized_xyz = [SVector{3, K}(0, 0, 0) for i in eachindex(position)] 
 
     # quantized_positions!(quantized_xyz, pos, spec)
 
-    # mortoncodes!(pos, quantized_xyz, spec)
     mortoncodes!(pos, position, spec)
 
-    sort_mortoncodes!(pos, spec)
-
+    #sort_mortoncodes!(pos, spec)
+    mortsort = sortperm(pos.morton_code)
+    permute!(pos.morton_code, mortsort)
+    permute!(pos.index, mortsort)
+    permute!(pos.position, mortsort)
     #1 alloc per item in this generator expression
     #store = [Threads.Atomic{K}(0) for i in 1:spec.branches_count]
     store = [K(0) for i in 1:spec.branches_count]
@@ -531,16 +578,16 @@ function leafTreeData(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T,
 
 
 
-    I = [GridKey{T, K}(SVector{3, T}(0.0, 0.0, 0.0), SVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
+    #I = [GridKey{T, K}(SVector{3, T}(0.0, 0.0, 0.0), SVector{3, K}(0.0, 0.0, 0.0), 0, 0) for i in 1:spec.branches_count]
     
-    append!(L, I)
+    #append!(L, I)
 
 
     bounding_volume_hierarchy!(L, store, spec, pos)
 
 
     #return tuple(L, pos, quantized_xyz, store)
-    return tuple(L, pos, store)
+    return tuple(L, pos, mortsort, store)
 end
 
 
@@ -615,7 +662,7 @@ function delta(i, pos, spec::SpheresBVHSpecs{T,K}) where {T, K}
     #x = xor(L[i].morton_code, L[i+1].morton_code)
     atom_i = 1 + (i-1)*spec.atomsperleaf
     atom_i_and1 = 1 + (i)*spec.atomsperleaf
-    x = xor(pos[atom_i].morton_code, pos[atom_i_and1].morton_code)
+    x = xor(pos.morton_code[atom_i], pos.morton_code[atom_i_and1])
 
 
     #TODO is it supposed  to be i or ai here?    
@@ -633,7 +680,7 @@ function exptdelta(i, L, spec::SpheresBVHSpecs{T,K}, pos) where {T, K}
     #x = xor(L[i].morton_code, L[i+1].morton_code)
     atom_i = 1 + (i-1)*spec.atomsperleaf
     atom_i_and1 = 1 + (i)*spec.atomsperleaf
-    x = xor(pos[atom_i].morton_code, pos[atom_i_and1].morton_code)
+    x = xor(pos.morton_code[atom_i], pos.morton_code[atom_i_and1])
 
 
     #TODO is it supposed  to be i or ai here?    
@@ -970,13 +1017,13 @@ Base.@propagate_inbounds function onecluster_proximitytest!(neighbors::Vector{Tu
     # TODO what is the best shaping of this shifted matrix for Julia performance?
     for i in 1:spec.atomsperleaf-1
         for j in i+1:spec.atomsperleaf
-            dxyz2 = sum( (cluster[i].position - cluster[j].position) .^2 )
+            dxyz2 = sum( (cluster[2][i] - cluster[2][j]) .^2 )
             if dxyz2 < squared_radius
                 d2 = sqrt(dxyz2)
 
                 # maybe instead of push this makes a cluster of pairings or some comprehension, and then we make and append a vector below??
                 # intuition says compiler would give better performance IF push asnd maybe ifdxyz2 were not here
-                push!(neighbors, (cluster[i].index, cluster[j].index, d2))
+                push!(neighbors, (cluster[1][i], cluster[1][j], d2))
             end
         end
 
@@ -987,19 +1034,19 @@ Base.@propagate_inbounds function onecluster_proximitytest!(neighbors::Vector{Tu
 end
 
 Base.@propagate_inbounds function twocluster_proximitytest!(neighbors::Vector{Tuple{K, K, T}}, clusterA, clusterB, spec::SpheresBVHSpecs{T, K}, squared_radius) where {T, K}
-    for i in eachindex(clusterA)
-        for j in eachindex(clusterB)
-            dxyz2 = sum( (clusterA[i].position - clusterB[j].position) .^2 )
+    for i in eachindex(clusterA[2])
+        for j in eachindex(clusterB[2])
+            dxyz2 = sum( (clusterA[2][i] - clusterB[2][j]) .^2 )
             if dxyz2 < squared_radius
                 d2 = sqrt(dxyz2)
-                push!(neighbors, (clusterA[i].index, clusterB[j].index, d2))
+                push!(neighbors, (clusterA[1][i], clusterB[1][j], d2))
             end
         end
     end
     return neighbors
 end
 
-Base.@propagate_inbounds function proximity_test!(neighbors::Vector{Tuple{K, K, T}},  query::IPointPrimitive{T,K}, subjects, spec::SpheresBVHSpecs{T, K}, squared_radius, query_index, low) where {T, K}
+Base.@propagate_inbounds function proximity_test!(neighbors::Vector{Tuple{K, K, T}},  query::APointPrimitive{T,K}, subjects, spec::SpheresBVHSpecs{T, K}, squared_radius, query_index, low) where {T, K}
     #a2 = query.position .^ 2
     for each in eachindex(subjects)
 
@@ -1008,7 +1055,7 @@ Base.@propagate_inbounds function proximity_test!(neighbors::Vector{Tuple{K, K, 
             #query_index < each+low &&
             #if 
                 #dxyz2 = sum(a2 - 2 .* query.position .* subjects[each].position + (subjects[each].position .^ 2))
-                dxyz2 = sum( (query.position - subjects[each].position) .^ 2 )
+                dxyz2 = sum( (query.position - subjects.position[each]) .^ 2 )
 
                 #not demonstrably faster 3/15/2025
                 #dxyz2 = sqeuclidean(positions[query_index].position, positions[leafsatoms].position) 
@@ -1067,7 +1114,7 @@ Base.@propagate_inbounds function altoverlap_test(keys, currentKey, query_index,
     return all(a .< positions[query_index].position .< b)
 end
 
-Base.@propagate_inbounds function neighbor_traverse(keys::Vector{GridKey{T,K}}, positions::Vector{IPointPrimitive{T,K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
+Base.@propagate_inbounds function neighbor_traverse(keys::Vector{GridKey{T,K}}, positions::APointPrimitive{T,K}, spec::SpheresBVHSpecs{T, K}) where {T, K}
 #neighbor_vec = parallel_neighbor_buffer(spec)
     
 threads = K(Threads.nthreads())
@@ -1178,7 +1225,7 @@ return reduce(vcat, neighbor_vec)
     #return neighbors
 end
 
-Base.@propagate_inbounds function leafneighbor_traverse(keys::Vector{GridKey{T,K}}, positions::Vector{IPointPrimitive{T,K}}, spec::SpheresBVHSpecs{T, K}) where {T, K}
+Base.@propagate_inbounds function leafneighbor_traverse(keys::Vector{GridKey{T,K}}, positions::APointPrimitive{T,K}, spec::SpheresBVHSpecs{T, K}) where {T, K}
 
     #neighbor_vec = parallel_neighbor_buffer(spec)
     
@@ -1192,6 +1239,9 @@ Base.@propagate_inbounds function leafneighbor_traverse(keys::Vector{GridKey{T,K
     #neighbor_vec = Vector{Vector{Tuple{K, K, T}}}(undef, Threads.nthreads())
     squared_radius = (spec.neighbor_distance) ^ 2
     prior_leaf_start = 0
+    # b = @views (positions.index[1:5], positions.position[1:5])
+    # println(typeof(b))
+
 #TODO make query_ into inquisitor, and target_ into quarry_ ??? lol
 #difficult because query_node is inquired upon, and becomes and inquisitor unto the following nodes
     @batch for chunk in 1:threads
@@ -1203,7 +1253,7 @@ Base.@propagate_inbounds function leafneighbor_traverse(keys::Vector{GridKey{T,K
             high = query_index * spec.atomsperleaf
             #persistent set of pointprimitives for duration of traversal with query_leaf
             #what if this were a staticarray?? huh, huh huhhhhhhh. dumb ideas
-            query_cluster = @view positions[low:high]
+            query_cluster = @views ( positions.index[low:high],  positions.position[low:high])
             
             ## the target is a changing identity that is either sentinel, internal, or leaf node
             target_index = query_leaf.skip
@@ -1238,7 +1288,7 @@ Base.@propagate_inbounds function leafneighbor_traverse(keys::Vector{GridKey{T,K
                         #@inbounds newproximity_test!(neighbor_vec[chunk], query_index, currentKey, positions, spec, squared_radius)
                         low = (target_index-1) * spec.atomsperleaf + 1
                         high = target_index * spec.atomsperleaf
-                        target_cluster = @view positions[low:high]
+                        target_cluster = @views ( positions.index[low:high],  positions.position[low:high])
                         
                         @inbounds twocluster_proximitytest!(neighbor_vec[chunk], query_cluster, target_cluster,  spec, squared_radius)
 
