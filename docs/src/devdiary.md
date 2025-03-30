@@ -1543,14 +1543,14 @@ On my system, I typically saw @btime of 20 ns for SIMD vectors and ~35 ns for th
 ```
 this method works, but it has aggressive allocation behavior. Using the `append!()` syntax with a tuple generator expression instead of SVector does behave normally, but actually has worse performance than sequential `push!()`. I have yet to find a sane way reduce a vector of floats by comparison to a threshold value. 
 
-### fin
+### calm before the fright
 My system suggests the potential for a < 30% perf improvement in `twocluster_proximitytest!()` for implementing the hybrid SIMD-scalar routine, shown below. I hope I can get as much of that as possible because I need every ounce to compete with CellListMap's prowess.
 
 ```julia
 Base.@propagate_inbounds function twocluster_proximitytest!(neighborlist, clusterA, clusterB, prealloc, lastalloc)
 
     vec_a = gather_A_direct(clusterA)
-    vec_b = gather_b_direct(clusterB)
+    vec_b = gather_B_direct(clusterB)
 
 
     for i in eachindex(vec_a)
@@ -1568,3 +1568,13 @@ Base.@propagate_inbounds function twocluster_proximitytest!(neighborlist, cluste
     return list
 end
 ```
+
+
+### implementation
+or rather, bugs encountered during implementation
+1. `gather_direct` had a y where there should have been a z, found by my partner.
+2. I did not add control logic to break simdbvh in cases where atomsperleaf was not 4.
+3. I incorrectly prepared `onecluster_proximitytest!`
+4. Copy and pasting code from `twocluster` into onecluste broke it in several ways, but particular from differences in function argument naming.
+
+well, now it works, down to 4.561 ms vs. 6.601 ms scalar leaf traversal

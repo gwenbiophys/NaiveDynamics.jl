@@ -39,7 +39,11 @@ export
     binwidth, 
     quantized_positions!,
     cluster_primitives,
-    delta
+    delta,
+    aabb_overlap_test,
+    onecluster_proximitytest!,
+    APointPrimitive,
+    leafcluster_primitives
 
 """
 struct SpheresBVHSpecs{T, K} 
@@ -1037,6 +1041,8 @@ Base.@propagate_inbounds function twocluster_proximitytest!(neighbors::Vector{Tu
     for i in eachindex(clusterA[2])
         for j in eachindex(clusterB[2])
             dxyz2 = sum( (clusterA[2][i] - clusterB[2][j]) .^2 )
+            #d2 = sqrt(dxyz2)
+            #println(clusterA[1][i], " ",  clusterB[1][j], " ", d2)
             if dxyz2 < squared_radius
                 d2 = sqrt(dxyz2)
                 push!(neighbors, (clusterA[1][i], clusterB[1][j], d2))
@@ -1291,7 +1297,6 @@ Base.@propagate_inbounds function leafneighbor_traverse(keys::Vector{GridKey{T,K
                         target_cluster = @views ( positions.index[low:high],  positions.position[low:high])
                         
                         @inbounds twocluster_proximitytest!(neighbor_vec[chunk], query_cluster, target_cluster,  spec, squared_radius)
-
                         #proximity_test!(neighbor_vec[chunk], query_index, currentKey, positions, spec)
                         target_index = target_node.skip
                     else #currentKey is a branch node, traverse to the left

@@ -8,6 +8,7 @@ using JLD2
 using StaticArrays
 
 using CellListMap
+using SIMD
 #using LinuxPerf
 #using IntelITT
 
@@ -98,7 +99,7 @@ close(f)
 bvhspec = SpheresBVHSpecs(; neighbor_distance=0.1,
                             atom_count=length(myposition),
                             floattype=Float32, 
-                            atomsperleaf = 5 
+                            atomsperleaf = 4 
 )
 simspec = SimSpec(; inttype=Int64,
                         floattype=Float32,
@@ -248,8 +249,9 @@ function bvh_naive(position, spec; usebtime=true)
         if length(position) < 50001
             a = threshold_pairs(unique_pairs(MVecposition), spec.neighbor_distance)
         end
-        # println(" simdbvh:")
-        # b = @btime simdbuild_traverse_bvh($position, $spec)
+        println(" simdbvh:")
+        b = @btime simdbuild_traverse_bvh($position, $spec)
+        #b =  simdbuild_traverse_bvh(position, spec)
         
 
         # println(" testsimdbvh:")
@@ -259,6 +261,7 @@ function bvh_naive(position, spec; usebtime=true)
         #b = @btime build_traverse_bvh($position, $spec)
         println("    leaf_bvh:")
         c = @btime leafbuild_traverse_bvh($position, $spec)
+        #c = leafbuild_traverse_bvh(position, spec)
         
         #     println("    expt_bvh:")
         # c = @btime exptbuild_traverse_bvh($position, $spec)
@@ -272,25 +275,11 @@ function bvh_naive(position, spec; usebtime=true)
         d = @btime neighborlist($position, $spec.neighbor_distance)
 
         sort!(a, by = x -> x[3])
-        #sort!(b, by = x -> x[3])
+        sort!(b, by = x -> x[3])
         sort!(c, by = x -> x[3])
         sort!(d, by = x -> x[3])
 
-        bvh_length = length(a)
-        counter=0
-        naivecounter=0
-        # for i in eachindex(b)
-        #     if b[i][3] == c[i][3]
-        #         counter+=1
-        #     end
-        # end
-
-        for i in eachindex(a)
-            if a[i][3] == c[i][3]
-                naivecounter+=1
-            end
-        end
-        # sort!(a, by = x -> x[1])
+                # sort!(a, by = x -> x[1])
         # sort!(b, by = x -> x[2])
         # sort!(b, by = x -> x[1])
         # # sort!(e, by = x -> x[2])
@@ -298,8 +287,30 @@ function bvh_naive(position, spec; usebtime=true)
         # sort!(c, by = x -> x[2])
         # sort!(c, by = x -> x[1])
         # sort!(d, by = x -> x[1])
-        println(length(a), " ",  " ", length(c), " ", length(d))#, " ", length(e))
+        println(length(a), " ", length(b), " ", length(c), " ", length(d))#, " ", length(e))
         #println(length(a), " ", length(b), " ", " ", length(d), " ")
+        #println(a[1], " ", a[length(a)], " ", b[1], " ", b[length(b)])
+        for i in eachindex(b)
+            if b[i][1] == b[i][2]
+                println("oh no")
+            end
+        end
+        return
+        bvh_length = length(a)
+        counter=0
+        naivecounter=0
+        for i in eachindex(b)
+            if b[i][3] == c[i][3]
+                counter+=1
+            end
+        end
+
+        for i in eachindex(a)
+            if a[i][3] == c[i][3]
+                naivecounter+=1
+            end
+        end
+
 
         # #lol i mean ig
         # for i in eachindex(b)
@@ -314,7 +325,7 @@ function bvh_naive(position, spec; usebtime=true)
         #     end
         # end
         if counter != bvh_length
-            println("BVH and leafBVH are unaligned, got $counter, needed $bvh_length")
+            println("simdleafbvh and (scalar)leafBVH are unaligned, got $counter, needed $bvh_length")
         end
         if naivecounter != bvh_length
             println("Naive and leafBVH are unaligned, got $counter, needed $bvh_length")
@@ -340,7 +351,7 @@ function bvh_naive(position, spec; usebtime=true)
             println()
             println(c)
             println()
-            println(d)
+            #println(d)
         end
     else
         # println("    naive:")
@@ -479,7 +490,7 @@ function profile_build_traverse( runs, position, bvhspec; allocs=false, allocrat
         @profview_allocs leafbuild_traverse_bvh(position, bvhspec) sample_rate = 1
         #@profview_allocs exptbuild_traverse_bvh(position, bvhspec) sample_rate = 1
         #@profview_allocs NaiveDynamics.gpubvh_neighborlist(backend, myposition, bvhspec)
-        #@profview_allocs simdbuild_traverse_bvh(position, bvhspec) sample_rate = 1
+        @profview_allocs simdbuild_traverse_bvh(position, bvhspec) sample_rate = 1
     else
         # @profview for i in 1:runs
         #     build_traverse_bvh(position, bvhspec)
@@ -493,22 +504,22 @@ function profile_build_traverse( runs, position, bvhspec; allocs=false, allocrat
         # @profview for i in 1:runs
         #     NaiveDynamics.gpubvh_neighborlist(backend, myposition, bvhspec)
         # end
-        # @profview for i in 1:runs
-        #     simdbuild_traverse_bvh(position, bvhspec)
-        # end
+        @profview for i in 1:runs
+            simdbuild_traverse_bvh(position, bvhspec)
+        end
         # @profview for i in 1:runs
         #     testsimdbuild_traverse_bvh(position, bvhspec)
         # end
-        @profview for i in 1:runs
-            neighborlist(position, bvhspec.neighbor_distance)
-        end
+        # @profview for i in 1:runs
+        #     neighborlist(position, bvhspec.neighbor_distance)
+        # end
     end
 end
 #exptbuild_traverse_bvh(myposition, bvhspec)
 #build_traverse_bvh(myposition, bvhspec)
 
-#profile_build_traverse(1500, myposition, bvhspec; allocs=false, allocrate = 1.0)
-#profile_build_traverse(400, myposition, bvhspec; allocs=true, allocrate = 1.0)
+profile_build_traverse(1500, myposition, bvhspec; allocs=false, allocrate = 1.0)
+profile_build_traverse(400, myposition, bvhspec; allocs=true, allocrate = 1.0)
 #From the perspective of the prime thread/the thread which does all of the work
 # we spend about 67% performing parallel traversal, 
 #about 15% managing the multithreading (most of this time is spend waiting), 

@@ -6,10 +6,11 @@ export
     record_video,
 
     #SIMD
-    simd_overlaptest,
+    #simd_overlaptest,
     simd_neighbor_traverse,
     simdbuild_traverse_bvh,
-    testsimdbuild_traverse_bvh,
+    #testsimdbuild_traverse_bvh,
+    simdtwocluster_proximitytest!,
 
     #GPU
     #gpuSpheresBVHSpecs,
@@ -34,6 +35,7 @@ function simd_neighbor_traverse end
 function simdbuild_traverse_bvh end
 
 function testsimdbuild_traverse_bvh end
+function simdtwocluster_proximitytest! end
 
 
 
