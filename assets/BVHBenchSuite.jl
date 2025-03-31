@@ -73,9 +73,9 @@ function simulate_noforces(; atoms, duration, thresh, usebtime=true )
     return nothing
 end
 
-f = jldopen("assets/positions/positions.jld2", "r")
-myposition = deepcopy(read(f, "pos5000"))
-close(f)
+# f = jldopen("assets/positions/positions.jld2", "r")
+# myposition = deepcopy(read(f, "pos5000"))
+# close(f)
 
 #simulate_noforces(position=myposition, duration=2, thresh=0.03, usebtime=false)
 # clct = GenericRandomCollector(; floattype=Float32,
@@ -96,6 +96,23 @@ close(f)
 #this was ridiculous to debug. Even though I was closing the jld2 file BEFORE
 #sending it to this funciton, that IO data was still being overwritten.
 #pos100 breaks at nD 0.15 and atoms perleaf 4
+
+
+clct = GenericStaticRandomCollector(; floattype=Float32,
+                            objectnumber=5000,
+                            minDim=tuple(0.0, 0.0, 0.0),
+                            maxDim=tuple(1.0, 1.0, 1.0),
+                            temperature=0.01,
+                            randomvelocity=false,
+                            minmass=1.0,
+                            maxmass=5.0,
+                            minimumdistance=0.0001,
+                            mincharge=-1f-9,
+                            maxcharge=1f-9,
+                            pregeneratedposition=true
+)
+
+myposition = generate_positions(clct)
 bvhspec = SpheresBVHSpecs(; neighbor_distance=0.1,
                             atom_count=length(myposition),
                             floattype=Float32, 
@@ -273,7 +290,7 @@ function bvh_naive(position, spec; usebtime=true)
 
         println(" CLM.jl:")
         d = @btime neighborlist($position, $spec.neighbor_distance)
-
+        return
         sort!(a, by = x -> x[3])
         sort!(b, by = x -> x[3])
         sort!(c, by = x -> x[3])

@@ -1578,3 +1578,10 @@ or rather, bugs encountered during implementation
 4. Copy and pasting code from `twocluster` into onecluste broke it in several ways, but particular from differences in function argument naming.
 
 well, now it works, down to 4.561 ms vs. 6.601 ms scalar leaf traversal
+and with Zen 4, we observe simd=1.326 vs. scalar=1.550 vs. CLM=1.574
+
+
+5. Profiling the Zen 4 machine gives odd results, where reduction of the per thread neighbor list takes 1100 ticks and 50% execution time for the SIMD method, while only taking 300 ticks and 10% time on the leaf traversal method. On my system, reduction takes 1500 ticks at 3% execution time for SIMD and 220 ticks for scalar. I implemented a reduction method based on CellListMap.jl's `reduce_lists` function to ssee if this was a problem they had already solved. And, perhaps I implemented it wrong, but it just takes Julia a long time to allocate an array of ~50 000 12 byte elements, apparently.
+
+
+And wow, this implementation works wonders. We now spend more time with the scalar evaluation, `d2 < threshold` sixteen times in a row , than with calculating the squared distance between 16 pairs of 3D points. It is hard to fully realize the speed because of the hybrid vector and scalar method.

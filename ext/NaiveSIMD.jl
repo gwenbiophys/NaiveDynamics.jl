@@ -15,6 +15,11 @@ struct SIMDPointPrimitive{T, K}
     y::Vector{T}
     z::Vector{T}
 end
+struct NeighborPair{T,K}
+    i::K
+    j::K
+    d2::T
+end
 function simdTreeData(position::Vec3D{T}, spec::SpheresBVHSpecs{T, K}) where {T, K}
     @assert spec.atomsperleaf == 4
     # pos = [IPointPrimitive{T,K}(i, 0, position[i]) for i in 1:spec.atom_count]
@@ -98,7 +103,7 @@ Base.@propagate_inbounds function gather_B_direct(a)
 
 end
 
-Base.@propagate_inbounds function simdonecluster_proximitytest!(list::Vector{Tuple{K, K, T}}, cluster,  spec::SpheresBVHSpecs{T, K}, squared_radius) where {T, K}
+Base.@propagate_inbounds function simdonecluster_proximitytest!(list, cluster,  spec::SpheresBVHSpecs{T, K}, squared_radius) where {T, K}
 
     prealloc = Vec{6, Float32}((0, 0, 0, 0, 0, 0))
     a = (1, 1, 1, 2, 2, 3)
@@ -122,6 +127,7 @@ Base.@propagate_inbounds function simdonecluster_proximitytest!(list::Vector{Tup
         #println(clusterA[1][indexA[i]], " ",  clusterB[1][indexB[i]], " ",  better[i])
         if better[i] < spec.neighbor_distance
             push!(list, (cluster[1][a[i]], cluster[1][b[i]], better[i]))
+            #push!(list, NeighborPair{T,K}(cluster[1][a[i]], cluster[1][b[i]], better[i]))
         end
     end
 
@@ -166,11 +172,12 @@ Base.@propagate_inbounds function simdtwocluster_proximitytest!(list, clusterA, 
     for i in eachindex(vec_a)
         preallloc += (vec_a[i] - vec_b[i]) ^ 2
     end
+
     #preallloc = sqrt(preallloc)
     #TODO last alloc can just be a locally defined NTuple. maybe NTuple is our direction to append! working well
     better = @inbounds NTuple{16, T}(sqrt(preallloc))
    # @inbounds vstore(prealloc, better, 1)
-    counter = 0
+
 
 #    there should just be another fxn called gather indices, and the prior can be gather_simd_positions and gather_positions
     indexA = (1,1,1,1, 2,2,2,2, 3,3,3,3, 4,4,4,4)
@@ -180,6 +187,7 @@ Base.@propagate_inbounds function simdtwocluster_proximitytest!(list, clusterA, 
         #println(clusterA[1][indexA[i]], " ",  clusterB[1][indexB[i]], " ",  better[i])
         if better[i] < spec.neighbor_distance
             push!(list, (clusterA[1][indexA[i]], clusterB[1][indexB[i]], better[i]))
+            #push!(list, NeighborPair{T,K}(clusterA[1][indexA[i]], clusterB[1][indexB[i]], better[i]))
         end
     end
     # for i in eachindex(clusterA[1])
@@ -269,14 +277,29 @@ Base.@propagate_inbounds function simdneighbor_traverse(keys::Vector{GridKey{T,K
                     else #currentKey is a branch node, traverse to the left
                         target_index = target_node.left
                     end
-                else #query is not contained, can cut off traversal on this 'left' section of the tree
+                else #query is not contained, can cut off traversal on the 'left' section of this tree
                     target_index = target_node.skip
                 end
 
             end
         end
     end
-    return reduce(vcat, neighbor_vec)
+    # it will not run if these are tuyples. I do not know why. And I can't even initialize SVector with this
+    #TODO get this to work without allocating an entire damn vector
+    neighbor_count = [length(neighbor_vec[i]) for i in eachindex(neighbor_vec)]
+    count_sums = cumsum(neighbor_count)
+
+    neighbors = Vector{Tuple{K,K,T}}(undef, count_sums[threads])
+    # reduction method directly inspired by CellListMap.jl's 'reduce_lists' function
+
+    for i in eachindex(neighbor_vec)
+        indy = count_sums[i] - neighbor_count[i] + 1
+        neighbors[indy:count_sums[i]] .= @view neighbor_vec[i][1:end]
+    end
+
+    
+    return neighbors
+    #return reduce(vcat, neighbor_vec)
 end
 
 function NaiveDynamics.simdbuild_traverse_bvh(position, spec::SpheresBVHSpecs{T, K}) where {T, K}
