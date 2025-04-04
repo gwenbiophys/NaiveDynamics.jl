@@ -113,7 +113,7 @@ clct = GenericStaticRandomCollector(; floattype=Float32,
 )
 
 myposition = generate_positions(clct)
-bvhspec = SpheresBVHSpecs(; neighbor_distance=0.1,
+bvhspec = SpheresBVHSpecs(; neighbor_distance=0.008,
                             atom_count=length(myposition),
                             floattype=Float32, 
                             atomsperleaf = 4 
@@ -289,12 +289,14 @@ function bvh_naive(position, spec; usebtime=true)
         # c=whole[1]
 
         println(" CLM.jl:")
-        d = @btime neighborlist($position, $spec.neighbor_distance)
-        return
+        #d = @btime neighborlist($position, $spec.neighbor_distance)
+        #return
         sort!(a, by = x -> x[3])
         sort!(b, by = x -> x[3])
+        #sort!(b.d2)
+        #println(b.d2[1])
         sort!(c, by = x -> x[3])
-        sort!(d, by = x -> x[3])
+        #sort!(d, by = x -> x[3])
 
                 # sort!(a, by = x -> x[1])
         # sort!(b, by = x -> x[2])
@@ -304,15 +306,16 @@ function bvh_naive(position, spec; usebtime=true)
         # sort!(c, by = x -> x[2])
         # sort!(c, by = x -> x[1])
         # sort!(d, by = x -> x[1])
-        println(length(a), " ", length(b), " ", length(c), " ", length(d))#, " ", length(e))
+        println(length(a), " ", length(b), " ", length(c), " ")#, length(d))#, " ", length(e))
+        #println(length(a), " ", length(b.d2), " ", length(c), " ")#, length(d))#, " ", length(e))
         #println(length(a), " ", length(b), " ", " ", length(d), " ")
         #println(a[1], " ", a[length(a)], " ", b[1], " ", b[length(b)])
-        for i in eachindex(b)
-            if b[i][1] == b[i][2]
-                println("oh no")
-            end
-        end
-        return
+        # for i in eachindex(b.d2)
+        #     if b.i[i] == b.j[i]
+        #         println("oh no")
+        #     end
+        # end
+        #return
         bvh_length = length(a)
         counter=0
         naivecounter=0
@@ -412,7 +415,7 @@ function bvh_naive(position, spec; usebtime=true)
             println(a)
             println()
             println(b)
-
+ 
             println()
             println(c)
             println(d)
@@ -535,8 +538,21 @@ end
 #exptbuild_traverse_bvh(myposition, bvhspec)
 #build_traverse_bvh(myposition, bvhspec)
 
-profile_build_traverse(1500, myposition, bvhspec; allocs=false, allocrate = 1.0)
-profile_build_traverse(400, myposition, bvhspec; allocs=true, allocrate = 1.0)
+#profile_build_traverse(1500, myposition, bvhspec; allocs=false, allocrate = 1.0)
+#profile_build_traverse(400, myposition, bvhspec; allocs=true, allocrate = 1.0)
+
+# @time for i in 1:10000
+#     leafbuild_traverse_bvh(myposition, bvhspec)
+# end
+# # @profview for i in 1:runs
+# #     exptbuild_traverse_bvh(position, bvhspec)
+# # end
+# # @profview for i in 1:runs
+# #     NaiveDynamics.gpubvh_neighborlist(backend, myposition, bvhspec)
+# # end
+# @time for i in 1:10000
+#     simdbuild_traverse_bvh(myposition, bvhspec)
+# end
 #From the perspective of the prime thread/the thread which does all of the work
 # we spend about 67% performing parallel traversal, 
 #about 15% managing the multithreading (most of this time is spend waiting), 

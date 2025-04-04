@@ -173,6 +173,7 @@ information based on other things the user input, like if single precision, then
 * [] write a style guide to structure contributions and make consistent our approach here.
       * [] shouldshould the tests be structured such that by reading them, you learn how the program works? and to what extent, to not having domain specific knowledge? I think yes tests that parallelized evaluations work as expected. but idk about like, safe usage of files so a 'user' doesn't break their local data. and should it go even further to the correct syntactical use of svectors vs mvectors? i think these are too far, unless this becomes both a research AND teaching repo.
 * []use `a for a in IterableContainer` and use `a[i] for i in eachindex(IterableContainer)` where syntactically appropriate. i.e. if we are not directly using the index numbers themselves, but only the values held at the indices, then get rid of `eachindex`
+* [] when can generator expressions use a symplified syntax `[0 for i=1:threads]` instead of using `[0 for i in 1:threads]`
 
 #### bugfixes from prior versions
 

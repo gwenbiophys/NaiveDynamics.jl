@@ -1584,4 +1584,28 @@ and with Zen 4, we observe simd=1.326 vs. scalar=1.550 vs. CLM=1.574
 5. Profiling the Zen 4 machine gives odd results, where reduction of the per thread neighbor list takes 1100 ticks and 50% execution time for the SIMD method, while only taking 300 ticks and 10% time on the leaf traversal method. On my system, reduction takes 1500 ticks at 3% execution time for SIMD and 220 ticks for scalar. I implemented a reduction method based on CellListMap.jl's `reduce_lists` function to ssee if this was a problem they had already solved. And, perhaps I implemented it wrong, but it just takes Julia a long time to allocate an array of ~50 000 12 byte elements, apparently.
 
 
-And wow, this implementation works wonders. We now spend more time with the scalar evaluation, `d2 < threshold` sixteen times in a row , than with calculating the squared distance between 16 pairs of 3D points. It is hard to fully realize the speed because of the hybrid vector and scalar method.
+And wow, this implementation works wonders. We now spend more time with the scalar evaluation, `d2 < threshold` sixteen times in a row , than with calculating the squared distance between 16 pairs of 3D points. It is hard to fully realize the speed because of the hybrid vector and scalar method. However, my best slapdash fully vectorized version using `SIMD.jl` was 100% slower in `@btime` than the hybrid method, and maybe 30% slower letting `@time` evaluate a loop of build_traverse 10000 times. And in the `@time` loop, the hybrid vector method was only slightly faster than the full scalar method.
+
+# 4 April, 2025 - we need better bench testing
+## what is the issue
+To develop my methods recently, I have been using isolated minimum functioning tests measured by `@btime`, analyzing 'if I shape the code like this, is it more than 10 ns faster?' This method is useful potentially at the lowest level to gauge the latency of work between two methods. But it is really inconsistent at the nanosecond scale and the seconds scale. And `@btime` rarely gives similar result to `@profview` of a function evaluated a thousand or more times, or to `@time` or `@b` from ChairmarkTools.jl. It does feel that my tools are indefinitely dishonest about their own precision, and I need to own that.
+
+### some steps forward
+We need a benchmarking suite that
+1. validates runtime precision several times throughout test runs
+2. validates correctness on every evaluation
+3. state a standard error that I declared is as accurate as possible
+4. the most deviation seems to come from Press Play to Press Play, and that deviation must be controlled and accounted for, to the best of my ability
+5. reason with Press Play to Press Play values, stating "oh hey, we expect this test under these conditions to go like this, but it went like this"
+6. evaluates performance of the input functions across a variety of test conditions
+
+So, if a benchmark run could
+1. print and store labeled graphs with standard error
+2. Error for correctness issues
+3. Make supplementary statements if performance is weird
+4. Test the code as it would reasonably be used in context.
+
+###
+the last point is quite important. I am nearly certain that a simulation with the fully vectorized method would outperform the hybrid method, unless Julian for-loops auto vectorize more intelligently than my crumpled up SIMD.jl code. Particularly from a data reuse policy, the fully vectorized method only needs to save the per thread vectors in order to have a fully enabled data reuse policy. The hybrid method is a couple steps behind in this regard.
+
+I think a keen idea would be to integrate my neighbor search into Molly.jl on CPU to provide a much richer testing ground than I currently have. At least, my simulations I remember became wildly unstable when any force was introduced. And testing a neighbor search routine without any forces does not sound like in context use of the code.
