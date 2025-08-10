@@ -43,7 +43,9 @@ export
     aabb_overlap_test,
     onecluster_proximitytest!,
     APointPrimitive,
-    leafcluster_primitives
+    leafcluster_primitives,
+    leafTreeData,
+    leafneighbor_traverse
 
 """
 struct SpheresBVHSpecs{T, K} 

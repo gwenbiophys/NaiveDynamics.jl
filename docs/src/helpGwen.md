@@ -56,3 +56,6 @@ using NaiveDynamics
 ## for type analysis
 @code_warntype will evaluate the function's types it is associated with
 
+## extension function has no methods / wont run
+Then you have to add "PackageName." in the definition of the function in the extension file, in addition to doing the other export control in src/PkgExtensions.jl.
+

@@ -2,17 +2,25 @@
 
 
 export
-    #Makie
+    ####Makie
     record_video,
 
-    #SIMD
+    ####SIMD
     #simd_overlaptest,
     simd_neighbor_traverse,
     simdbuild_traverse_bvh,
     #testsimdbuild_traverse_bvh,
     simdtwocluster_proximitytest!,
+    simdneighbor_traverse,
+    simdTreeData,
+    ####experimental SIMD methods
+    #simd_overlaptest,
+    exptsimd_neighbor_traverse,
+    exptsimdbuild_traverse_bvh,
+    #testsimdbuild_traverse_bvh,
+    exptsimdtwocluster_proximitytest!,
 
-    #GPU
+    ####GPU
     #gpuSpheresBVHSpecs,
     #gpuGridKey,
     gpubvh_neighborlist,
@@ -31,11 +39,16 @@ function record_video end
 function simd_overlaptest end
 
 function simd_neighbor_traverse end
+function simdneighbor_traverse end
+function simdTreeData end
 
 function simdbuild_traverse_bvh end
 
-function testsimdbuild_traverse_bvh end
+
 function simdtwocluster_proximitytest! end
+
+function exptsimd_neighbor_traverse end
+function exptsimdbuild_traverse_bvh end
 
 
 

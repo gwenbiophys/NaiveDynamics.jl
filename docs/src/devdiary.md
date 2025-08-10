@@ -1609,3 +1609,6 @@ So, if a benchmark run could
 the last point is quite important. I am nearly certain that a simulation with the fully vectorized method would outperform the hybrid method, unless Julian for-loops auto vectorize more intelligently than my crumpled up SIMD.jl code. Particularly from a data reuse policy, the fully vectorized method only needs to save the per thread vectors in order to have a fully enabled data reuse policy. The hybrid method is a couple steps behind in this regard.
 
 I think a keen idea would be to integrate my neighbor search into Molly.jl on CPU to provide a much richer testing ground than I currently have. At least, my simulations I remember became wildly unstable when any force was introduced. And testing a neighbor search routine without any forces does not sound like in context use of the code.
+
+# 10 August, 2025
+Back at it again to work towards profiling this application. Using LinuxPerf
